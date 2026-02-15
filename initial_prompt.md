@@ -24,7 +24,7 @@ Steps:
 5. Application uses parser on user input trying to get acceptance from the user about parsed data:
     - app asks if given string is a title,
     - app asks if given string is a date of an expense,
-    - app asks if given string is amount of expense.
+    - app asks if given string is amount of expense. **Maybe user can choose which fields they want to be on parsing output?**
 In case it won't be approved by the user, application asks if they are sure and whole process go back to point number 2.
 
 **1. Skip the configuration**
@@ -74,8 +74,19 @@ Additional information:
    3. In future it can also be some kind of widget related with budget planning.
 
 #### Export to .csv
-User is able to export expense database with their clasification to .csv file.
+- User is able to export expense database with their clasification to .csv file.
+- this functionality also needs to be open for extension. Users should be able to choose the layout of output file (which columns it will contain).
 
+#### CLI
+There are CLI commands that should have same functionalities as the app:
+1. llm-conf - process of setting up LLM Api Key through command line.
+2. bulk-insert <PATH_TO_CSV_FILE> - this command won't propt for user to configure LLM API KEY in case they don't have it. It will display warning, that api key is not configured and all expenses would need to be classified using classification database and/or manual clasification. bulk-insert command will go through same phases as in GUI: it tries to parse, assign categories (if LLM is configured). Then someone would need to approve this labeling and/or edit it. It's up to you (choose better UX) if this will be done by some kind of temporary file or inside shell.
+3. insert - insert only one expense. Asks user for clasification label
+4. export <GRAMMAR_FILE> - export classified expense data. GRAMMAR_FILE should define which columns would need to be exported. If you find it better to have grammar defined interactively than through grammar file it's ok, choose better UX approach.
+5. dashboard - opens the GUI app dashboard with widgets and data.
 
-How about command line interface?
+Questions:
+1. Dashboard: Simple HTML file that can be opened by browser, or more complicated app? Or maybe core is an app and dashboard is simple HTML page? With that approach people using CLI can browse only report.
+2. Do you think that there are some places that this app could be more open to contribution like parsers, widgets?
+3. Plan the work so that I can use git branches
 
