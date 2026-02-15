@@ -55,7 +55,7 @@ Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/co
 
 ### Database
 
-SQLite at `~/.local/share/4ccountant/4ccountant.db`. Schema auto-created via `migrate()`.
+SQLite at `~/Library/Application Support/4ccountant/4ccountant.db` (macOS). Schema auto-created via `migrate()`.
 
 Tables: `expenses`, `classification_rules` (regex pattern → category), `config` (key-value for LLM settings, widget state).
 
