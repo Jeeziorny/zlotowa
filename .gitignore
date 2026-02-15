@@ -3,3 +3,4 @@ dist/
 target/
 *.db
 .DS_Store
+docs/book/

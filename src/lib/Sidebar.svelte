@@ -29,6 +29,19 @@
     {/each}
   </nav>
 
+  <div class="px-3 mb-3">
+    <button
+      class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors
+        {currentPage === 'settings'
+        ? 'bg-gray-800 text-emerald-400'
+        : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}"
+      onclick={() => onnavigate("settings")}
+    >
+      <span class="text-lg">⚙</span>
+      <span>Settings</span>
+    </button>
+  </div>
+
   <div class="p-4 border-t border-gray-800 text-xs text-gray-600">
     v0.1.0
   </div>

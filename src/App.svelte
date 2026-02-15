@@ -4,6 +4,7 @@
   import AddExpense from "./lib/AddExpense.svelte";
   import BulkUpload from "./lib/BulkUpload.svelte";
   import ExpenseList from "./lib/ExpenseList.svelte";
+  import Settings from "./lib/Settings.svelte";
 
   let currentPage = $state("dashboard");
 </script>
@@ -20,6 +21,8 @@
       <BulkUpload />
     {:else if currentPage === "expenses"}
       <ExpenseList />
+    {:else if currentPage === "settings"}
+      <Settings />
     {/if}
   </main>
 </div>

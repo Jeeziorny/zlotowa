@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
 
   let title = $state("");
   let amount = $state("");
@@ -7,6 +8,40 @@
   let category = $state("");
   let message = $state("");
   let messageType = $state("");
+
+  let allCategories = $state([]);
+  let showCategorySuggestions = $state(false);
+  let suggestedCategory = $state("");
+
+  let filteredCategories = $derived(
+    category
+      ? allCategories.filter(c => c.toLowerCase().includes(category.toLowerCase()))
+      : allCategories
+  );
+
+  onMount(async () => {
+    try {
+      allCategories = await invoke("get_categories");
+    } catch (err) {
+      console.error("Failed to load categories:", err);
+    }
+  });
+
+  let debounceTimer;
+  function onTitleInput(e) {
+    title = e.target.value;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      if (title.trim().length >= 3) {
+        try {
+          const suggestion = await invoke("suggest_category", { title });
+          suggestedCategory = suggestion || "";
+        } catch { suggestedCategory = ""; }
+      } else {
+        suggestedCategory = "";
+      }
+    }, 300);
+  }
 
   async function submit() {
     if (!title || !amount || !date) {
@@ -30,6 +65,13 @@
       title = "";
       amount = "";
       category = "";
+      suggestedCategory = "";
+      date = new Date().toISOString().split("T")[0];
+
+      // Refresh categories list
+      try {
+        allCategories = await invoke("get_categories");
+      } catch {}
     } catch (err) {
       message = `Error: ${err}`;
       messageType = "error";
@@ -59,7 +101,8 @@
         <input
           id="title"
           type="text"
-          bind:value={title}
+          value={title}
+          oninput={onTitleInput}
           placeholder="e.g. Grocery store"
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
                  text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
@@ -81,14 +124,43 @@
 
       <div>
         <label class="block text-sm text-gray-400 mb-1" for="category">Category (optional)</label>
-        <input
-          id="category"
-          type="text"
-          bind:value={category}
-          placeholder="e.g. Groceries"
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
-        />
+        <div class="relative">
+          <input
+            id="category"
+            type="text"
+            bind:value={category}
+            oninput={() => showCategorySuggestions = true}
+            onfocus={() => showCategorySuggestions = true}
+            onblur={() => setTimeout(() => showCategorySuggestions = false, 150)}
+            placeholder="e.g. Groceries"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
+                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+          />
+          {#if showCategorySuggestions && filteredCategories.length > 0}
+            <div class="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700
+                        rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {#each filteredCategories as cat}
+                <button
+                  type="button"
+                  class="w-full text-left px-4 py-2 text-gray-200 hover:bg-gray-700
+                         transition-colors text-sm"
+                  onmousedown={() => { category = cat; showCategorySuggestions = false; }}
+                >
+                  {cat}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        {#if suggestedCategory && !category}
+          <button
+            type="button"
+            onclick={() => category = suggestedCategory}
+            class="mt-1 text-xs text-emerald-500 hover:text-emerald-400"
+          >
+            Suggested: {suggestedCategory} (click to apply)
+          </button>
+        {/if}
       </div>
 
       <button
