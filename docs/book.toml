@@ -1,0 +1,10 @@
+[book]
+title = "4ccountant"
+authors = ["Kamil Jeziorny"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "coal"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/kamiljeziorny/4ccountant"
