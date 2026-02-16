@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import DatePicker from "./DatePicker.svelte";
 
   let title = $state("");
   let amount = $state("");
@@ -8,6 +9,9 @@
   let category = $state("");
   let message = $state("");
   let messageType = $state("");
+
+  let rulePattern = $state("");
+  let showRulePattern = $state(false);
 
   let allCategories = $state([]);
   let showCategorySuggestions = $state(false);
@@ -36,7 +40,7 @@
         try {
           const suggestion = await invoke("suggest_category", { title });
           suggestedCategory = suggestion || "";
-        } catch { suggestedCategory = ""; }
+        } catch (err) { console.warn("Category suggestion failed:", err); suggestedCategory = ""; }
       } else {
         suggestedCategory = "";
       }
@@ -57,6 +61,7 @@
           amount: parseFloat(amount),
           date,
           category: category || null,
+          rule_pattern: (showRulePattern && rulePattern.trim()) ? rulePattern.trim() : null,
         },
       });
 
@@ -65,13 +70,15 @@
       title = "";
       amount = "";
       category = "";
+      rulePattern = "";
+      showRulePattern = false;
       suggestedCategory = "";
       date = new Date().toISOString().split("T")[0];
 
       // Refresh categories list
       try {
         allCategories = await invoke("get_categories");
-      } catch {}
+      } catch (err) { console.warn("Failed to refresh categories:", err); }
     } catch (err) {
       message = `Error: ${err}`;
       messageType = "error";
@@ -85,15 +92,8 @@
   <div class="max-w-lg bg-gray-900 rounded-xl p-6 border border-gray-800">
     <div class="space-y-4">
       <div>
-        <label class="block text-sm text-gray-400 mb-1" for="date">Date</label>
-        <input
-          id="date"
-          type="date"
-          bind:value={date}
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                 text-gray-100 focus:outline-none focus:border-emerald-500
-                 [color-scheme:dark]"
-        />
+        <label class="block text-sm text-gray-400 mb-1">Date</label>
+        <DatePicker value={date} onchange={(d) => date = d} />
       </div>
 
       <div>
@@ -107,6 +107,31 @@
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
                  text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
         />
+      </div>
+
+      <div>
+        {#if !showRulePattern}
+          <button
+            type="button"
+            onclick={() => { showRulePattern = true; rulePattern = title; }}
+            class="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+          >
+            Set match keyword...
+          </button>
+        {:else}
+          <label class="block text-sm text-gray-400 mb-1" for="rule-pattern">Match keyword</label>
+          <input
+            id="rule-pattern"
+            type="text"
+            bind:value={rulePattern}
+            placeholder="e.g. LIDL"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
+                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+          />
+          <p class="text-xs text-gray-600 mt-1">
+            Future expenses matching this keyword will be auto-categorized.
+          </p>
+        {/if}
       </div>
 
       <div>

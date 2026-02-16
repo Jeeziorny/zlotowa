@@ -12,9 +12,7 @@ Export your expenses to CSV from the **Expenses** page.
    - **Amount**
    - **Category**
    - **Classification Source** (how each expense was classified: DB Rule, LLM, or Manual)
-4. Click **Download CSV**
-
-The file is saved as `4ccountant-export-YYYY-MM-DD.csv`.
+4. Click **Download CSV** — a native file save dialog opens with a default name of `4ccountant-export-YYYY-MM-DD.csv`. Choose where to save the file.
 
 ## CLI export
 

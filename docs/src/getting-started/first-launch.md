@@ -13,10 +13,11 @@ When you open 4ccountant for the first time, you'll see an empty dashboard. Here
 
 ## Navigation
 
-The sidebar on the left has five sections:
+The sidebar on the left has six sections:
 
 - **Dashboard** — overview widgets showing your spending data
 - **Add Expense** — manually add a single expense
 - **Bulk Upload** — import many expenses from a CSV file
 - **Expenses** — browse all recorded expenses
+- **Categories** — manage, rename, merge, or delete categories
 - **Settings** — configure LLM provider (optional)

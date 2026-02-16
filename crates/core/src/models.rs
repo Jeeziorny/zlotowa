@@ -68,6 +68,98 @@ pub struct ClassificationRule {
     pub category: String,
 }
 
+impl ClassificationRule {
+    /// Create a case-insensitive regex rule from a pattern string.
+    pub fn from_pattern(pattern_source: &str, category: &str) -> Self {
+        let escaped = regex::escape(pattern_source);
+        Self {
+            id: None,
+            pattern: format!("(?i){}", escaped),
+            category: category.to_string(),
+        }
+    }
+}
+
+/// Category with usage statistics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryStats {
+    pub name: String,
+    pub expense_count: i64,
+    pub rule_count: i64,
+}
+
+/// Metadata for a bulk upload batch (used for undo/revert).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadBatch {
+    pub id: i64,
+    pub filename: Option<String>,
+    pub uploaded_at: String,
+    pub expense_count: i64,
+}
+
+/// A find/replace rule for cleaning up noisy bank transaction titles.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TitleCleanupRule {
+    pub id: Option<i64>,
+    pub pattern: String,
+    pub replacement: String,
+    pub is_regex: bool,
+}
+
+// ── Budget Models ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Budget {
+    pub id: Option<i64>,
+    pub year: i32,
+    pub month: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetCategory {
+    pub id: Option<i64>,
+    pub budget_id: i64,
+    pub category: String,
+    pub amount: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlannedExpense {
+    pub id: Option<i64>,
+    pub budget_id: i64,
+    pub title: String,
+    pub amount: f64,
+    pub date: NaiveDate,
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CalendarEvent {
+    pub id: Option<i64>,
+    pub budget_id: i64,
+    pub summary: String,
+    pub description: Option<String>,
+    pub location: Option<String>,
+    pub start_date: NaiveDate,
+    pub end_date: Option<NaiveDate>,
+    pub all_day: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetCategoryStatus {
+    pub category: String,
+    pub budgeted: f64,
+    pub spent: f64,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryAverage {
+    pub category: String,
+    pub average: f64,
+    pub months_with_data: u32,
+}
+
 /// Result of a bulk classification attempt.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClassifiedExpense {

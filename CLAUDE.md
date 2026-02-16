@@ -49,7 +49,7 @@ CSV → Parser (auto-detect format) → ParsedExpense → Classification Pipelin
 
 All commands in `src-tauri/src/lib.rs`. State is `AppState { db: Mutex<Database> }`.
 
-Key commands: `get_expenses`, `add_expense`, `suggest_category`, `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_categories`, `get/save/validate/clear_llm_config`, `export_expenses`, `get/save_active_widgets`.
+Key commands: `get_expenses`, `add_expense`, `suggest_category`, `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_categories`, `get/save/validate/clear_llm_config`, `export_expenses`, `get/save_active_widgets`, `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`, `get_budget_summary`, `save_budget_categories`, `add/delete_planned_expense`, `import_calendar_events`, `get_category_averages`, `get_upload_batches`, `delete_batch`.
 
 Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/core`.
 
@@ -57,7 +57,7 @@ Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/co
 
 SQLite at `~/Library/Application Support/4ccountant/4ccountant.db` (macOS). Schema auto-created via `migrate()`.
 
-Tables: `expenses`, `classification_rules` (regex pattern → category), `config` (key-value for LLM settings, widget state).
+Tables: `expenses` (has optional `batch_id` FK), `classification_rules` (regex pattern → category), `title_cleanup_rules` (find/replace rules for title noise), `config` (key-value for LLM settings, widget state), `budgets` (year/month), `budget_categories` (per-category limits), `planned_expenses` (upcoming costs), `calendar_events` (imported iCal events), `upload_batches` (filename, timestamp, count for bulk upload undo).
 
 Duplicate detection on `(title, amount, date)` tuple. Bulk inserts use transactions.
 
@@ -65,7 +65,7 @@ Error handling: `DbError` enum via `thiserror`.
 
 ### Frontend
 
-SPA routing in `App.svelte` with string-based page state. Pages: Dashboard, AddExpense, BulkUpload, ExpenseList, Settings.
+SPA routing in `App.svelte` with string-based page state. Pages: Dashboard, AddExpense, BulkUpload, ExpenseList, Categories, TitleCleanup, BudgetPlanning, Settings.
 
 Dashboard widgets registered in `src/lib/widgets/registry.js`, widget visibility/order persisted to DB.
 

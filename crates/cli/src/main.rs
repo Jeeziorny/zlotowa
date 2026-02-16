@@ -60,14 +60,6 @@ fn open_db() -> Database {
     })
 }
 
-fn make_rule(title: &str, category: &str) -> ClassificationRule {
-    let pattern = regex::escape(title);
-    ClassificationRule {
-        id: None,
-        pattern: format!("(?i){}", pattern),
-        category: category.to_string(),
-    }
-}
 
 // ── LLM Conf ──
 
@@ -208,7 +200,7 @@ fn cmd_insert(date: Option<String>, title: Option<String>, amount: Option<f64>, 
         Ok(id) => {
             println!("{} Expense #{} saved.", "OK".green().bold(), id);
             if let Some(ref c) = category_opt {
-                let _ = db.insert_rule(&make_rule(&title_val, c));
+                let _ = db.insert_rule(&ClassificationRule::from_pattern(&title_val, c));
             }
         }
         Err(e) => {
@@ -334,12 +326,18 @@ fn cmd_bulk_insert(path: PathBuf) {
         vec![Box::new(regex_classifier)];
     let classified = classify_pipeline(&parsed, &classifiers);
 
-    // Check duplicates
+    // Batch duplicate check
+    let dup_inputs: Vec<(&str, f64, &chrono::NaiveDate)> = classified
+        .iter()
+        .map(|(e, _)| (e.title.as_str(), e.amount, &e.date))
+        .collect();
+    let dup_flags = db.check_duplicates_batch(&dup_inputs).unwrap_or_else(|e| {
+        eprintln!("{} Duplicate check failed: {}", "Warning:".yellow(), e);
+        vec![false; classified.len()]
+    });
+
     let mut results: Vec<(String, f64, String, Option<String>, Option<String>, bool)> = Vec::new();
-    for (expense, result) in &classified {
-        let is_dup = db
-            .is_duplicate(&expense.title, expense.amount, &expense.date)
-            .unwrap_or(false);
+    for ((expense, result), &is_dup) in classified.iter().zip(dup_flags.iter()) {
         let (cat, source) = match result {
             Some(cr) => (Some(cr.category.clone()), Some(cr.source.to_string())),
             None => (None, None),
@@ -382,10 +380,10 @@ fn cmd_bulk_insert(path: PathBuf) {
                     match provider.classify_batch(&unclassified_expenses, &categories, &config) {
                         Ok(llm_results) => {
                             let mut llm_count = 0;
-                            for (idx, llm_cat) in unclassified_indices.iter().zip(llm_results.into_iter()) {
-                                if let Some(cat) = llm_cat {
-                                    results[*idx].3 = Some(cat);
-                                    results[*idx].4 = Some("Llm".to_string());
+                            for (idx, llm_result) in unclassified_indices.iter().zip(llm_results.into_iter()) {
+                                if let Some(classification) = llm_result {
+                                    results[*idx].3 = Some(classification.category);
+                                    results[*idx].4 = Some(ClassificationSource::Llm.to_string());
                                     llm_count += 1;
                                 }
                             }
@@ -473,12 +471,13 @@ fn cmd_bulk_insert(path: PathBuf) {
         });
         if let Some(ref cat) = r.3 {
             if !cat.is_empty() {
-                rules_to_save.push(make_rule(&r.0, cat));
+                rules_to_save.push(ClassificationRule::from_pattern(&r.0, cat));
             }
         }
     }
 
-    match db.insert_expenses_bulk(&to_insert) {
+    let filename = path.file_name().map(|n| n.to_string_lossy().to_string());
+    match db.insert_expenses_bulk(&to_insert, filename.as_deref()) {
         Ok(count) => {
             let _ = db.insert_rules_bulk(&rules_to_save);
             println!("{} {} expenses saved.", "OK".green().bold(), count);

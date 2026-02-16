@@ -1,0 +1,95 @@
+---
+  🔴 Critical
+
+  1. N+1 query in duplicate detection — src-tauri/src/lib.rs:186-189
+  parse_and_classify loops through each expense calling db.is_duplicate() individually, executing one COUNT query per expense. For bulk uploads of 100+ rows, this means 100+ separate DB
+  round-trips instead of one batch query.
+
+  2. .expect() panics on app startup — src-tauri/src/lib.rs:283, 304
+  Database::open_default().expect(...) and .expect("error while running tauri application") will crash with no user-facing error message. Database init failures (permissions, disk full)
+  should be handled gracefully.
+
+  3. Bulk save atomicity gap — src-tauri/src/lib.rs:246-254
+  Expenses are inserted in a transaction, but classification rules are saved separately outside that transaction. If the app crashes between the two operations, expenses exist without their
+  auto-generated rules, leaving the DB inconsistent.
+
+  4. preview_rows() loads entire file into memory — crates/core/src/parsers/csv_parser.rs:89-104
+  Returns ALL rows with no pagination or limit. A 1M-row CSV will cause OOM. Should stream or cap at a reasonable preview size.
+
+  5. Silent rule save failures — src-tauri/src/lib.rs:79, 252
+  Results of insert_rule() and insert_rules_bulk() are discarded with let _. User categorizes expenses expecting auto-rules to persist, but failures are silently ignored.
+
+  6. LLM docs describe non-existent features — docs/src/features/llm-config.md:9-20
+  Documents "OpenAI, Anthropic, or Ollama" providers with setup instructions, but no LlmProvider implementation exists anywhere. Users will store API keys that are never used.
+
+  ---
+  🟡 Warning
+
+  7. Zero Tauri IPC command tests — src-tauri/src/lib.rs
+  All 11 IPC commands (including critical workflows parse_and_classify, bulk_save_expenses) have zero unit tests. Mutex poisoning, DB errors, and logic errors all return generic String —
+  frontend can't distinguish error types.
+
+  8. No integration tests for core workflow — entire codebase
+  No test covers the parse → classify → save roundtrip. Auto-generated regex rules (make_classification_rule) are never validated to actually match future expenses.
+
+  9. Unnecessary .clone() in hot paths — crates/core/src/classifiers.rs:47,67,92, src-tauri/src/lib.rs:99,102,192,197,232,235
+  Multiple String and ParsedExpense clones in classification pipeline and IPC commands. IPC commands receive owned data — cloning before use is redundant.
+
+  10. Dead modules: exporters and LLM — crates/core/src/exporters.rs, crates/core/src/llm.rs
+  Exporter trait and LlmProvider trait defined with zero implementations. ~80 lines of dead code. LLM config is persisted to DB via Tauri commands but never consumed.
+
+  11. ClassificationSource string parsing is fragile — crates/core/src/models.rs:37-44
+  from_str_opt() only matches lowercase/capitalized variants. "DATABASE" (uppercase) returns None. Roundtrip through DB stores "database" but the function silently falls back to Manual on
+  mismatch via src-tauri/src/lib.rs:224-228.
+
+  12. category column nullable without clear semantics — crates/core/src/db.rs:59
+  NULL vs empty string both mean "uncategorized" but are handled differently throughout the codebase. Queries need both IS NOT NULL and != '' checks.
+
+  13. Missing index on classification_source — crates/core/src/db.rs:51-79
+  No index exists on this column. Filtering expenses by source (e.g., "show LLM-classified") would require full table scans.
+
+  14. Invalid regex rules silently accepted — crates/core/src/db.rs:176-182, crates/core/src/classifiers.rs:41-51
+  insert_rule() doesn't validate the pattern is valid regex. RegexClassifier::from_rules() silently drops invalid patterns via filter_map. User creates a rule with a typo — it's accepted,
+  stored, then silently ignored.
+
+  15. BulkUpload component is 570 lines — src/lib/BulkUpload.svelte:1-570
+  Handles 4 distinct UI steps with 9 functions and 24 state variables. Should be split into sub-components per step.
+
+  16. Missing aria-label on icon-only buttons — src/lib/Dashboard.svelte:114-138
+  Buttons with text content "←", "→", "×" have title attributes but no aria-label. Screen readers don't read title by default.
+
+  17. CLI crate docs mismatch — CLAUDE.md:32 vs crates/cli/src/main.rs:4-58
+  CLAUDE.md says CLI is "stub, not implemented" but a partial scaffold exists with clap CLI parser and 5 parsed commands. Misleading for contributors.
+
+  18. ClassificationSource::Llm is unreachable — crates/core/src/models.rs:17-24
+  The enum variant exists but no LLM classifier is in the pipeline, so expenses can never have this source. Dead code path documented as functional in docs/src/.
+
+  ---
+  🔵 Suggestion
+
+  19. Missing #[must_use] on Result-returning functions — crates/core/src/db.rs (all public methods)
+  None of the Result-returning functions have #[must_use]. Adding it would catch silent error ignoring at compile time.
+
+  20. pub visibility too broad — crates/core/src/parsers/csv_parser.rs:5, crates/core/src/exporters.rs:14, crates/core/src/llm.rs:16
+  CsvParser, ExportColumns, and LlmConfig are pub but only used internally. Should be pub(crate).
+
+  21. Hardcoded version string — src/lib/Sidebar.svelte:46
+  v0.1.0 hardcoded in component. Should be injected from package.json via build step to avoid sync issues.
+
+  22. Hardcoded date formats — src/lib/BulkUpload.svelte:29-37
+  Array of date format strings defined inline. Should be extracted to a shared constant for reuse.
+
+  23. Drop zone not keyboard-accessible — src/lib/BulkUpload.svelte:217-223
+  Div with role="button" and tabindex="0" has drag handlers but no onkeydown for Enter/Space activation.
+
+  24. Dynamic inline styles (justified) — src/lib/widgets/SpendingByCategory.svelte:32, src/lib/widgets/MonthlyTrend.svelte:43
+  Inline style for computed percentage widths/heights. Acceptable for dynamic values but worth noting as deviation from Tailwind-only approach.
+
+  25. Test helper duplication — crates/core/src/db.rs, crates/core/src/classifiers.rs
+  Two different make_expense() test helpers exist. Could be centralized into a shared test utility.
+
+  26. classification_source stored as TEXT — crates/core/src/db.rs:54-61
+  Uses TEXT ("database", "llm", "manual") instead of INTEGER with a lookup table. Minor storage inefficiency.
+
+  ---
+  Totals: 6 critical, 12 warnings, 8 suggestions across Rust, Svelte, database, tests, architecture, and docs.

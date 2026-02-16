@@ -1,7 +1,11 @@
 use accountant_core::classifiers::{classify_pipeline, Classifier, RegexClassifier};
 use accountant_core::db::Database;
 use accountant_core::llm::{create_provider, LlmConfig};
-use accountant_core::models::{ClassificationRule, ClassificationSource, Expense, ParsedExpense};
+use accountant_core::models::{
+    BudgetCategory, BudgetCategoryStatus, CalendarEvent, CategoryAverage, CategoryStats,
+    ClassificationRule, ClassificationSource, Expense, ParsedExpense, PlannedExpense,
+    TitleCleanupRule, UploadBatch,
+};
 use accountant_core::parsers::{self, ColumnMapping};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -19,6 +23,7 @@ pub struct ExpenseInput {
     pub amount: f64,
     pub date: String,
     pub category: Option<String>,
+    pub rule_pattern: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -46,6 +51,7 @@ pub struct ClassifiedExpenseRow {
     pub date: String,
     pub category: Option<String>,
     pub source: Option<String>,
+    pub confidence: Option<f64>,
     pub is_duplicate: bool,
 }
 
@@ -56,6 +62,7 @@ pub struct BulkSaveExpense {
     pub date: String,
     pub category: Option<String>,
     pub source: Option<String>,
+    pub rule_pattern: Option<String>,
 }
 
 // ── Helpers ──
@@ -65,19 +72,14 @@ fn parse_date(s: &str) -> Result<chrono::NaiveDate, String> {
         .map_err(|e| format!("Invalid date '{}': {}", s, e))
 }
 
-fn make_classification_rule(title: &str, category: &str) -> ClassificationRule {
-    let pattern = regex::escape(title);
-    ClassificationRule {
-        id: None,
-        pattern: format!("(?i){}", pattern),
-        category: category.to_string(),
-    }
-}
-
-fn save_rule_if_categorized(db: &Database, title: &str, category: &Option<String>) {
+fn save_rule_if_categorized(db: &Database, title: &str, category: &Option<String>, rule_pattern: &Option<String>) {
     if let Some(cat) = category {
         if !cat.is_empty() {
-            let _ = db.insert_rule(&make_classification_rule(title, cat));
+            let pattern_source = rule_pattern
+                .as_deref()
+                .filter(|p| !p.is_empty())
+                .unwrap_or(title);
+            let _ = db.insert_rule(&ClassificationRule::from_pattern(pattern_source, cat));
         }
     }
 }
@@ -105,7 +107,7 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
     };
 
     let id = db.insert_expense(&expense).map_err(|e| e.to_string())?;
-    save_rule_if_categorized(&db, &input.title, &input.category);
+    save_rule_if_categorized(&db, &input.title, &input.category, &input.rule_pattern);
     Ok(id)
 }
 
@@ -113,6 +115,37 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
 fn get_categories(state: State<AppState>) -> Result<Vec<String>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.get_all_categories().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let date = parse_date(&input.date)?;
+
+    let expense = Expense {
+        id: Some(id),
+        title: input.title.clone(),
+        amount: input.amount,
+        date,
+        category: input.category.clone(),
+        classification_source: Some(ClassificationSource::Manual),
+    };
+
+    db.update_expense(&expense).map_err(|e| e.to_string())?;
+    save_rule_if_categorized(&db, &input.title, &input.category, &input.rule_pattern);
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_expense(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_expense(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_expenses(state: State<AppState>, ids: Vec<i64>) -> Result<usize, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_expenses(&ids).map_err(|e| e.to_string())
 }
 
 // ── LLM Config Commands ──
@@ -224,16 +257,19 @@ fn parse_and_classify(
         vec![Box::new(regex_classifier)];
     let classified = classify_pipeline(&parsed, &classifiers);
 
-    // Check for duplicates and build initial result
-    let mut rows: Vec<ClassifiedExpenseRow> = Vec::new();
-    for (expense, class_result) in &classified {
-        let is_dup = db
-            .is_duplicate(&expense.title, expense.amount, &expense.date)
-            .map_err(|e| e.to_string())?;
+    // Batch duplicate check
+    let dup_inputs: Vec<(&str, f64, &chrono::NaiveDate)> = classified
+        .iter()
+        .map(|(e, _)| (e.title.as_str(), e.amount, &e.date))
+        .collect();
+    let dup_flags = db.check_duplicates_batch(&dup_inputs).map_err(|e| e.to_string())?;
 
-        let (category, source) = match class_result {
-            Some(cr) => (Some(cr.category.clone()), Some(cr.source.to_string())),
-            None => (None, None),
+    // Build initial result
+    let mut rows: Vec<ClassifiedExpenseRow> = Vec::new();
+    for ((expense, class_result), &is_dup) in classified.iter().zip(dup_flags.iter()) {
+        let (category, source, confidence) = match class_result {
+            Some(cr) => (Some(cr.category.clone()), Some(cr.source.to_string()), Some(cr.confidence)),
+            None => (None, None, None),
         };
 
         rows.push(ClassifiedExpenseRow {
@@ -242,6 +278,7 @@ fn parse_and_classify(
             date: expense.date.to_string(),
             category,
             source,
+            confidence,
             is_duplicate: is_dup,
         });
     }
@@ -268,11 +305,14 @@ fn parse_and_classify(
                     let categories = db.get_all_categories().unwrap_or_default();
                     let unclassified_expenses: Vec<ParsedExpense> = unclassified_indices
                         .iter()
-                        .map(|&i| ParsedExpense {
-                            title: rows[i].title.clone(),
-                            amount: rows[i].amount,
-                            date: chrono::NaiveDate::parse_from_str(&rows[i].date, "%Y-%m-%d")
-                                .unwrap_or_else(|_| chrono::Local::now().date_naive()),
+                        .filter_map(|&i| {
+                            let row = rows.get(i)?;
+                            Some(ParsedExpense {
+                                title: row.title.clone(),
+                                amount: row.amount,
+                                date: chrono::NaiveDate::parse_from_str(&row.date, "%Y-%m-%d")
+                                    .unwrap_or_else(|_| chrono::Local::now().date_naive()),
+                            })
                         })
                         .collect();
 
@@ -280,12 +320,15 @@ fn parse_and_classify(
                     if let Ok(llm_results) =
                         provider.classify_batch(&unclassified_expenses, &categories, &config)
                     {
-                        for (idx, llm_cat) in
+                        for (idx, llm_result) in
                             unclassified_indices.iter().zip(llm_results.into_iter())
                         {
-                            if let Some(cat) = llm_cat {
-                                rows[*idx].category = Some(cat);
-                                rows[*idx].source = Some("Llm".to_string());
+                            if let Some(classification) = llm_result {
+                                if let Some(row) = rows.get_mut(*idx) {
+                                    row.category = Some(classification.category);
+                                    row.source = Some(ClassificationSource::Llm.to_string());
+                                    row.confidence = Some(classification.confidence);
+                                }
                             }
                         }
                     }
@@ -312,7 +355,8 @@ pub struct ExportColumnsInput {
 fn export_expenses(
     state: State<AppState>,
     columns: ExportColumnsInput,
-) -> Result<Vec<u8>, String> {
+    path: String,
+) -> Result<(), String> {
     use accountant_core::exporters::{CsvExporter, ExportColumns, Exporter};
 
     let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -327,7 +371,8 @@ fn export_expenses(
     };
 
     let exporter = CsvExporter;
-    exporter.export(&expenses, &export_columns).map_err(|e| e.to_string())
+    let bytes = exporter.export(&expenses, &export_columns).map_err(|e| e.to_string())?;
+    std::fs::write(&path, &bytes).map_err(|e| format!("Failed to write file: {}", e))
 }
 
 // ── Bulk Save ──
@@ -336,6 +381,7 @@ fn export_expenses(
 fn bulk_save_expenses(
     state: State<AppState>,
     expenses: Vec<BulkSaveExpense>,
+    filename: Option<String>,
 ) -> Result<usize, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -362,20 +408,328 @@ fn bulk_save_expenses(
 
         if let Some(ref cat) = e.category {
             if !cat.is_empty() {
-                rules.push(make_classification_rule(&e.title, cat));
+                let pattern_source = e.rule_pattern
+                    .as_deref()
+                    .filter(|p| !p.is_empty())
+                    .unwrap_or(&e.title);
+                rules.push(ClassificationRule::from_pattern(pattern_source, cat));
             }
         }
     }
 
     // Insert atomically
     let saved = db
-        .insert_expenses_bulk(&to_insert)
+        .insert_expenses_bulk(&to_insert, filename.as_deref())
         .map_err(|e| e.to_string())?;
 
     // Save rules (best-effort, don't fail the whole operation)
     let _ = db.insert_rules_bulk(&rules);
 
     Ok(saved)
+}
+
+// ── Upload Batch Management ──
+
+#[tauri::command]
+fn get_upload_batches(state: State<AppState>) -> Result<Vec<UploadBatch>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_upload_batches().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_batch(state: State<AppState>, batch_id: i64) -> Result<usize, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_batch(batch_id).map_err(|e| e.to_string())
+}
+
+// ── Category Management ──
+
+#[tauri::command]
+fn get_category_stats(state: State<AppState>) -> Result<Vec<CategoryStats>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_category_stats().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_category(state: State<AppState>, name: String) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    if db.category_exists(&name).map_err(|e| e.to_string())? {
+        return Err(format!("Category '{}' already exists", name));
+    }
+    db.create_category(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn rename_category(state: State<AppState>, old_name: String, new_name: String) -> Result<(), String> {
+    if old_name == new_name {
+        return Ok(());
+    }
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    if old_name.to_lowercase() != new_name.to_lowercase()
+        && db.category_exists(&new_name).map_err(|e| e.to_string())?
+    {
+        return Err(format!("Category '{}' already exists", new_name));
+    }
+    db.rename_category(&old_name, &new_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_category(state: State<AppState>, category: String, replacement: String) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_category(&category, &replacement).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn merge_categories(state: State<AppState>, sources: Vec<String>, target: String) -> Result<(), String> {
+    if sources.is_empty() || target.is_empty() {
+        return Err("Sources and target must not be empty".to_string());
+    }
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.merge_categories(&sources, &target).map_err(|e| e.to_string())
+}
+
+// ── Title Cleanup ──
+
+#[derive(Serialize, Deserialize)]
+pub struct TitleCleanupPreview {
+    pub expense_id: i64,
+    pub original: String,
+    pub cleaned: String,
+}
+
+#[tauri::command]
+fn get_title_cleanup_rules(state: State<AppState>) -> Result<Vec<TitleCleanupRule>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_all_title_cleanup_rules().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_title_cleanup_rule(state: State<AppState>, rule: TitleCleanupRule) -> Result<i64, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    if let Some(id) = rule.id {
+        db.update_title_cleanup_rule(&rule).map_err(|e| e.to_string())?;
+        Ok(id)
+    } else {
+        db.insert_title_cleanup_rule(&rule).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+fn delete_title_cleanup_rule(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_title_cleanup_rule(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn preview_title_cleanup(state: State<AppState>, rule: TitleCleanupRule) -> Result<Vec<TitleCleanupPreview>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let results = db.preview_title_cleanup(&rule).map_err(|e| e.to_string())?;
+    Ok(results
+        .into_iter()
+        .map(|(expense_id, original, cleaned)| TitleCleanupPreview {
+            expense_id,
+            original,
+            cleaned,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn apply_title_cleanup(state: State<AppState>, rule_id: i64, expense_ids: Vec<i64>) -> Result<usize, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let rule = db.get_title_cleanup_rule(rule_id).map_err(|e| e.to_string())?;
+    db.apply_title_cleanup(&rule, &expense_ids).map_err(|e| e.to_string())
+}
+
+// ── Budget Planning ──
+
+#[derive(Serialize, Deserialize)]
+pub struct BudgetCategoryInput {
+    pub category: String,
+    pub amount: f64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PlannedExpenseInput {
+    pub title: String,
+    pub amount: f64,
+    pub date: String,
+    pub category: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BudgetSummaryOutput {
+    pub budget_id: i64,
+    pub year: i32,
+    pub month: u32,
+    pub categories: Vec<BudgetCategoryStatus>,
+    pub budget_categories: Vec<BudgetCategoryInput>,
+    pub planned_expenses: Vec<PlannedExpense>,
+    pub calendar_events: Vec<CalendarEvent>,
+    pub total_budgeted: f64,
+    pub total_spent: f64,
+    pub total_planned: f64,
+}
+
+#[tauri::command]
+fn get_budget_summary(
+    state: State<AppState>,
+    year: i32,
+    month: u32,
+) -> Result<BudgetSummaryOutput, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
+
+    let budget_cats = db.get_budget_categories(budget_id).map_err(|e| e.to_string())?;
+    let planned = db.get_planned_expenses(budget_id).map_err(|e| e.to_string())?;
+    let cal_events = db.get_calendar_events(budget_id).map_err(|e| e.to_string())?;
+    let actual_expenses = db.get_expenses_for_month(year, month).map_err(|e| e.to_string())?;
+
+    // Compute per-category status
+    let mut category_statuses: Vec<BudgetCategoryStatus> = Vec::new();
+    let mut total_budgeted = 0.0;
+    let mut total_spent = 0.0;
+
+    for bc in &budget_cats {
+        let spent: f64 = actual_expenses
+            .iter()
+            .filter(|e| e.category.as_deref() == Some(&bc.category))
+            .map(|e| e.amount)
+            .sum();
+
+        let ratio = if bc.amount > 0.0 { spent / bc.amount } else { 0.0 };
+        let status = if ratio > 1.0 {
+            "over"
+        } else if ratio >= 0.8 {
+            "approaching"
+        } else {
+            "under"
+        };
+
+        total_budgeted += bc.amount;
+        total_spent += spent;
+
+        category_statuses.push(BudgetCategoryStatus {
+            category: bc.category.clone(),
+            budgeted: bc.amount,
+            spent,
+            status: status.to_string(),
+        });
+    }
+
+    let total_planned: f64 = planned.iter().map(|p| p.amount).sum();
+
+    let budget_category_inputs: Vec<BudgetCategoryInput> = budget_cats
+        .iter()
+        .map(|bc| BudgetCategoryInput {
+            category: bc.category.clone(),
+            amount: bc.amount,
+        })
+        .collect();
+
+    Ok(BudgetSummaryOutput {
+        budget_id,
+        year,
+        month,
+        categories: category_statuses,
+        budget_categories: budget_category_inputs,
+        planned_expenses: planned,
+        calendar_events: cal_events,
+        total_budgeted,
+        total_spent,
+        total_planned,
+    })
+}
+
+#[tauri::command]
+fn save_budget_categories(
+    state: State<AppState>,
+    year: i32,
+    month: u32,
+    categories: Vec<BudgetCategoryInput>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
+
+    let cats: Vec<BudgetCategory> = categories
+        .into_iter()
+        .map(|c| BudgetCategory {
+            id: None,
+            budget_id,
+            category: c.category,
+            amount: c.amount,
+        })
+        .collect();
+
+    db.save_budget_categories(budget_id, &cats)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn add_planned_expense(
+    state: State<AppState>,
+    year: i32,
+    month: u32,
+    expense: PlannedExpenseInput,
+) -> Result<i64, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
+    let date = parse_date(&expense.date)?;
+
+    let pe = PlannedExpense {
+        id: None,
+        budget_id,
+        title: expense.title,
+        amount: expense.amount,
+        date,
+        category: expense.category,
+    };
+
+    db.insert_planned_expense(&pe).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_planned_expense(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_planned_expense(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn import_calendar_events(
+    state: State<AppState>,
+    year: i32,
+    month: u32,
+    ics_content: String,
+) -> Result<usize, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
+
+    let all_events =
+        accountant_core::ical::parse_ics(&ics_content).map_err(|e| e.to_string())?;
+    let filtered = accountant_core::ical::filter_events_by_month(&all_events, year, month);
+
+    let cal_events: Vec<CalendarEvent> = filtered
+        .into_iter()
+        .map(|e| CalendarEvent {
+            id: None,
+            budget_id,
+            summary: e.summary,
+            description: e.description,
+            location: e.location,
+            start_date: e.start_date,
+            end_date: e.end_date,
+            all_day: e.all_day,
+        })
+        .collect();
+
+    db.save_calendar_events(budget_id, &cal_events)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_category_averages(state: State<AppState>) -> Result<Vec<CategoryAverage>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_category_averages(3).map_err(|e| e.to_string())
 }
 
 // ── Dashboard Widget Config ──
@@ -404,16 +758,23 @@ fn save_active_widgets(state: State<AppState>, widget_ids: Vec<String>) -> Resul
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let db = Database::open_default().expect("Failed to open database");
+    let db = Database::open_default().unwrap_or_else(|e| {
+        eprintln!("Fatal: failed to open database: {e}");
+        std::process::exit(1);
+    });
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             db: Mutex::new(db),
         })
         .invoke_handler(tauri::generate_handler![
             get_expenses,
             add_expense,
+            update_expense,
+            delete_expense,
+            delete_expenses,
             get_categories,
             suggest_category,
             get_llm_config,
@@ -424,9 +785,30 @@ pub fn run() {
             parse_and_classify,
             export_expenses,
             bulk_save_expenses,
+            get_upload_batches,
+            delete_batch,
+            get_category_stats,
+            create_category,
+            rename_category,
+            delete_category,
+            merge_categories,
             get_active_widgets,
             save_active_widgets,
+            get_budget_summary,
+            save_budget_categories,
+            add_planned_expense,
+            delete_planned_expense,
+            import_calendar_events,
+            get_category_averages,
+            get_title_cleanup_rules,
+            save_title_cleanup_rule,
+            delete_title_cleanup_rule,
+            preview_title_cleanup,
+            apply_title_cleanup,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            eprintln!("Fatal: failed to start application: {e}");
+            std::process::exit(1);
+        });
 }

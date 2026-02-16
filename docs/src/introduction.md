@@ -8,6 +8,7 @@
 - **Auto-classify** — the app learns categories from your past decisions and applies them to new expenses automatically using pattern matching
 - **LLM support** (optional) — connect an AI provider (OpenAI, Anthropic, or Ollama) to classify expenses that don't match any existing rules
 - **Export** — export your expenses to CSV with customizable column selection
+- **Category management** — rename, merge, and delete categories across all expenses and rules
 - **Dashboard** — configurable widgets showing spending breakdowns, trends, and statistics
 - **CLI** — terminal interface for all core features (`4ccountant` binary)
 

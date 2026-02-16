@@ -26,56 +26,77 @@ pub trait LlmProvider: Send + Sync {
     /// Validate that the API key / connection works.
     fn validate(&self, config: &LlmConfig) -> Result<(), LlmError>;
 
-    /// Classify a batch of expenses, returning suggested category for each.
+    /// Classify a batch of expenses, returning suggested category and confidence for each.
     fn classify_batch(
         &self,
         expenses: &[ParsedExpense],
         existing_categories: &[String],
         config: &LlmConfig,
-    ) -> Result<Vec<Option<String>>, LlmError>;
+    ) -> Result<Vec<Option<LlmClassification>>, LlmError>;
+}
+
+/// Classification result from LLM including confidence.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LlmClassification {
+    pub category: String,
+    pub confidence: f64,
 }
 
 /// Build the classification prompt for all providers.
 fn build_classification_prompt(expenses: &[ParsedExpense], existing_categories: &[String]) -> String {
-    let cats = if existing_categories.is_empty() {
-        "None yet — suggest appropriate categories.".to_string()
+    let category_instruction = if existing_categories.is_empty() {
+        "No existing categories yet — suggest appropriate short category names.".to_string()
     } else {
-        existing_categories.join(", ")
+        format!(
+            "Known categories: [{}]\n\
+             Choose from the known categories whenever possible. Only invent a new category if the expense genuinely doesn't fit ANY existing one.",
+            existing_categories.join(", ")
+        )
     };
 
     let mut expense_list = String::new();
     for (i, e) in expenses.iter().enumerate() {
-        expense_list.push_str(&format!("{}. {}\n", i + 1, e.title));
+        expense_list.push_str(&format!("{}. {} — {:.2}\n", i + 1, e.title, e.amount));
     }
 
     format!(
-        "You are an expense classifier. Given these expense titles and a list of known categories, \
-         assign each expense to the most appropriate category. If none fit, suggest a new short category name.\n\n\
-         Known categories: [{}]\n\n\
+        "You are an expense classifier. Assign each expense to the most appropriate category.\n\n\
+         {}\n\n\
          Expenses:\n{}\n\
-         Respond with ONLY a JSON array of category strings, one per expense. Example: [\"Groceries\", \"Transport\"]\n\
-         Do not include any other text, explanation, or markdown formatting.",
-        cats, expense_list
+         For each expense, respond with a JSON array of objects. Each object must have:\n\
+         - \"id\": the expense number (1-based)\n\
+         - \"category\": the assigned category string\n\
+         - \"confidence\": \"high\", \"medium\", or \"low\"\n\n\
+         Use \"low\" confidence if the title is too vague or cryptic to classify reliably \
+         (e.g. reference numbers, generic payment descriptions).\n\n\
+         Example: [{{\"id\": 1, \"category\": \"Groceries\", \"confidence\": \"high\"}}]\n\
+         Respond with ONLY the JSON array. No other text.",
+        category_instruction, expense_list
     )
 }
 
-/// Parse a JSON array of category strings from an LLM response.
-/// Handles responses that may include markdown code fences or extra text.
-fn parse_classification_response(response: &str, expected_count: usize) -> Result<Vec<Option<String>>, LlmError> {
-    // Strip markdown code fences if present
+fn confidence_str_to_f64(s: &str) -> f64 {
+    match s.to_lowercase().as_str() {
+        "high" => 0.9,
+        "medium" => 0.6,
+        "low" => 0.3,
+        _ => 0.5,
+    }
+}
+
+/// Extract JSON array from LLM response, handling markdown fences and extra text.
+fn extract_json_array(response: &str) -> Result<Vec<serde_json::Value>, LlmError> {
     let cleaned = response.trim();
     let cleaned = if cleaned.starts_with("```") {
-        let inner = cleaned
+        cleaned
             .trim_start_matches("```json")
             .trim_start_matches("```")
             .trim_end_matches("```")
-            .trim();
-        inner
+            .trim()
     } else {
         cleaned
     };
 
-    // Find the JSON array in the response
     let start = cleaned.find('[').ok_or_else(|| {
         LlmError::RequestFailed(format!("No JSON array found in response: {}", &response[..response.len().min(200)]))
     })?;
@@ -84,25 +105,45 @@ fn parse_classification_response(response: &str, expected_count: usize) -> Resul
     })?;
 
     let json_str = &cleaned[start..=end];
-    let parsed: Vec<serde_json::Value> = serde_json::from_str(json_str)
-        .map_err(|e| LlmError::RequestFailed(format!("Failed to parse JSON: {}", e)))?;
+    serde_json::from_str(json_str)
+        .map_err(|e| LlmError::RequestFailed(format!("Failed to parse JSON: {}", e)))
+}
 
-    if parsed.len() != expected_count {
-        return Err(LlmError::RequestFailed(format!(
-            "Expected {} categories, got {}",
-            expected_count,
-            parsed.len()
-        )));
+/// Parse keyed response format: [{"id": 1, "category": "...", "confidence": "high"}, ...]
+/// Results are indexed by ID (1-based) into a Vec of size expected_count.
+/// Missing IDs result in None — partial results are accepted.
+fn parse_classification_response(response: &str, expected_count: usize) -> Result<Vec<Option<LlmClassification>>, LlmError> {
+    let parsed = extract_json_array(response)?;
+
+    let mut results: Vec<Option<LlmClassification>> = vec![None; expected_count];
+
+    for item in &parsed {
+        // Support both keyed format (new) and flat string format (legacy)
+        if let Some(obj) = item.as_object() {
+            let id = obj.get("id").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            let category = obj.get("category").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let confidence_str = obj.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium");
+
+            if id >= 1 && id <= expected_count && !category.is_empty() {
+                results[id - 1] = Some(LlmClassification {
+                    category,
+                    confidence: confidence_str_to_f64(confidence_str),
+                });
+            }
+        } else if let Some(s) = item.as_str() {
+            // Legacy flat string fallback — assign in order to first empty slot
+            if !s.is_empty() {
+                if let Some(slot) = results.iter_mut().find(|r| r.is_none()) {
+                    *slot = Some(LlmClassification {
+                        category: s.to_string(),
+                        confidence: 0.6,
+                    });
+                }
+            }
+        }
     }
 
-    Ok(parsed
-        .into_iter()
-        .map(|v| match v {
-            serde_json::Value::String(s) if !s.is_empty() => Some(s),
-            serde_json::Value::Null => None,
-            _ => None,
-        })
-        .collect())
+    Ok(results)
 }
 
 // ── OpenAI Provider ──
@@ -146,7 +187,7 @@ impl LlmProvider for OpenAiProvider {
         expenses: &[ParsedExpense],
         existing_categories: &[String],
         config: &LlmConfig,
-    ) -> Result<Vec<Option<String>>, LlmError> {
+    ) -> Result<Vec<Option<LlmClassification>>, LlmError> {
         if expenses.is_empty() {
             return Ok(vec![]);
         }
@@ -231,7 +272,7 @@ impl LlmProvider for AnthropicProvider {
         expenses: &[ParsedExpense],
         existing_categories: &[String],
         config: &LlmConfig,
-    ) -> Result<Vec<Option<String>>, LlmError> {
+    ) -> Result<Vec<Option<LlmClassification>>, LlmError> {
         if expenses.is_empty() {
             return Ok(vec![]);
         }
@@ -249,6 +290,7 @@ impl LlmProvider for AnthropicProvider {
             .json(&serde_json::json!({
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 1024,
+                "temperature": 0.1,
                 "messages": [{"role": "user", "content": prompt}]
             }))
             .send()
@@ -318,7 +360,7 @@ impl LlmProvider for OllamaProvider {
         expenses: &[ParsedExpense],
         existing_categories: &[String],
         config: &LlmConfig,
-    ) -> Result<Vec<Option<String>>, LlmError> {
+    ) -> Result<Vec<Option<LlmClassification>>, LlmError> {
         if expenses.is_empty() {
             return Ok(vec![]);
         }
@@ -331,7 +373,8 @@ impl LlmProvider for OllamaProvider {
             .json(&serde_json::json!({
                 "model": "llama3",
                 "messages": [{"role": "user", "content": prompt}],
-                "stream": false
+                "stream": false,
+                "options": {"temperature": 0.1}
             }))
             .send()
             .map_err(|e| LlmError::RequestFailed(format!("Connection failed: {}", e)))?;
@@ -506,38 +549,52 @@ mod tests {
     // ── Response parsing tests ──
 
     #[test]
-    fn test_parse_classification_response_valid() {
-        let response = r#"["Groceries", "Transport", "Entertainment"]"#;
+    fn test_parse_keyed_response() {
+        let response = r#"[{"id": 1, "category": "Groceries", "confidence": "high"}, {"id": 2, "category": "Transport", "confidence": "medium"}, {"id": 3, "category": "Entertainment", "confidence": "low"}]"#;
         let result = parse_classification_response(response, 3).unwrap();
         assert_eq!(result.len(), 3);
-        assert_eq!(result[0], Some("Groceries".to_string()));
-        assert_eq!(result[1], Some("Transport".to_string()));
-        assert_eq!(result[2], Some("Entertainment".to_string()));
+        let r0 = result[0].as_ref().unwrap();
+        assert_eq!(r0.category, "Groceries");
+        assert!((r0.confidence - 0.9).abs() < 0.01);
+        let r1 = result[1].as_ref().unwrap();
+        assert_eq!(r1.category, "Transport");
+        assert!((r1.confidence - 0.6).abs() < 0.01);
+        let r2 = result[2].as_ref().unwrap();
+        assert_eq!(r2.category, "Entertainment");
+        assert!((r2.confidence - 0.3).abs() < 0.01);
     }
 
     #[test]
-    fn test_parse_classification_response_with_markdown() {
-        let response = "```json\n[\"Groceries\", \"Transport\"]\n```";
-        let result = parse_classification_response(response, 2).unwrap();
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0], Some("Groceries".to_string()));
-    }
-
-    #[test]
-    fn test_parse_classification_response_with_extra_text() {
-        let response = "Here are the categories:\n[\"Food\", \"Rides\"]\nHope this helps!";
-        let result = parse_classification_response(response, 2).unwrap();
-        assert_eq!(result[0], Some("Food".to_string()));
-        assert_eq!(result[1], Some("Rides".to_string()));
-    }
-
-    #[test]
-    fn test_parse_classification_response_with_nulls() {
-        let response = r#"["Groceries", null, "Entertainment"]"#;
+    fn test_parse_keyed_response_partial() {
+        // Only 2 out of 3 returned — missing ID 2 should be None
+        let response = r#"[{"id": 1, "category": "Groceries", "confidence": "high"}, {"id": 3, "category": "Fun", "confidence": "medium"}]"#;
         let result = parse_classification_response(response, 3).unwrap();
-        assert_eq!(result[0], Some("Groceries".to_string()));
-        assert_eq!(result[1], None);
-        assert_eq!(result[2], Some("Entertainment".to_string()));
+        assert!(result[0].is_some());
+        assert!(result[1].is_none());
+        assert!(result[2].is_some());
+    }
+
+    #[test]
+    fn test_parse_legacy_string_response() {
+        let response = r#"["Groceries", "Transport"]"#;
+        let result = parse_classification_response(response, 2).unwrap();
+        assert_eq!(result[0].as_ref().unwrap().category, "Groceries");
+        assert_eq!(result[1].as_ref().unwrap().category, "Transport");
+    }
+
+    #[test]
+    fn test_parse_response_with_markdown() {
+        let response = "```json\n[{\"id\": 1, \"category\": \"Food\", \"confidence\": \"high\"}]\n```";
+        let result = parse_classification_response(response, 1).unwrap();
+        assert_eq!(result[0].as_ref().unwrap().category, "Food");
+    }
+
+    #[test]
+    fn test_parse_response_with_extra_text() {
+        let response = "Here are the results:\n[{\"id\": 1, \"category\": \"Food\", \"confidence\": \"high\"}, {\"id\": 2, \"category\": \"Rides\", \"confidence\": \"medium\"}]\nDone!";
+        let result = parse_classification_response(response, 2).unwrap();
+        assert_eq!(result[0].as_ref().unwrap().category, "Food");
+        assert_eq!(result[1].as_ref().unwrap().category, "Rides");
     }
 
     #[test]
@@ -549,16 +606,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_malformed_response_wrong_count() {
-        let response = r#"["Groceries", "Transport"]"#;
-        let result = parse_classification_response(response, 3);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, LlmError::RequestFailed(_)));
-        assert!(err.to_string().contains("Expected 3"));
-    }
-
-    #[test]
     fn test_parse_malformed_response_invalid_json() {
         let response = "[not valid json]";
         let result = parse_classification_response(response, 1);
@@ -566,12 +613,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_classification_response_empty_strings() {
-        let response = r#"["Groceries", "", "Entertainment"]"#;
-        let result = parse_classification_response(response, 3).unwrap();
-        assert_eq!(result[0], Some("Groceries".to_string()));
-        assert_eq!(result[1], None); // empty string becomes None
-        assert_eq!(result[2], Some("Entertainment".to_string()));
+    fn test_parse_keyed_response_out_of_range_id() {
+        // ID 5 is out of range for expected_count=2 — should be ignored
+        let response = r#"[{"id": 1, "category": "A", "confidence": "high"}, {"id": 5, "category": "B", "confidence": "high"}]"#;
+        let result = parse_classification_response(response, 2).unwrap();
+        assert!(result[0].is_some());
+        assert!(result[1].is_none());
     }
 
     // ── Prompt building tests ──
@@ -583,16 +630,25 @@ mod tests {
         let prompt = build_classification_prompt(&expenses, &categories);
         assert!(prompt.contains("Groceries, Transport"));
         assert!(prompt.contains("LIDL STORE #42"));
+        assert!(prompt.contains("45.20")); // amount included
         assert!(prompt.contains("UBER TRIP"));
-        assert!(prompt.contains("NETFLIX SUBSCRIPTION"));
-        assert!(prompt.contains("JSON array"));
+        assert!(prompt.contains("confidence"));
+        assert!(prompt.contains("\"id\""));
     }
 
     #[test]
     fn test_build_prompt_without_categories() {
         let expenses = sample_expenses();
         let prompt = build_classification_prompt(&expenses, &[]);
-        assert!(prompt.contains("None yet"));
+        assert!(prompt.contains("No existing categories"));
+    }
+
+    #[test]
+    fn test_build_prompt_constrains_invention() {
+        let expenses = sample_expenses();
+        let categories = vec!["Food".to_string()];
+        let prompt = build_classification_prompt(&expenses, &categories);
+        assert!(prompt.contains("Only invent a new category"));
     }
 
     // ── Ollama endpoint parsing ──

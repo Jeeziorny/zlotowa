@@ -3,6 +3,7 @@ import SpendingByCategory from "./SpendingByCategory.svelte";
 import BiggestExpense from "./BiggestExpense.svelte";
 import MonthlyTrend from "./MonthlyTrend.svelte";
 import MostFrequent from "./MostFrequent.svelte";
+import BudgetStatus from "./BudgetStatus.svelte";
 
 /**
  * Widget registry.
@@ -49,6 +50,13 @@ export const widgets = [
     description: "Top 5 most frequently occurring expense titles.",
     size: "half",
     component: MostFrequent,
+  },
+  {
+    id: "budget-status",
+    name: "Budget Status",
+    description: "Current month's budget vs. actual spending with progress bar.",
+    size: "half",
+    component: BudgetStatus,
   },
 ];
 
