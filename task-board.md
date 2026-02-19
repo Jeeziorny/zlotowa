@@ -7,7 +7,6 @@
 | 19 | Chip Input Category | Replace plain text category input in BulkUpload review with a tag/chip component. Autocomplete from existing categories, add/remove with Enter/Backspace/x. |
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 25 | Bulk Upload UX Overhaul | LLM progress overlay, review table layout redesign (fields below row), chip input, column mapping simplification (1 row + placeholders), dismissible LLM warning, rename tab. |
-| 26 | Expense List Cleanup | Drop Source column, widen Category, add proper delete confirmation dialog. |
 | 28 | Title Cleanup Explanation | Add persistent help text explaining what Title Cleanup does and how it works. Clarify bulk upload integration. |
 | 29 | Dashboard Widget Clicks | Make Total Expenses/Transactions click → Expenses tab, Spending by Category click → Categories tab. |
 | 30 | Budget Planning Redesign | Date-range budgets (no overlap), Overview as default tab, multi-step "Create +" flow, category defaults from averages, calendar event amounts. |
@@ -37,6 +36,7 @@
 | 21 | Title Cleanup Rules | Find/replace rules (literal or regex), preview affected expenses, selective apply, whitespace normalization. |
 | 22 | Pagination, Search & Filter | `query_expenses` API with title search (LIKE), category/date/amount filters, pagination (limit/offset). Search bar + filter controls + page size selector in ExpenseList. |
 | 24 | Tests & Docs Sync | 11 new tests for category management, batch duplicate check, upload batches. Docs updated: roadmap, navigation, dashboard widget table, introduction feature list. |
+| 26 | Expense List Cleanup | Removed Source column, Category column wider, delete confirmation modals (single + batch). |
 | 24b | DEMO_TBD | Client demo notes file that spawned tasks 25–30. Not a task itself. |
 
 ## N/A

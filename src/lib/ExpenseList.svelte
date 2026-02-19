@@ -49,7 +49,6 @@
   let saving = $state(false);
 
   // Delete
-  let confirmDeleteId = $state(null);
   let deleting = $state(false);
 
   // Batch select/delete
@@ -142,24 +141,8 @@
     }
   }
 
-  function sourceLabel(source) {
-    if (!source) return "";
-    switch (source) {
-      case "Database": return "DB";
-      case "Llm": return "LLM";
-      case "Manual": return "Manual";
-      default: return source;
-    }
-  }
-
-  function sourceBadgeClass(source) {
-    switch (source) {
-      case "Database": return "bg-blue-900/50 text-blue-400";
-      case "Llm": return "bg-purple-900/50 text-purple-400";
-      case "Manual": return "bg-gray-800 text-gray-400";
-      default: return "bg-gray-800 text-gray-400";
-    }
-  }
+  // Delete modal
+  let deleteModalExpense = $state(null);
 
   // ── Export ──
 
@@ -250,7 +233,7 @@
     deleting = true;
     try {
       await invoke("delete_expense", { id });
-      confirmDeleteId = null;
+      deleteModalExpense = null;
       await fetchExpenses();
     } catch (err) {
       console.error("Delete failed:", err);
@@ -406,31 +389,6 @@
     {/if}
   </div>
 
-  <!-- Batch delete confirmation -->
-  {#if confirmBatchDelete}
-    <div class="bg-red-900/20 border border-red-800 rounded-xl p-4 mb-4 flex items-center justify-between">
-      <span class="text-red-400 text-sm">
-        Delete {selected.size} expense{selected.size > 1 ? "s" : ""}? This cannot be undone.
-      </span>
-      <div class="flex gap-2">
-        <button
-          onclick={doBatchDelete}
-          disabled={batchDeleting}
-          class="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-3 py-1.5
-                 rounded-lg text-sm font-medium transition-colors"
-        >
-          {batchDeleting ? "Deleting..." : "Confirm"}
-        </button>
-        <button
-          onclick={() => confirmBatchDelete = false}
-          class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg
-                 text-sm transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  {/if}
 
   {#if showExportModal}
     <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-6">
@@ -523,7 +481,6 @@
             <th class="text-left px-4 py-3">Title</th>
             <th class="text-right px-4 py-3">Amount</th>
             <th class="text-left px-4 py-3">Category</th>
-            <th class="text-left px-4 py-3">Source</th>
             <th class="px-4 py-3 w-24"></th>
           </tr>
         </thead>
@@ -572,7 +529,6 @@
                     {/each}
                   </datalist>
                 </td>
-                <td class="px-4 py-2"></td>
                 <td class="px-4 py-2">
                   <div class="flex gap-1">
                     <button
@@ -624,59 +580,28 @@
                   {/if}
                 </td>
                 <td class="px-4 py-3">
-                  {#if expense.classification_source}
-                    <span class="px-2 py-0.5 rounded text-xs {sourceBadgeClass(expense.classification_source)}">
-                      {sourceLabel(expense.classification_source)}
-                    </span>
-                  {/if}
-                </td>
-                <td class="px-4 py-3">
-                  {#if confirmDeleteId === expense.id}
-                    <div class="flex gap-1">
-                      <button
-                        onclick={() => doDelete(expense.id)}
-                        disabled={deleting}
-                        class="text-red-400 hover:text-red-300 disabled:opacity-50 p-1 transition-colors"
-                        title="Confirm delete"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </button>
-                      <button
-                        onclick={() => confirmDeleteId = null}
-                        class="text-gray-400 hover:text-gray-300 p-1 transition-colors"
-                        title="Cancel"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  {:else}
-                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onclick={() => startEdit(expense)}
-                        class="text-gray-400 hover:text-emerald-400 p-1 transition-colors"
-                        title="Edit"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onclick={() => confirmDeleteId = expense.id}
-                        class="text-gray-400 hover:text-red-400 p-1 transition-colors"
-                        title="Delete"
-                      >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  {/if}
+                  <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onclick={() => startEdit(expense)}
+                      class="text-gray-400 hover:text-emerald-400 p-1 transition-colors"
+                      title="Edit"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onclick={() => deleteModalExpense = expense}
+                      class="text-gray-400 hover:text-red-400 p-1 transition-colors"
+                      title="Delete"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             {/if}
@@ -726,6 +651,69 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Single delete confirmation modal -->
+  {#if deleteModalExpense}
+    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+         onclick={() => { if (!deleting) deleteModalExpense = null; }}>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
+           onclick={(e) => e.stopPropagation()}>
+        <h3 class="text-lg font-semibold text-gray-100 mb-2">Delete expense?</h3>
+        <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
+        <p class="text-sm text-gray-300 mb-5 break-words">
+          "{deleteModalExpense.title}" &mdash; {deleteModalExpense.amount.toFixed(2)}
+        </p>
+        <div class="flex gap-3 justify-end">
+          <button
+            onclick={() => deleteModalExpense = null}
+            disabled={deleting}
+            class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
+                   text-sm transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onclick={() => doDelete(deleteModalExpense.id)}
+            disabled={deleting}
+            class="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-2
+                   rounded-lg text-sm font-medium transition-colors"
+          >
+            {deleting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Batch delete confirmation modal -->
+  {#if confirmBatchDelete}
+    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+         onclick={() => { if (!batchDeleting) confirmBatchDelete = false; }}>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
+           onclick={(e) => e.stopPropagation()}>
+        <h3 class="text-lg font-semibold text-gray-100 mb-2">Delete {selected.size} expense{selected.size > 1 ? "s" : ""}?</h3>
+        <p class="text-sm text-gray-400 mb-5">This cannot be undone.</p>
+        <div class="flex gap-3 justify-end">
+          <button
+            onclick={() => confirmBatchDelete = false}
+            disabled={batchDeleting}
+            class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
+                   text-sm transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onclick={doBatchDelete}
+            disabled={batchDeleting}
+            class="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-2
+                   rounded-lg text-sm font-medium transition-colors"
+          >
+            {batchDeleting ? "Deleting..." : "Delete"}
           </button>
         </div>
       </div>
