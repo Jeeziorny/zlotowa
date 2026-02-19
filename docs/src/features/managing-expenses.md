@@ -1,6 +1,26 @@
 # Managing Expenses
 
-The **Expenses** page shows all your expenses in a table sorted by date (newest first). From here you can edit, delete, and batch-delete expenses.
+The **Expenses** page shows your expenses in a paginated table sorted by date (newest first). From here you can search, filter, edit, delete, and batch-delete expenses.
+
+## Search and filters
+
+A **search bar** at the top lets you find expenses by title. Typing filters the list as you type (with a short debounce). Below the search bar you'll find filter controls:
+
+- **Category** — dropdown to show only a specific category, or "Uncategorized" for expenses without a category
+- **From / To** — date range inputs to narrow results by date
+- **Min / Max amount** — number inputs to filter by amount range
+
+Filters combine with AND logic — only expenses matching all active filters are shown. Click **"Clear filters"** to reset everything.
+
+## Pagination
+
+The expense list paginates at 50 rows by default. At the bottom of the table you'll see:
+
+- **"Showing X-Y of Z expenses"** — current page range and total matching count
+- **Rows: 25 / 50 / 100** — click to change the page size
+- **Previous / Next** arrows to navigate between pages
+
+Changing filters or search resets to page 1.
 
 ## Editing an expense
 

@@ -49,7 +49,7 @@ CSV → Parser (auto-detect format) → ParsedExpense → Classification Pipelin
 
 All commands in `src-tauri/src/lib.rs`. State is `AppState { db: Mutex<Database> }`.
 
-Key commands: `get_expenses`, `add_expense`, `suggest_category`, `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_categories`, `get/save/validate/clear_llm_config`, `export_expenses`, `get/save_active_widgets`, `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`, `get_budget_summary`, `save_budget_categories`, `add/delete_planned_expense`, `import_calendar_events`, `get_category_averages`, `get_upload_batches`, `delete_batch`.
+Key commands: `get_expenses`, `query_expenses`, `add_expense`, `suggest_category`, `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_categories`, `get/save/validate/clear_llm_config`, `export_expenses`, `get/save_active_widgets`, `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`, `get_budget_summary`, `save_budget_categories`, `add/delete_planned_expense`, `import_calendar_events`, `get_category_averages`, `get_upload_batches`, `delete_batch`.
 
 Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/core`.
 
@@ -76,6 +76,10 @@ Dashboard widgets registered in `src/lib/widgets/registry.js`, widget visibility
 - **Dark theme** — gray-950 background, gray-900 cards, gray-800 borders, emerald-400/500 accents
 - **Rust errors** — `thiserror` for custom error enums, Tauri commands return `Result<T, String>`
 - **Auto-rules** — when user manually categorizes an expense, a regex rule `(?i)<escaped_title>` is auto-saved
+
+## Task Board
+
+`task-board.md` tracks all tasks (TODO / DONE / N/A). Individual task specs live in `tasks/##-name.md`. Always consult the board before picking work and update it after completing a task.
 
 ## Extending
 

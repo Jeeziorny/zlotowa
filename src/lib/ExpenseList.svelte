@@ -4,6 +4,29 @@
   import { save } from "@tauri-apps/plugin-dialog";
 
   let expenses = $state([]);
+  let totalCount = $state(0);
+  let loading = $state(false);
+
+  // Search & filters
+  let searchText = $state("");
+  let filterCategory = $state("");
+  let filterDateFrom = $state("");
+  let filterDateTo = $state("");
+  let filterAmountMin = $state("");
+  let filterAmountMax = $state("");
+
+  // Pagination
+  let pageSize = $state(50);
+  let currentPage = $state(1);
+
+  let totalPages = $derived(Math.max(1, Math.ceil(totalCount / pageSize)));
+  let showingFrom = $derived(totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1);
+  let showingTo = $derived(Math.min(currentPage * pageSize, totalCount));
+
+  let hasActiveFilters = $derived(
+    searchText !== "" || filterCategory !== "" || filterDateFrom !== "" ||
+    filterDateTo !== "" || filterAmountMin !== "" || filterAmountMax !== ""
+  );
 
   // Export
   let showExportModal = $state(false);
@@ -37,19 +60,87 @@
   let allSelected = $derived(expenses.length > 0 && selected.size === expenses.length);
   let someSelected = $derived(selected.size > 0);
 
-  // Categories for edit dropdown
+  // Categories for filters & edit dropdown
   let categories = $state([]);
+
+  // Debounce timer
+  let debounceTimer = null;
 
   onMount(async () => {
     try {
-      expenses = await invoke("get_expenses");
+      categories = await invoke("get_categories");
+    } catch (_) {}
+    await fetchExpenses();
+  });
+
+  async function fetchExpenses() {
+    loading = true;
+    try {
+      const query = {
+        search: searchText.trim() || null,
+        category: filterCategory || null,
+        date_from: filterDateFrom || null,
+        date_to: filterDateTo || null,
+        amount_min: filterAmountMin !== "" ? parseFloat(filterAmountMin) : null,
+        amount_max: filterAmountMax !== "" ? parseFloat(filterAmountMax) : null,
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize,
+      };
+      const result = await invoke("query_expenses", { query });
+      expenses = result.expenses;
+      totalCount = result.total_count;
+      // Clear selections when page changes
+      selected = new Set();
     } catch (err) {
       console.error("Failed to load expenses:", err);
     }
-    try {
-      categories = await invoke("get_categories");
-    } catch (_) {}
-  });
+    loading = false;
+  }
+
+  function onSearchInput(e) {
+    searchText = e.target.value;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      currentPage = 1;
+      fetchExpenses();
+    }, 300);
+  }
+
+  function onFilterChange() {
+    currentPage = 1;
+    fetchExpenses();
+  }
+
+  function clearFilters() {
+    searchText = "";
+    filterCategory = "";
+    filterDateFrom = "";
+    filterDateTo = "";
+    filterAmountMin = "";
+    filterAmountMax = "";
+    currentPage = 1;
+    fetchExpenses();
+  }
+
+  function changePageSize(newSize) {
+    pageSize = newSize;
+    currentPage = 1;
+    fetchExpenses();
+  }
+
+  function prevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      fetchExpenses();
+    }
+  }
+
+  function nextPage() {
+    if (currentPage < totalPages) {
+      currentPage++;
+      fetchExpenses();
+    }
+  }
 
   function sourceLabel(source) {
     if (!source) return "";
@@ -144,13 +235,9 @@
           rule_pattern: null,
         },
       });
-      // Update local state
-      expenses = expenses.map(e =>
-        e.id === editingId
-          ? { ...e, title: editTitle.trim(), amount, date: editDate, category: editCategory.trim() || null, classification_source: "Manual" }
-          : e
-      );
+      // Re-fetch to reflect changes (category/title might affect filters)
       editingId = null;
+      await fetchExpenses();
     } catch (err) {
       editError = `Save failed: ${err}`;
     }
@@ -163,10 +250,8 @@
     deleting = true;
     try {
       await invoke("delete_expense", { id });
-      expenses = expenses.filter(e => e.id !== id);
-      selected.delete(id);
-      selected = new Set(selected);
       confirmDeleteId = null;
+      await fetchExpenses();
     } catch (err) {
       console.error("Delete failed:", err);
     }
@@ -197,9 +282,8 @@
     try {
       const ids = [...selected];
       await invoke("delete_expenses", { ids });
-      expenses = expenses.filter(e => !selected.has(e.id));
-      selected = new Set();
       confirmBatchDelete = false;
+      await fetchExpenses();
     } catch (err) {
       console.error("Batch delete failed:", err);
     }
@@ -208,7 +292,7 @@
 </script>
 
 <div>
-  <div class="flex items-center justify-between mb-6">
+  <div class="flex items-center justify-between mb-4">
     <h2 class="text-2xl font-bold">Expenses</h2>
     <div class="flex gap-2">
       {#if someSelected}
@@ -220,16 +304,106 @@
           Delete {selected.size} selected
         </button>
       {/if}
-      {#if expenses.length > 0}
-        <button
-          onclick={() => { showExportModal = !showExportModal; exportError = ""; exportSuccess = ""; }}
-          class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
-                 text-sm font-medium transition-colors border border-gray-700"
-        >
-          Export CSV
-        </button>
-      {/if}
+      <button
+        onclick={() => { showExportModal = !showExportModal; exportError = ""; exportSuccess = ""; }}
+        class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
+               text-sm font-medium transition-colors border border-gray-700"
+      >
+        Export CSV
+      </button>
     </div>
+  </div>
+
+  <!-- Search bar -->
+  <div class="relative mb-3">
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+    <input
+      type="text"
+      value={searchText}
+      oninput={onSearchInput}
+      placeholder="Search by title..."
+      class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm
+             text-gray-200 placeholder-gray-500 focus:border-emerald-500 focus:ring-1
+             focus:ring-emerald-500 focus:outline-none"
+    />
+  </div>
+
+  <!-- Filter bar -->
+  <div class="flex flex-wrap gap-3 mb-4 items-end">
+    <div class="flex flex-col gap-1">
+      <label for="filter-category" class="text-xs text-gray-500">Category</label>
+      <select
+        id="filter-category"
+        bind:value={filterCategory}
+        onchange={onFilterChange}
+        class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
+               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+      >
+        <option value="">All categories</option>
+        {#each categories as cat}
+          <option value={cat}>{cat}</option>
+        {/each}
+        <option value="uncategorized">Uncategorized</option>
+      </select>
+    </div>
+    <div class="flex flex-col gap-1">
+      <label for="filter-date-from" class="text-xs text-gray-500">From</label>
+      <input
+        id="filter-date-from"
+        type="date"
+        bind:value={filterDateFrom}
+        onchange={onFilterChange}
+        class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
+               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+      />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label for="filter-date-to" class="text-xs text-gray-500">To</label>
+      <input
+        id="filter-date-to"
+        type="date"
+        bind:value={filterDateTo}
+        onchange={onFilterChange}
+        class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
+               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+      />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label for="filter-amount-min" class="text-xs text-gray-500">Min amount</label>
+      <input
+        id="filter-amount-min"
+        type="number"
+        step="0.01"
+        bind:value={filterAmountMin}
+        onchange={onFilterChange}
+        placeholder="0.00"
+        class="w-28 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
+               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+      />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label for="filter-amount-max" class="text-xs text-gray-500">Max amount</label>
+      <input
+        id="filter-amount-max"
+        type="number"
+        step="0.01"
+        bind:value={filterAmountMax}
+        onchange={onFilterChange}
+        placeholder="0.00"
+        class="w-28 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
+               focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+      />
+    </div>
+    {#if hasActiveFilters}
+      <button
+        onclick={clearFilters}
+        class="text-gray-400 hover:text-gray-200 text-sm px-3 py-2 transition-colors"
+      >
+        Clear filters
+      </button>
+    {/if}
   </div>
 
   <!-- Batch delete confirmation -->
@@ -318,13 +492,22 @@
     </div>
   {/if}
 
-  {#if expenses.length === 0}
+  {#if loading && expenses.length === 0}
+    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
+      <p class="text-lg">Loading expenses...</p>
+    </div>
+  {:else if expenses.length === 0 && !hasActiveFilters}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
       <p class="text-lg mb-2">No expenses yet</p>
       <p class="text-sm">Add an expense or do a bulk upload to get started.</p>
     </div>
+  {:else if expenses.length === 0 && hasActiveFilters}
+    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
+      <p class="text-lg mb-2">No matching expenses</p>
+      <p class="text-sm">Try adjusting your search or filters.</p>
+    </div>
   {:else}
-    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden {loading ? 'opacity-60' : ''}">
       <table class="w-full">
         <thead>
           <tr class="border-b border-gray-800 text-sm text-gray-400">
@@ -500,6 +683,52 @@
           {/each}
         </tbody>
       </table>
+    </div>
+
+    <!-- Pagination controls -->
+    <div class="flex items-center justify-between mt-4 text-sm text-gray-400">
+      <span>
+        Showing {showingFrom}-{showingTo} of {totalCount} expense{totalCount !== 1 ? "s" : ""}
+      </span>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5">
+          <span class="text-gray-500">Rows:</span>
+          {#each [25, 50, 100] as size}
+            <button
+              onclick={() => changePageSize(size)}
+              class="px-2 py-0.5 rounded text-sm transition-colors
+                     {pageSize === size ? 'bg-emerald-900/40 text-emerald-400' : 'text-gray-400 hover:text-gray-200'}"
+            >
+              {size}
+            </button>
+          {/each}
+        </div>
+        <div class="flex items-center gap-1">
+          <button
+            onclick={prevPage}
+            disabled={currentPage <= 1}
+            title="Previous page"
+            class="px-2 py-1 rounded text-gray-400 hover:text-gray-200 disabled:opacity-30
+                   disabled:cursor-not-allowed transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span class="px-2 text-gray-300">{currentPage} / {totalPages}</span>
+          <button
+            onclick={nextPage}
+            disabled={currentPage >= totalPages}
+            title="Next page"
+            class="px-2 py-1 rounded text-gray-400 hover:text-gray-200 disabled:opacity-30
+                   disabled:cursor-not-allowed transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   {/if}
 </div>

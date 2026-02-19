@@ -160,6 +160,26 @@ pub struct CategoryAverage {
     pub months_with_data: u32,
 }
 
+// ── Expense Query ──
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ExpenseQuery {
+    pub search: Option<String>,
+    pub category: Option<String>,
+    pub date_from: Option<NaiveDate>,
+    pub date_to: Option<NaiveDate>,
+    pub amount_min: Option<f64>,
+    pub amount_max: Option<f64>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpenseQueryResult {
+    pub expenses: Vec<Expense>,
+    pub total_count: i64,
+}
+
 /// Result of a bulk classification attempt.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClassifiedExpense {

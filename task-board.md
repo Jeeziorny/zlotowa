@@ -5,7 +5,6 @@
 | # | Task | Summary |
 |---|------|---------|
 | 19 | Chip Input Category | Replace plain text category input in BulkUpload review with a tag/chip component. Autocomplete from existing categories, add/remove with Enter/Backspace/x. |
-| 22 | Pagination, Search & Filter | Replace `get_all_expenses` with queryable API: title search (LIKE), category/date/amount filters, pagination (limit/offset). Search bar + filter controls in ExpenseList. |
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 
 ## DONE
@@ -31,6 +30,8 @@
 | 20 | Expense CRUD | Inline editing (title, amount, date, category) and deletion (single + batch) in ExpenseList. |
 | 18 | Batch Undo | `upload_batches` table + `batch_id` on expenses, batch tracking in bulk upload (GUI + CLI), upload history with undo in Settings. |
 | 21 | Title Cleanup Rules | Find/replace rules (literal or regex), preview affected expenses, selective apply, whitespace normalization. |
+| 22 | Pagination, Search & Filter | `query_expenses` API with title search (LIKE), category/date/amount filters, pagination (limit/offset). Search bar + filter controls + page size selector in ExpenseList. |
+| 24 | Tests & Docs Sync | 11 new tests for category management, batch duplicate check, upload batches. Docs updated: roadmap, navigation, dashboard widget table, introduction feature list. |
 
 ## N/A
 

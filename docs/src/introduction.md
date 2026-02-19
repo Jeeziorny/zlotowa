@@ -9,7 +9,9 @@
 - **LLM support** (optional) — connect an AI provider (OpenAI, Anthropic, or Ollama) to classify expenses that don't match any existing rules
 - **Export** — export your expenses to CSV with customizable column selection
 - **Category management** — rename, merge, and delete categories across all expenses and rules
-- **Dashboard** — configurable widgets showing spending breakdowns, trends, and statistics
+- **Title cleanup** — find/replace rules to normalize noisy transaction titles
+- **Budget planning** — set monthly spending limits per category, track planned expenses, import calendar events
+- **Dashboard** — configurable widgets showing spending breakdowns, trends, and budget status
 - **CLI** — terminal interface for all core features (`4ccountant` binary)
 
 ## How classification works
@@ -26,5 +28,4 @@ The classification pipeline checks rules in order:
 Features under consideration for future releases:
 
 - **Receipt parsing** — import expenses from photos of receipts
-- **Budget planning** — set and track spending budgets per category
 - **Additional export formats** — JSON, PDF reports

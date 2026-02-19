@@ -3,8 +3,8 @@ use accountant_core::db::Database;
 use accountant_core::llm::{create_provider, LlmConfig};
 use accountant_core::models::{
     BudgetCategory, BudgetCategoryStatus, CalendarEvent, CategoryAverage, CategoryStats,
-    ClassificationRule, ClassificationSource, Expense, ParsedExpense, PlannedExpense,
-    TitleCleanupRule, UploadBatch,
+    ClassificationRule, ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult,
+    ParsedExpense, PlannedExpense, TitleCleanupRule, UploadBatch,
 };
 use accountant_core::parsers::{self, ColumnMapping};
 use serde::{Deserialize, Serialize};
@@ -90,6 +90,12 @@ fn save_rule_if_categorized(db: &Database, title: &str, category: &Option<String
 fn get_expenses(state: State<AppState>) -> Result<Vec<Expense>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.get_all_expenses().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn query_expenses(state: State<AppState>, query: ExpenseQuery) -> Result<ExpenseQueryResult, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.query_expenses(&query).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -771,6 +777,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_expenses,
+            query_expenses,
             add_expense,
             update_expense,
             delete_expense,

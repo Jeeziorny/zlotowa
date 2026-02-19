@@ -1,6 +1,7 @@
 use crate::models::{
     Budget, BudgetCategory, CalendarEvent, CategoryAverage, CategoryStats, ClassificationRule,
-    ClassificationSource, Expense, PlannedExpense, TitleCleanupRule, UploadBatch,
+    ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, PlannedExpense,
+    TitleCleanupRule, UploadBatch,
 };
 use rusqlite::{params, Connection, Result as SqlResult};
 use std::path::PathBuf;
@@ -250,6 +251,111 @@ impl Database {
             })
         })?;
         rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
+    }
+
+    pub fn query_expenses(&self, query: &ExpenseQuery) -> Result<ExpenseQueryResult, DbError> {
+        let mut conditions: Vec<String> = Vec::new();
+        let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        let mut idx = 1;
+
+        if let Some(ref search) = query.search {
+            if !search.is_empty() {
+                conditions.push(format!("title LIKE '%' || ?{} || '%' COLLATE NOCASE", idx));
+                param_values.push(Box::new(search.clone()));
+                idx += 1;
+            }
+        }
+
+        if let Some(ref category) = query.category {
+            if category == "uncategorized" {
+                conditions.push("category IS NULL".to_string());
+            } else {
+                conditions.push(format!("category = ?{}", idx));
+                param_values.push(Box::new(category.clone()));
+                idx += 1;
+            }
+        }
+
+        if let Some(date_from) = query.date_from {
+            conditions.push(format!("date >= ?{}", idx));
+            param_values.push(Box::new(date_from.to_string()));
+            idx += 1;
+        }
+
+        if let Some(date_to) = query.date_to {
+            conditions.push(format!("date <= ?{}", idx));
+            param_values.push(Box::new(date_to.to_string()));
+            idx += 1;
+        }
+
+        if let Some(amount_min) = query.amount_min {
+            conditions.push(format!("amount >= ?{}", idx));
+            param_values.push(Box::new(amount_min));
+            idx += 1;
+        }
+
+        if let Some(amount_max) = query.amount_max {
+            conditions.push(format!("amount <= ?{}", idx));
+            param_values.push(Box::new(amount_max));
+            idx += 1;
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", conditions.join(" AND "))
+        };
+
+        // Count total matching rows
+        let count_sql = format!("SELECT COUNT(*) FROM expenses{}", where_clause);
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            param_values.iter().map(|p| p.as_ref()).collect();
+        let total_count: i64 = self
+            .conn
+            .query_row(&count_sql, params_refs.as_slice(), |row| row.get(0))?;
+
+        // Fetch page
+        let limit = query.limit.unwrap_or(50);
+        let offset = query.offset.unwrap_or(0);
+
+        let select_sql = format!(
+            "SELECT id, title, amount, date, category, classification_source FROM expenses{} ORDER BY date DESC LIMIT ?{} OFFSET ?{}",
+            where_clause, idx, idx + 1
+        );
+        param_values.push(Box::new(limit));
+        param_values.push(Box::new(offset));
+
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            param_values.iter().map(|p| p.as_ref()).collect();
+        let mut stmt = self.conn.prepare(&select_sql)?;
+        let rows = stmt.query_map(params_refs.as_slice(), |row| {
+            let source_str: Option<String> = row.get(5)?;
+            let source = source_str
+                .as_deref()
+                .and_then(ClassificationSource::from_str_opt);
+            let date_str: String = row.get(3)?;
+            let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    3,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
+            Ok(Expense {
+                id: Some(row.get(0)?),
+                title: row.get(1)?,
+                amount: row.get(2)?,
+                date,
+                category: row.get(4)?,
+                classification_source: source,
+            })
+        })?;
+        let expenses = rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)?;
+
+        Ok(ExpenseQueryResult {
+            expenses,
+            total_count,
+        })
     }
 
     /// Check if an expense is a duplicate (same title, amount, and date).
@@ -1769,5 +1875,354 @@ mod tests {
         let remaining = db.get_all_expenses().unwrap();
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].title, "Manual");
+    }
+
+    // ── Query expenses ──
+
+    use crate::models::ExpenseQuery;
+
+    fn seed_query_db(db: &Database) {
+        let expenses = vec![
+            Expense { id: None, title: "Coffee Shop".into(), amount: 4.50, date: NaiveDate::from_ymd_opt(2025, 3, 1).unwrap(), category: Some("Food".into()), classification_source: None },
+            Expense { id: None, title: "Gas Station".into(), amount: 55.00, date: NaiveDate::from_ymd_opt(2025, 3, 5).unwrap(), category: Some("Transport".into()), classification_source: None },
+            Expense { id: None, title: "Grocery Store".into(), amount: 120.30, date: NaiveDate::from_ymd_opt(2025, 3, 10).unwrap(), category: Some("Food".into()), classification_source: None },
+            Expense { id: None, title: "Electric Bill".into(), amount: 89.99, date: NaiveDate::from_ymd_opt(2025, 3, 15).unwrap(), category: Some("Utilities".into()), classification_source: None },
+            Expense { id: None, title: "Mystery Payment".into(), amount: 25.00, date: NaiveDate::from_ymd_opt(2025, 3, 20).unwrap(), category: None, classification_source: None },
+        ];
+        for e in &expenses {
+            db.insert_expense(e).unwrap();
+        }
+    }
+
+    #[test]
+    fn query_expenses_empty_query_returns_all() {
+        let db = test_db();
+        seed_query_db(&db);
+        let result = db.query_expenses(&ExpenseQuery::default()).unwrap();
+        assert_eq!(result.total_count, 5);
+        assert_eq!(result.expenses.len(), 5);
+    }
+
+    #[test]
+    fn query_expenses_search_by_title() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery { search: Some("coffee".into()), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.expenses[0].title, "Coffee Shop");
+    }
+
+    #[test]
+    fn query_expenses_search_case_insensitive() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery { search: Some("GROCERY".into()), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.expenses[0].title, "Grocery Store");
+    }
+
+    #[test]
+    fn query_expenses_filter_by_category() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery { category: Some("Food".into()), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 2);
+        assert!(result.expenses.iter().all(|e| e.category.as_deref() == Some("Food")));
+    }
+
+    #[test]
+    fn query_expenses_filter_uncategorized() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery { category: Some("uncategorized".into()), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.expenses[0].title, "Mystery Payment");
+        assert!(result.expenses[0].category.is_none());
+    }
+
+    #[test]
+    fn query_expenses_filter_date_range() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery {
+            date_from: Some(NaiveDate::from_ymd_opt(2025, 3, 5).unwrap()),
+            date_to: Some(NaiveDate::from_ymd_opt(2025, 3, 15).unwrap()),
+            ..Default::default()
+        };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 3); // Gas Station, Grocery Store, Electric Bill
+    }
+
+    #[test]
+    fn query_expenses_filter_amount_range() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery {
+            amount_min: Some(10.0),
+            amount_max: Some(50.0),
+            ..Default::default()
+        };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 1); // Mystery Payment (25.00)
+        assert_eq!(result.expenses[0].title, "Mystery Payment");
+    }
+
+    #[test]
+    fn query_expenses_pagination() {
+        let db = test_db();
+        seed_query_db(&db);
+        // Page 1: limit 2
+        let q1 = ExpenseQuery { limit: Some(2), offset: Some(0), ..Default::default() };
+        let r1 = db.query_expenses(&q1).unwrap();
+        assert_eq!(r1.expenses.len(), 2);
+        assert_eq!(r1.total_count, 5);
+
+        // Page 2
+        let q2 = ExpenseQuery { limit: Some(2), offset: Some(2), ..Default::default() };
+        let r2 = db.query_expenses(&q2).unwrap();
+        assert_eq!(r2.expenses.len(), 2);
+        assert_eq!(r2.total_count, 5);
+
+        // Page 3 (partial)
+        let q3 = ExpenseQuery { limit: Some(2), offset: Some(4), ..Default::default() };
+        let r3 = db.query_expenses(&q3).unwrap();
+        assert_eq!(r3.expenses.len(), 1);
+        assert_eq!(r3.total_count, 5);
+
+        // No overlap between pages
+        let all_titles: Vec<String> = r1.expenses.iter()
+            .chain(r2.expenses.iter())
+            .chain(r3.expenses.iter())
+            .map(|e| e.title.clone())
+            .collect();
+        assert_eq!(all_titles.len(), 5);
+    }
+
+    #[test]
+    fn query_expenses_combined_filters() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery {
+            search: Some("o".into()),       // matches Coffee Shop, Grocery Store
+            category: Some("Food".into()),  // matches Coffee Shop, Grocery Store
+            amount_max: Some(10.0),         // only Coffee Shop (4.50)
+            ..Default::default()
+        };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.expenses[0].title, "Coffee Shop");
+    }
+
+    #[test]
+    fn query_expenses_total_count_independent_of_pagination() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery {
+            category: Some("Food".into()),
+            limit: Some(1),
+            offset: Some(0),
+            ..Default::default()
+        };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.expenses.len(), 1);
+        assert_eq!(result.total_count, 2); // 2 Food expenses total
+    }
+
+    // ── Category management ──
+
+    #[test]
+    fn category_stats_counts_expenses_and_rules() {
+        let db = test_db();
+        let e = Expense {
+            id: None,
+            title: "Lidl".into(),
+            amount: 50.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: Some("Food".into()),
+            classification_source: None,
+        };
+        db.insert_expense(&e).unwrap();
+        db.insert_expense(&Expense { title: "Biedronka".into(), ..e.clone() }).unwrap();
+        db.insert_rule(&ClassificationRule::from_pattern("lidl", "Food")).unwrap();
+        db.insert_rule(&ClassificationRule::from_pattern("uber", "Transport")).unwrap();
+
+        let stats = db.get_category_stats().unwrap();
+        let food = stats.iter().find(|s| s.name == "Food").unwrap();
+        assert_eq!(food.expense_count, 2);
+        assert_eq!(food.rule_count, 1);
+
+        let transport = stats.iter().find(|s| s.name == "Transport").unwrap();
+        assert_eq!(transport.expense_count, 0);
+        assert_eq!(transport.rule_count, 1);
+    }
+
+    #[test]
+    fn rename_category_updates_expenses_and_rules() {
+        let db = test_db();
+        let e = Expense {
+            id: None,
+            title: "Lidl".into(),
+            amount: 50.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: Some("Groceries".into()),
+            classification_source: None,
+        };
+        db.insert_expense(&e).unwrap();
+        db.insert_rule(&ClassificationRule::from_pattern("lidl", "Groceries")).unwrap();
+
+        db.rename_category("Groceries", "Food").unwrap();
+
+        let expenses = db.get_all_expenses().unwrap();
+        assert_eq!(expenses[0].category.as_deref(), Some("Food"));
+
+        let rules = db.get_all_rules().unwrap();
+        assert_eq!(rules[0].category, "Food");
+    }
+
+    #[test]
+    fn merge_categories_combines_into_target() {
+        let db = test_db();
+        let base = Expense {
+            id: None,
+            title: "".into(),
+            amount: 10.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: None,
+            classification_source: None,
+        };
+        db.insert_expense(&Expense { title: "Lidl".into(), category: Some("Groceries".into()), ..base.clone() }).unwrap();
+        db.insert_expense(&Expense { title: "Tesco".into(), category: Some("Supermarket".into()), ..base.clone() }).unwrap();
+        db.insert_expense(&Expense { title: "Cafe".into(), category: Some("Food".into()), ..base.clone() }).unwrap();
+        db.insert_rule(&ClassificationRule::from_pattern("lidl", "Groceries")).unwrap();
+        db.insert_rule(&ClassificationRule::from_pattern("tesco", "Supermarket")).unwrap();
+
+        db.merge_categories(&["Groceries".into(), "Supermarket".into()], "Food").unwrap();
+
+        let expenses = db.get_all_expenses().unwrap();
+        assert!(expenses.iter().all(|e| e.category.as_deref() == Some("Food")));
+
+        let rules = db.get_all_rules().unwrap();
+        assert!(rules.iter().all(|r| r.category == "Food"));
+    }
+
+    #[test]
+    fn merge_categories_skips_target_in_sources() {
+        let db = test_db();
+        let e = Expense {
+            id: None,
+            title: "Test".into(),
+            amount: 10.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: Some("Food".into()),
+            classification_source: None,
+        };
+        db.insert_expense(&e).unwrap();
+
+        // Including target in sources should not cause issues
+        db.merge_categories(&["Food".into()], "Food").unwrap();
+
+        let expenses = db.get_all_expenses().unwrap();
+        assert_eq!(expenses[0].category.as_deref(), Some("Food"));
+    }
+
+    #[test]
+    fn category_exists_checks_both_tables() {
+        let db = test_db();
+
+        assert!(!db.category_exists("Food").unwrap());
+
+        // Exists via rule
+        db.insert_rule(&ClassificationRule::from_pattern("lidl", "Food")).unwrap();
+        assert!(db.category_exists("Food").unwrap());
+
+        // Exists via expense only
+        let e = Expense {
+            id: None,
+            title: "Uber".into(),
+            amount: 15.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: Some("Transport".into()),
+            classification_source: None,
+        };
+        db.insert_expense(&e).unwrap();
+        assert!(db.category_exists("Transport").unwrap());
+    }
+
+    #[test]
+    fn create_category_makes_it_discoverable() {
+        let db = test_db();
+        db.create_category("Entertainment").unwrap();
+        assert!(db.category_exists("Entertainment").unwrap());
+
+        let categories = db.get_all_categories().unwrap();
+        assert!(categories.contains(&"Entertainment".to_string()));
+    }
+
+    #[test]
+    fn create_category_is_idempotent() {
+        let db = test_db();
+        db.create_category("Food").unwrap();
+        db.create_category("Food").unwrap(); // should not error
+        let categories = db.get_all_categories().unwrap();
+        assert_eq!(categories.iter().filter(|c| c.as_str() == "Food").count(), 1);
+    }
+
+    // ── Batch duplicate check ──
+
+    #[test]
+    fn check_duplicates_batch_empty_input() {
+        let db = test_db();
+        let result = db.check_duplicates_batch(&[]).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn check_duplicates_batch_finds_existing() {
+        let db = test_db();
+        let date = NaiveDate::from_ymd_opt(2025, 3, 1).unwrap();
+        db.insert_expense(&Expense {
+            id: None,
+            title: "Coffee".into(),
+            amount: 4.50,
+            date,
+            category: None,
+            classification_source: None,
+        }).unwrap();
+
+        let inputs = vec![
+            ("Coffee", 4.50, &date),       // duplicate
+            ("Coffee", 5.00, &date),       // different amount
+            ("Tea", 4.50, &date),          // different title
+        ];
+        let results = db.check_duplicates_batch(&inputs).unwrap();
+        assert_eq!(results, vec![true, false, false]);
+    }
+
+    // ── Upload batches ──
+
+    #[test]
+    fn get_upload_batches_returns_all_batches() {
+        let db = test_db();
+        let expenses = vec![make_expense("A", 10.0, "2025-01-01")];
+        db.insert_expenses_bulk(&expenses, Some("file1.csv")).unwrap();
+        db.insert_expenses_bulk(&expenses, Some("file2.csv")).unwrap();
+
+        let batches = db.get_upload_batches().unwrap();
+        assert_eq!(batches.len(), 2);
+        // Most recent first
+        assert_eq!(batches[0].filename.as_deref(), Some("file2.csv"));
+        assert_eq!(batches[1].filename.as_deref(), Some("file1.csv"));
+    }
+
+    #[test]
+    fn get_upload_batches_excludes_manual_inserts() {
+        let db = test_db();
+        db.insert_expense(&make_expense("Manual", 10.0, "2025-01-01")).unwrap();
+        let batches = db.get_upload_batches().unwrap();
+        assert!(batches.is_empty());
     }
 }

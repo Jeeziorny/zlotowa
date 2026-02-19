@@ -11,6 +11,7 @@ The dashboard displays configurable widgets that visualize your expense data.
 | **Biggest Expense** | Shows the single largest expense this month | Half width |
 | **Monthly Trend** | Total spending per month as a bar chart | Half width |
 | **Most Frequent** | Top 5 most frequently occurring expense titles | Half width |
+| **Budget Status** | Current month's budget vs. actual spending with progress bars | Half width |
 
 ## Customizing the dashboard
 
