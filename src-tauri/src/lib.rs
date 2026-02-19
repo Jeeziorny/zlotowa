@@ -72,18 +72,6 @@ fn parse_date(s: &str) -> Result<chrono::NaiveDate, String> {
         .map_err(|e| format!("Invalid date '{}': {}", s, e))
 }
 
-fn save_rule_if_categorized(db: &Database, title: &str, category: &Option<String>, rule_pattern: &Option<String>) {
-    if let Some(cat) = category {
-        if !cat.is_empty() {
-            let pattern_source = rule_pattern
-                .as_deref()
-                .filter(|p| !p.is_empty())
-                .unwrap_or(title);
-            let _ = db.insert_rule(&ClassificationRule::from_pattern(pattern_source, cat));
-        }
-    }
-}
-
 // ── Expense Commands ──
 
 #[tauri::command]
@@ -103,18 +91,29 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let date = parse_date(&input.date)?;
 
-    let expense = Expense {
-        id: None,
-        title: input.title.clone(),
-        amount: input.amount,
-        date,
-        category: input.category.clone(),
-        classification_source: Some(ClassificationSource::Manual),
-    };
+    db.with_transaction(|| {
+        let expense = Expense {
+            id: None,
+            title: input.title.clone(),
+            amount: input.amount,
+            date,
+            category: input.category.clone(),
+            classification_source: Some(ClassificationSource::Manual),
+        };
 
-    let id = db.insert_expense(&expense).map_err(|e| e.to_string())?;
-    save_rule_if_categorized(&db, &input.title, &input.category, &input.rule_pattern);
-    Ok(id)
+        let id = db.insert_expense(&expense)?;
+        if let Some(cat) = &input.category {
+            if !cat.is_empty() {
+                let pattern_source = input.rule_pattern
+                    .as_deref()
+                    .filter(|p| !p.is_empty())
+                    .unwrap_or(&input.title);
+                db.insert_rule(&ClassificationRule::from_pattern(pattern_source, cat))?;
+            }
+        }
+        Ok(id)
+    })
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -128,18 +127,29 @@ fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Resul
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let date = parse_date(&input.date)?;
 
-    let expense = Expense {
-        id: Some(id),
-        title: input.title.clone(),
-        amount: input.amount,
-        date,
-        category: input.category.clone(),
-        classification_source: Some(ClassificationSource::Manual),
-    };
+    db.with_transaction(|| {
+        let expense = Expense {
+            id: Some(id),
+            title: input.title.clone(),
+            amount: input.amount,
+            date,
+            category: input.category.clone(),
+            classification_source: Some(ClassificationSource::Manual),
+        };
 
-    db.update_expense(&expense).map_err(|e| e.to_string())?;
-    save_rule_if_categorized(&db, &input.title, &input.category, &input.rule_pattern);
-    Ok(())
+        db.update_expense(&expense)?;
+        if let Some(cat) = &input.category {
+            if !cat.is_empty() {
+                let pattern_source = input.rule_pattern
+                    .as_deref()
+                    .filter(|p| !p.is_empty())
+                    .unwrap_or(&input.title);
+                db.insert_rule(&ClassificationRule::from_pattern(pattern_source, cat))?;
+            }
+        }
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -176,13 +186,14 @@ fn save_llm_config(state: State<AppState>, config: LlmConfigInput) -> Result<(),
     };
     provider.validate(&llm_config).map_err(|e| e.to_string())?;
 
-    // Save only if valid
+    // Save atomically — both keys in one transaction
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.set_config("llm_provider", &config.provider)
-        .map_err(|e| e.to_string())?;
-    db.set_config("llm_api_key", &config.api_key)
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    db.with_transaction(|| {
+        db.set_config("llm_provider", &config.provider)?;
+        db.set_config("llm_api_key", &config.api_key)?;
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -199,9 +210,12 @@ fn validate_llm_config(config: LlmConfigInput) -> Result<(), String> {
 #[tauri::command]
 fn clear_llm_config(state: State<AppState>) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.set_config("llm_provider", "").map_err(|e| e.to_string())?;
-    db.set_config("llm_api_key", "").map_err(|e| e.to_string())?;
-    Ok(())
+    db.with_transaction(|| {
+        db.set_config("llm_provider", "")?;
+        db.set_config("llm_api_key", "")?;
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 // ── Category Suggestion ──
@@ -420,13 +434,10 @@ fn bulk_save_expenses(
         }
     }
 
-    // Insert atomically
+    // Insert expenses and rules atomically in a single transaction
     let saved = db
-        .insert_expenses_bulk(&to_insert, filename.as_deref())
+        .insert_expenses_bulk(&to_insert, filename.as_deref(), &rules)
         .map_err(|e| e.to_string())?;
-
-    // Save rules (best-effort, don't fail the whole operation)
-    let _ = db.insert_rules_bulk(&rules);
 
     Ok(saved)
 }
@@ -679,22 +690,21 @@ fn create_budget(
     let start = parse_date(&start_date)?;
     let end = parse_date(&end_date)?;
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let budget_id = db.create_budget(start, end).map_err(|e| e.to_string())?;
 
+    // budget_id is not known upfront, so use 0 as placeholder — create_budget_with_categories
+    // assigns the real budget_id internally
     let cats: Vec<BudgetCategory> = categories
         .into_iter()
         .map(|c| BudgetCategory {
             id: None,
-            budget_id,
+            budget_id: 0, // placeholder, overridden by create_budget_with_categories
             category: c.category,
             amount: c.amount,
         })
         .collect();
 
-    db.save_budget_categories(budget_id, &cats)
-        .map_err(|e| e.to_string())?;
-
-    Ok(budget_id)
+    db.create_budget_with_categories(start, end, &cats)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

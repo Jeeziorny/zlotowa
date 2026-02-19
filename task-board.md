@@ -5,7 +5,6 @@
 | # | Task | Summary |
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
-| 39 | Transaction Safety | Wrap multi-write IPC commands in DB transactions. Fix silent `let _ =` error drops. Wrap budget migration in transaction. |
 | 40 | Unwrap & Mutex Safety | Replace `budget.id.unwrap()` with `?`. Release mutex before disk I/O in `export_expenses`. Build data before acquiring lock in `bulk_save_expenses`. |
 | 41 | Frontend Error Handling | User-visible error feedback for 6 `invoke()` catch blocks. Fix TitleCleanup `deleteTarget` logic bug. Replace native `confirm()` with custom modal. |
 | 42 | Type Safety: Magic Strings | `LlmProviderType` enum, case-insensitive `ClassificationSource` parsing, `BudgetStatus` enum, `"uncategorized"` constant. |
@@ -57,6 +56,7 @@
 | 28 | Title Cleanup Explanation | Collapsible help section in TitleCleanup page, docs "Bulk Import" section, test confirming rules don't auto-apply on insert. |
 | 29 | Dashboard Widget Clicks | Total Expenses/Transactions → Expenses tab, Spending by Category/Categories count → Categories tab. Hover affordance on clickable widgets. |
 | 34 | Tauri IPC Tests | 35 tests for all `#[tauri::command]` functions — expense CRUD, query/filter, bulk save/undo, CSV parse/classify, budget lifecycle, calendar import, title cleanup, categories, widget config, LLM config, export. Uses Tauri MockRuntime + in-memory DB. |
+| 39 | Transaction Safety | `with_transaction` helper, atomic multi-write IPC commands, `insert_expenses_bulk` includes rules, `create_budget_with_categories`, budget migration in transaction, removed silent `let _ =` error drops. 4 new tests. |
 
 ## N/A
 

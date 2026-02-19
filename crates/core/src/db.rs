@@ -150,34 +150,42 @@ impl Database {
         )?;
 
         // Budget date-range migration: year/month → start_date/end_date (idempotent)
+        // Wrapped in a transaction so a crash mid-migration can't leave the DB
+        // without a `budgets` table. PRAGMA foreign_keys is restored even on error.
         let has_old_schema = self
             .conn
             .prepare("SELECT year FROM budgets LIMIT 0")
             .is_ok();
         if has_old_schema {
             self.conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
-            self.conn.execute_batch(
-                "CREATE TABLE budgets_v2 (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    start_date TEXT NOT NULL,
-                    end_date   TEXT NOT NULL
-                );",
-            )?;
-            // Migrate existing rows: year/month → first-of-month / last-day-of-month
-            self.conn.execute_batch(
-                "INSERT INTO budgets_v2 (id, start_date, end_date)
-                 SELECT id,
-                        printf('%04d-%02d-01', year, month),
-                        date(printf('%04d-%02d-01', year, month), '+1 month', '-1 day')
-                 FROM budgets;",
-            )?;
-            self.conn.execute_batch("DROP TABLE budgets;")?;
-            self.conn
-                .execute_batch("ALTER TABLE budgets_v2 RENAME TO budgets;")?;
-            self.conn.execute_batch(
-                "CREATE INDEX IF NOT EXISTS idx_budgets_dates ON budgets(start_date, end_date);",
-            )?;
+            let migration_result = (|| -> Result<(), DbError> {
+                let tx = self.conn.unchecked_transaction()?;
+                self.conn.execute_batch(
+                    "CREATE TABLE budgets_v2 (
+                        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                        start_date TEXT NOT NULL,
+                        end_date   TEXT NOT NULL
+                    );",
+                )?;
+                // Migrate existing rows: year/month → first-of-month / last-day-of-month
+                self.conn.execute_batch(
+                    "INSERT INTO budgets_v2 (id, start_date, end_date)
+                     SELECT id,
+                            printf('%04d-%02d-01', year, month),
+                            date(printf('%04d-%02d-01', year, month), '+1 month', '-1 day')
+                     FROM budgets;",
+                )?;
+                self.conn.execute_batch("DROP TABLE budgets;")?;
+                self.conn
+                    .execute_batch("ALTER TABLE budgets_v2 RENAME TO budgets;")?;
+                self.conn.execute_batch(
+                    "CREATE INDEX IF NOT EXISTS idx_budgets_dates ON budgets(start_date, end_date);",
+                )?;
+                tx.commit()?;
+                Ok(())
+            })();
             self.conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+            migration_result?;
         }
 
         // Calendar events amount column (idempotent ALTER, ignore error)
@@ -186,6 +194,25 @@ impl Database {
             .execute_batch("ALTER TABLE calendar_events ADD COLUMN amount REAL;");
 
         Ok(())
+    }
+
+    /// Run a closure inside a database transaction.
+    /// All Database method calls within the closure share the same transaction.
+    /// Commits on success, rolls back on error.
+    ///
+    /// **Note:** Do not nest `with_transaction` or call methods that internally
+    /// use `unchecked_transaction()` (e.g. `save_budget_categories`,
+    /// `insert_expenses_bulk`) from within the closure — use the dedicated
+    /// combined methods instead (e.g. `create_budget_with_categories`,
+    /// `insert_expenses_bulk` with rules).
+    pub fn with_transaction<T, F>(&self, f: F) -> Result<T, DbError>
+    where
+        F: FnOnce() -> Result<T, DbError>,
+    {
+        let tx = self.conn.unchecked_transaction()?;
+        let result = f()?;
+        tx.commit()?;
+        Ok(result)
     }
 
     // ── Expenses ──
@@ -211,12 +238,14 @@ impl Database {
         Ok(self.conn.last_insert_rowid())
     }
 
-    /// Insert multiple expenses atomically. Either all succeed or none are saved.
+    /// Insert multiple expenses and classification rules atomically.
+    /// Either all succeed or none are saved.
     /// When `batch_filename` is `Some`, creates an upload batch record and links expenses to it.
     pub fn insert_expenses_bulk(
         &self,
         expenses: &[Expense],
         batch_filename: Option<&str>,
+        rules: &[ClassificationRule],
     ) -> Result<usize, DbError> {
         let tx = self.conn.unchecked_transaction()?;
 
@@ -253,6 +282,13 @@ impl Database {
                 ],
             )?;
             count += 1;
+        }
+
+        for rule in rules {
+            tx.execute(
+                "INSERT OR REPLACE INTO classification_rules (pattern, category) VALUES (?1, ?2)",
+                params![rule.pattern, rule.category],
+            )?;
         }
 
         tx.commit()?;
@@ -1065,18 +1101,57 @@ impl Database {
         categories: &[BudgetCategory],
     ) -> Result<(), DbError> {
         let tx = self.conn.unchecked_transaction()?;
-        tx.execute(
+        self.save_budget_categories_inner(budget_id, categories)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Replace budget categories without managing a transaction.
+    /// Caller must ensure this runs inside a transaction.
+    fn save_budget_categories_inner(
+        &self,
+        budget_id: i64,
+        categories: &[BudgetCategory],
+    ) -> Result<(), DbError> {
+        self.conn.execute(
             "DELETE FROM budget_categories WHERE budget_id = ?1",
             params![budget_id],
         )?;
         for cat in categories {
-            tx.execute(
+            self.conn.execute(
                 "INSERT INTO budget_categories (budget_id, category, amount) VALUES (?1, ?2, ?3)",
                 params![budget_id, cat.category, cat.amount],
             )?;
         }
-        tx.commit()?;
         Ok(())
+    }
+
+    /// Create a budget and its categories atomically in a single transaction.
+    pub fn create_budget_with_categories(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+        categories: &[BudgetCategory],
+    ) -> Result<i64, DbError> {
+        if start_date >= end_date {
+            return Err(DbError::InvalidData(
+                "start_date must be before end_date".into(),
+            ));
+        }
+        if self.check_budget_overlap(start_date, end_date)? {
+            return Err(DbError::InvalidData(
+                "Budget overlaps with an existing budget".into(),
+            ));
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        self.conn.execute(
+            "INSERT INTO budgets (start_date, end_date) VALUES (?1, ?2)",
+            params![start_date.to_string(), end_date.to_string()],
+        )?;
+        let budget_id = self.conn.last_insert_rowid();
+        self.save_budget_categories_inner(budget_id, categories)?;
+        tx.commit()?;
+        Ok(budget_id)
     }
 
     pub fn get_budget_categories(&self, budget_id: i64) -> Result<Vec<BudgetCategory>, DbError> {
@@ -1420,7 +1495,7 @@ mod tests {
             make_expense("B", 2.0, "2025-01-02"),
             make_expense("C", 3.0, "2025-01-03"),
         ];
-        let count = db.insert_expenses_bulk(&expenses, None).unwrap();
+        let count = db.insert_expenses_bulk(&expenses, None, &[]).unwrap();
         assert_eq!(count, 3);
         assert_eq!(db.get_all_expenses().unwrap().len(), 3);
     }
@@ -1432,7 +1507,7 @@ mod tests {
             make_expense("Good", 10.0, "2025-01-01"),
             make_expense("Bad", f64::NAN, "2025-01-02"),
         ];
-        assert!(db.insert_expenses_bulk(&expenses, None).is_err());
+        assert!(db.insert_expenses_bulk(&expenses, None, &[]).is_err());
         // Transaction rolled back — nothing inserted
         assert_eq!(db.get_all_expenses().unwrap().len(), 0);
     }
@@ -2137,7 +2212,7 @@ mod tests {
             make_expense("B", 2.0, "2025-01-02"),
             make_expense("C", 3.0, "2025-01-03"),
         ];
-        let count = db.insert_expenses_bulk(&expenses, Some("test.csv")).unwrap();
+        let count = db.insert_expenses_bulk(&expenses, Some("test.csv"), &[]).unwrap();
         assert_eq!(count, 3);
 
         let batches = db.get_upload_batches().unwrap();
@@ -2153,7 +2228,7 @@ mod tests {
             make_expense("A", 1.0, "2025-01-01"),
             make_expense("B", 2.0, "2025-01-02"),
         ];
-        db.insert_expenses_bulk(&expenses, None).unwrap();
+        db.insert_expenses_bulk(&expenses, None, &[]).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         assert!(batches.is_empty());
@@ -2168,7 +2243,7 @@ mod tests {
             make_expense("B", 2.0, "2025-01-02"),
             make_expense("C", 3.0, "2025-01-03"),
         ];
-        db.insert_expenses_bulk(&expenses, Some("test.csv")).unwrap();
+        db.insert_expenses_bulk(&expenses, Some("test.csv"), &[]).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         let batch_id = batches[0].id;
@@ -2187,13 +2262,13 @@ mod tests {
             make_expense("A1", 1.0, "2025-01-01"),
             make_expense("A2", 2.0, "2025-01-02"),
         ];
-        db.insert_expenses_bulk(&batch_a, Some("a.csv")).unwrap();
+        db.insert_expenses_bulk(&batch_a, Some("a.csv"), &[]).unwrap();
 
         // Batch B
         let batch_b = vec![
             make_expense("B1", 3.0, "2025-01-03"),
         ];
-        db.insert_expenses_bulk(&batch_b, Some("b.csv")).unwrap();
+        db.insert_expenses_bulk(&batch_b, Some("b.csv"), &[]).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         // batches are ordered by uploaded_at DESC, so batch B is first
@@ -2218,7 +2293,7 @@ mod tests {
 
         // Batch
         let batch = vec![make_expense("Batch1", 5.0, "2025-01-02")];
-        db.insert_expenses_bulk(&batch, Some("file.csv")).unwrap();
+        db.insert_expenses_bulk(&batch, Some("file.csv"), &[]).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         db.delete_batch(batches[0].id).unwrap();
@@ -2559,8 +2634,8 @@ mod tests {
     fn get_upload_batches_returns_all_batches() {
         let db = test_db();
         let expenses = vec![make_expense("A", 10.0, "2025-01-01")];
-        db.insert_expenses_bulk(&expenses, Some("file1.csv")).unwrap();
-        db.insert_expenses_bulk(&expenses, Some("file2.csv")).unwrap();
+        db.insert_expenses_bulk(&expenses, Some("file1.csv"), &[]).unwrap();
+        db.insert_expenses_bulk(&expenses, Some("file2.csv"), &[]).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         assert_eq!(batches.len(), 2);
@@ -2757,7 +2832,7 @@ mod tests {
         let expenses: Vec<Expense> = (0..160)
             .map(|i| make_expense(&format!("Item {}", i), i as f64, "2025-06-01"))
             .collect();
-        db.insert_expenses_bulk(&expenses, None).unwrap();
+        db.insert_expenses_bulk(&expenses, None, &[]).unwrap();
         let all = db.get_all_expenses().unwrap();
         assert_eq!(all.len(), 160);
 
@@ -2886,7 +2961,7 @@ mod tests {
             make_expense("NOISE Gas Station", 60.00, "2025-01-17"),
             make_expense("NOISE Pharmacy", 12.99, "2025-01-18"),
         ];
-        db.insert_expenses_bulk(&bulk, Some("test.csv")).unwrap();
+        db.insert_expenses_bulk(&bulk, Some("test.csv"), &[]).unwrap();
 
         // Verify titles were NOT cleaned — rules don't auto-apply on insert
         let all = db.get_all_expenses().unwrap();
@@ -2951,5 +3026,98 @@ mod tests {
                 e.title
             );
         }
+    }
+
+    // ── Transaction safety tests ──
+
+    #[test]
+    fn with_transaction_commits_on_success() {
+        let db = test_db();
+        db.with_transaction(|| {
+            db.insert_expense(&make_expense("TX1", 10.0, "2025-01-01"))?;
+            db.insert_expense(&make_expense("TX2", 20.0, "2025-01-02"))?;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(db.get_all_expenses().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn with_transaction_rolls_back_on_error() {
+        let db = test_db();
+        // Insert one expense outside the transaction
+        db.insert_expense(&make_expense("Before", 1.0, "2025-01-01"))
+            .unwrap();
+
+        let result = db.with_transaction(|| {
+            db.insert_expense(&make_expense("Inside", 2.0, "2025-01-02"))?;
+            // Force an error by inserting NaN
+            db.insert_expense(&make_expense("Bad", f64::NAN, "2025-01-03"))?;
+            Ok(())
+        });
+        assert!(result.is_err());
+
+        // Only the pre-transaction expense should remain
+        let all = db.get_all_expenses().unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].title, "Before");
+    }
+
+    #[test]
+    fn create_budget_with_categories_is_atomic() {
+        let db = test_db();
+        let start = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 6, 30).unwrap();
+
+        let cats = vec![
+            BudgetCategory {
+                id: None,
+                budget_id: 0,
+                category: "Food".into(),
+                amount: 500.0,
+            },
+            BudgetCategory {
+                id: None,
+                budget_id: 0,
+                category: "Transport".into(),
+                amount: 200.0,
+            },
+        ];
+
+        let budget_id = db
+            .create_budget_with_categories(start, end, &cats)
+            .unwrap();
+
+        let saved_cats = db.get_budget_categories(budget_id).unwrap();
+        assert_eq!(saved_cats.len(), 2);
+        assert_eq!(saved_cats[0].budget_id, budget_id);
+        assert_eq!(saved_cats[1].budget_id, budget_id);
+
+        let budget = db.get_budget_by_id(budget_id).unwrap().unwrap();
+        assert_eq!(budget.start_date, start);
+        assert_eq!(budget.end_date, end);
+    }
+
+    #[test]
+    fn insert_expenses_bulk_with_rules_is_atomic() {
+        let db = test_db();
+        let expenses = vec![
+            make_expense("Coffee", 5.0, "2025-01-01"),
+            make_expense("Bus", 2.0, "2025-01-02"),
+        ];
+        let rules = vec![
+            ClassificationRule::from_pattern("Coffee", "Food"),
+            ClassificationRule::from_pattern("Bus", "Transport"),
+        ];
+
+        let count = db
+            .insert_expenses_bulk(&expenses, Some("test.csv"), &rules)
+            .unwrap();
+        assert_eq!(count, 2);
+
+        // Rules were saved in the same transaction
+        let saved_rules = db.get_all_rules().unwrap();
+        assert!(saved_rules.iter().any(|r| r.category == "Food"));
+        assert!(saved_rules.iter().any(|r| r.category == "Transport"));
     }
 }

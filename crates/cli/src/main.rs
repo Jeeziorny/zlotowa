@@ -477,9 +477,8 @@ fn cmd_bulk_insert(path: PathBuf) {
     }
 
     let filename = path.file_name().map(|n| n.to_string_lossy().to_string());
-    match db.insert_expenses_bulk(&to_insert, filename.as_deref()) {
+    match db.insert_expenses_bulk(&to_insert, filename.as_deref(), &rules_to_save) {
         Ok(count) => {
-            let _ = db.insert_rules_bulk(&rules_to_save);
             println!("{} {} expenses saved.", "OK".green().bold(), count);
         }
         Err(e) => {
