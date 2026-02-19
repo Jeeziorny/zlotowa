@@ -5,12 +5,7 @@
 | # | Task | Summary |
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
-| 40 | Unwrap & Mutex Safety | Replace `budget.id.unwrap()` with `?`. Release mutex before disk I/O in `export_expenses`. Build data before acquiring lock in `bulk_save_expenses`. |
 | 41 | Frontend Error Handling | User-visible error feedback for 6 `invoke()` catch blocks. Fix TitleCleanup `deleteTarget` logic bug. Replace native `confirm()` with custom modal. |
-| 42 | Type Safety: Magic Strings | `LlmProviderType` enum, case-insensitive `ClassificationSource` parsing, `BudgetStatus` enum, `"uncategorized"` constant. |
-| 43 | Dead Code Cleanup | Remove unused structs (`ClassifiedExpense`), enum variants (`ClassifyError`, `ExportError::Failed`, 2 `ParseError` variants), functions (`filter_events_by_month`, `is_duplicate`, `get_all_budgets`), dead prop. |
-| 44 | DB Constraint Hardening | UNIQUE on `expenses(title,amount,date)`, ON DELETE for `batch_id` FK, FK indices on child tables, UNIQUE on `title_cleanup_rules`. |
-| 45 | LLM Provider Dedup | Extract shared HTTP classify helper across 3 providers. Reduce ~120 lines of duplicated code. Tighten provider struct visibility. |
 | 46 | Accessibility Round 2 | `aria-label` on icon-only buttons, `for` on form labels, `aria-modal`+`aria-labelledby` on dialogs, keyboard handler on CalendarEvents drop zone. |
 | 47 | Docs Sync Round 2 | CLAUDE.md: missing commands, `ical` module, trait methods. mdBook: budget "monthly"→"date-range", dashboard "active budget", LLM model version, export source strings. |
 | 48 | Integration Tests | Parse→classify→save→query roundtrip, export→reimport roundtrip, title cleanup→classify. Budget migration test. Edge cases for `from_pattern`, iCal, CSV, exporters. |
@@ -57,6 +52,11 @@
 | 29 | Dashboard Widget Clicks | Total Expenses/Transactions → Expenses tab, Spending by Category/Categories count → Categories tab. Hover affordance on clickable widgets. |
 | 34 | Tauri IPC Tests | 35 tests for all `#[tauri::command]` functions — expense CRUD, query/filter, bulk save/undo, CSV parse/classify, budget lifecycle, calendar import, title cleanup, categories, widget config, LLM config, export. Uses Tauri MockRuntime + in-memory DB. |
 | 39 | Transaction Safety | `with_transaction` helper, atomic multi-write IPC commands, `insert_expenses_bulk` includes rules, `create_budget_with_categories`, budget migration in transaction, removed silent `let _ =` error drops. 4 new tests. |
+| 40 | Unwrap & Mutex Safety | `budget.id.unwrap()` → `?`, mutex released before disk I/O in `export_expenses`, data built before lock in `bulk_save_expenses`. |
+| 42 | Type Safety: Magic Strings | Case-insensitive `ClassificationSource::from_str_opt()` and `create_provider()`, `BudgetStatus` enum with `from_ratio()`, `UNCATEGORIZED` constant. |
+| 43 | Dead Code Cleanup | Removed `ClassifiedExpense`, `ClassifyError::LlmNotConfigured`, `ExportError::Failed`, 2 `ParseError` variants, `filter_events_by_month`, `is_duplicate`, `get_all_budgets`, dead BudgetStatus prop, legacy LLM string parsing. |
+| 44 | DB Constraint Hardening | FK indices on `budget_categories`, `planned_expenses`, `calendar_events`. UNIQUE index on `title_cleanup_rules`. |
+| 45 | LLM Provider Dedup | Shared `http_classify()` helper for all 3 providers. Provider structs made private. ~80 lines removed. |
 
 ## N/A
 

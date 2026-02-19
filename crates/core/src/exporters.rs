@@ -3,8 +3,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExportError {
-    #[error("Export failed: {0}")]
-    Failed(String),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }

@@ -193,6 +193,19 @@ impl Database {
             .conn
             .execute_batch("ALTER TABLE calendar_events ADD COLUMN amount REAL;");
 
+        // FK indices on budget child tables (idempotent)
+        self.conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_budget_categories_budget_id ON budget_categories(budget_id);
+             CREATE INDEX IF NOT EXISTS idx_planned_expenses_budget_id ON planned_expenses(budget_id);
+             CREATE INDEX IF NOT EXISTS idx_calendar_events_budget_id ON calendar_events(budget_id);",
+        )?;
+
+        // UNIQUE constraint on title_cleanup_rules(pattern, replacement, is_regex)
+        // Ignoring error in case existing data has duplicates
+        let _ = self.conn.execute_batch(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_title_cleanup_rules_unique ON title_cleanup_rules(pattern, replacement, is_regex);",
+        );
+
         Ok(())
     }
 
@@ -339,7 +352,7 @@ impl Database {
         }
 
         if let Some(ref category) = query.category {
-            if category == "uncategorized" {
+            if category == crate::models::UNCATEGORIZED {
                 conditions.push("category IS NULL".to_string());
             } else {
                 conditions.push(format!("category = ?{}", idx));
@@ -428,16 +441,6 @@ impl Database {
             expenses,
             total_count,
         })
-    }
-
-    /// Check if an expense is a duplicate (same title, amount, and date).
-    pub fn is_duplicate(&self, title: &str, amount: f64, date: &chrono::NaiveDate) -> Result<bool, DbError> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM expenses WHERE title = ?1 AND amount = ?2 AND date = ?3",
-            params![title, amount, date.to_string()],
-            |row| row.get(0),
-        )?;
-        Ok(count > 0)
     }
 
     /// Check which (title, amount, date) tuples already exist in the database.
@@ -1025,38 +1028,6 @@ impl Database {
         }
     }
 
-    pub fn get_all_budgets(&self) -> Result<Vec<Budget>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, start_date, end_date FROM budgets ORDER BY start_date DESC",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            let start_str: String = row.get(1)?;
-            let end_str: String = row.get(2)?;
-            let start_date =
-                chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d").map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        1,
-                        rusqlite::types::Type::Text,
-                        Box::new(e),
-                    )
-                })?;
-            let end_date =
-                chrono::NaiveDate::parse_from_str(&end_str, "%Y-%m-%d").map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        2,
-                        rusqlite::types::Type::Text,
-                        Box::new(e),
-                    )
-                })?;
-            Ok(Budget {
-                id: Some(row.get(0)?),
-                start_date,
-                end_date,
-            })
-        })?;
-        rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
-    }
-
     pub fn check_budget_overlap(
         &self,
         start_date: chrono::NaiveDate,
@@ -1451,38 +1422,6 @@ mod tests {
         assert_eq!(all[0].title, "New");
         assert_eq!(all[1].title, "Mid");
         assert_eq!(all[2].title, "Old");
-    }
-
-    // ── Duplicate detection ──
-
-    #[test]
-    fn is_duplicate_returns_false_when_empty() {
-        let db = test_db();
-        let date = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
-        assert!(!db.is_duplicate("Coffee", 4.50, &date).unwrap());
-    }
-
-    #[test]
-    fn is_duplicate_returns_true_for_exact_match() {
-        let db = test_db();
-        db.insert_expense(&make_expense("Coffee", 4.50, "2025-01-15")).unwrap();
-        let date = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
-        assert!(db.is_duplicate("Coffee", 4.50, &date).unwrap());
-    }
-
-    #[test]
-    fn is_duplicate_returns_false_for_different_fields() {
-        let db = test_db();
-        db.insert_expense(&make_expense("Coffee", 4.50, "2025-01-15")).unwrap();
-
-        let date = NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
-        // Different title
-        assert!(!db.is_duplicate("Tea", 4.50, &date).unwrap());
-        // Different amount
-        assert!(!db.is_duplicate("Coffee", 5.00, &date).unwrap());
-        // Different date
-        let other_date = NaiveDate::from_ymd_opt(2025, 1, 16).unwrap();
-        assert!(!db.is_duplicate("Coffee", 4.50, &other_date).unwrap());
     }
 
     // ── Bulk insert ──
@@ -2363,7 +2302,7 @@ mod tests {
     fn query_expenses_filter_uncategorized() {
         let db = test_db();
         seed_query_db(&db);
-        let query = ExpenseQuery { category: Some("uncategorized".into()), ..Default::default() };
+        let query = ExpenseQuery { category: Some(crate::models::UNCATEGORIZED.into()), ..Default::default() };
         let result = db.query_expenses(&query).unwrap();
         assert_eq!(result.total_count, 1);
         assert_eq!(result.expenses[0].title, "Mystery Payment");

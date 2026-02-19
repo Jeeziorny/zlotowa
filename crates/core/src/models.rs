@@ -2,6 +2,9 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Sentinel value for filtering expenses with no category.
+pub const UNCATEGORIZED: &str = "uncategorized";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Expense {
     pub id: Option<i64>,
@@ -35,10 +38,10 @@ impl fmt::Display for ClassificationSource {
 
 impl ClassificationSource {
     pub fn from_str_opt(s: &str) -> Option<Self> {
-        match s {
-            "database" | "Database" => Some(Self::Database),
-            "llm" | "Llm" => Some(Self::Llm),
-            "manual" | "Manual" => Some(Self::Manual),
+        match s.to_lowercase().as_str() {
+            "database" => Some(Self::Database),
+            "llm" => Some(Self::Llm),
+            "manual" => Some(Self::Manual),
             _ => None,
         }
     }
@@ -146,12 +149,44 @@ pub struct CalendarEvent {
     pub amount: Option<f64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum BudgetStatus {
+    #[serde(rename = "over")]
+    Over,
+    #[serde(rename = "approaching")]
+    Approaching,
+    #[serde(rename = "under")]
+    Under,
+}
+
+impl fmt::Display for BudgetStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Over => write!(f, "over"),
+            Self::Approaching => write!(f, "approaching"),
+            Self::Under => write!(f, "under"),
+        }
+    }
+}
+
+impl BudgetStatus {
+    pub fn from_ratio(ratio: f64) -> Self {
+        if ratio > 1.0 {
+            Self::Over
+        } else if ratio >= 0.8 {
+            Self::Approaching
+        } else {
+            Self::Under
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BudgetCategoryStatus {
     pub category: String,
     pub budgeted: f64,
     pub spent: f64,
-    pub status: String,
+    pub status: BudgetStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,15 +216,6 @@ pub struct ExpenseQueryResult {
     pub total_count: i64,
 }
 
-/// Result of a bulk classification attempt.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClassifiedExpense {
-    pub parsed: ParsedExpense,
-    pub category: Option<String>,
-    pub source: Option<ClassificationSource>,
-    pub is_duplicate: bool,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,7 +241,13 @@ mod tests {
     fn classification_source_from_str_opt_invalid() {
         assert_eq!(ClassificationSource::from_str_opt(""), None);
         assert_eq!(ClassificationSource::from_str_opt("unknown"), None);
-        assert_eq!(ClassificationSource::from_str_opt("DATABASE"), None);
+    }
+
+    #[test]
+    fn classification_source_from_str_opt_case_insensitive() {
+        assert_eq!(ClassificationSource::from_str_opt("DATABASE"), Some(ClassificationSource::Database));
+        assert_eq!(ClassificationSource::from_str_opt("LLM"), Some(ClassificationSource::Llm));
+        assert_eq!(ClassificationSource::from_str_opt("MANUAL"), Some(ClassificationSource::Manual));
     }
 
     #[test]

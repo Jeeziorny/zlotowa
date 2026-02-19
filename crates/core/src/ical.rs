@@ -102,19 +102,6 @@ pub fn parse_ics(input: &str) -> Result<Vec<ParsedCalendarEvent>, IcalError> {
     Ok(events)
 }
 
-/// Filter events to those starting in a given year/month.
-pub fn filter_events_by_month(
-    events: &[ParsedCalendarEvent],
-    year: i32,
-    month: u32,
-) -> Vec<ParsedCalendarEvent> {
-    events
-        .iter()
-        .filter(|e| e.start_date.year() == year && e.start_date.month() == month)
-        .cloned()
-        .collect()
-}
-
 /// Filter events to those starting within a date range (inclusive).
 pub fn filter_events_by_date_range(
     events: &[ParsedCalendarEvent],
@@ -127,8 +114,6 @@ pub fn filter_events_by_date_range(
         .cloned()
         .collect()
 }
-
-use chrono::Datelike;
 
 /// Parse an iCal date/datetime string into a NaiveDate and all_day flag.
 ///
@@ -217,23 +202,6 @@ mod tests {
         let ics = make_ics("BEGIN:VEVENT\r\nSUMMARY:No Date\r\nEND:VEVENT");
         let events = parse_ics(&ics).unwrap();
         assert_eq!(events.len(), 0);
-    }
-
-    #[test]
-    fn filter_events_by_month_works() {
-        let ics = make_ics(&[
-            make_event("DTSTART:20250115T100000Z", "Jan Event"),
-            make_event("DTSTART:20250301T100000Z", "Mar Event 1"),
-            make_event("DTSTART:20250315T100000Z", "Mar Event 2"),
-            make_event("DTSTART:20250401T100000Z", "Apr Event"),
-        ].join("\r\n"));
-        let events = parse_ics(&ics).unwrap();
-        assert_eq!(events.len(), 4);
-
-        let march = filter_events_by_month(&events, 2025, 3);
-        assert_eq!(march.len(), 2);
-        assert_eq!(march[0].summary, "Mar Event 1");
-        assert_eq!(march[1].summary, "Mar Event 2");
     }
 
     #[test]

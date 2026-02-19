@@ -7,10 +7,7 @@ use thiserror::Error;
 pub enum ClassifyError {
     #[error("Classification failed: {0}")]
     Failed(String),
-    #[error("LLM not configured")]
-    LlmNotConfigured,
 }
-
 /// Result from a single classifier in the pipeline.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClassificationResult {

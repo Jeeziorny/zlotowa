@@ -6,12 +6,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ParseError {
-    #[error("Input format not recognized")]
-    UnrecognizedFormat,
     #[error("Failed to parse input: {0}")]
     ParseFailed(String),
-    #[error("Too few expenses parsed (got {got}, minimum {min})")]
-    TooFewExpenses { got: usize, min: usize },
 }
 
 /// Column mapping that the user confirms after previewing parsed data.

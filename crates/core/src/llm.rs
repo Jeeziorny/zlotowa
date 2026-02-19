@@ -118,7 +118,6 @@ fn parse_classification_response(response: &str, expected_count: usize) -> Resul
     let mut results: Vec<Option<LlmClassification>> = vec![None; expected_count];
 
     for item in &parsed {
-        // Support both keyed format (new) and flat string format (legacy)
         if let Some(obj) = item.as_object() {
             let id = obj.get("id").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
             let category = obj.get("category").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -130,25 +129,74 @@ fn parse_classification_response(response: &str, expected_count: usize) -> Resul
                     confidence: confidence_str_to_f64(confidence_str),
                 });
             }
-        } else if let Some(s) = item.as_str() {
-            // Legacy flat string fallback — assign in order to first empty slot
-            if !s.is_empty() {
-                if let Some(slot) = results.iter_mut().find(|r| r.is_none()) {
-                    *slot = Some(LlmClassification {
-                        category: s.to_string(),
-                        confidence: 0.6,
-                    });
-                }
-            }
         }
     }
 
     Ok(results)
 }
 
+// ── Shared HTTP classify helper ──
+
+/// Send a classification request to an LLM API and parse the response.
+/// Handles the common flow: build prompt → POST → check status → extract content → parse.
+fn http_classify(
+    expenses: &[ParsedExpense],
+    url: &str,
+    headers: Vec<(&str, String)>,
+    body_json: serde_json::Value,
+    content_path: &[&str],
+    check_api_key: bool,
+    config: &LlmConfig,
+) -> Result<Vec<Option<LlmClassification>>, LlmError> {
+    if expenses.is_empty() {
+        return Ok(vec![]);
+    }
+    if check_api_key && config.api_key.is_empty() {
+        return Err(LlmError::InvalidApiKey);
+    }
+
+    let client = reqwest::blocking::Client::new();
+    let mut req = client.post(url);
+    for (key, value) in &headers {
+        req = req.header(*key, value);
+    }
+    let resp = req
+        .json(&body_json)
+        .send()
+        .map_err(|e| LlmError::RequestFailed(format!("Connection failed: {}", e)))?;
+
+    match resp.status().as_u16() {
+        401 | 403 => return Err(LlmError::InvalidApiKey),
+        s if s >= 400 => {
+            let body = resp.text().unwrap_or_default();
+            return Err(LlmError::RequestFailed(format!("HTTP {}: {}", s, body)));
+        }
+        _ => {}
+    }
+
+    let body: serde_json::Value = resp
+        .json()
+        .map_err(|e| LlmError::RequestFailed(format!("Failed to parse response: {}", e)))?;
+
+    // Navigate the JSON path to extract text content
+    let mut node = &body;
+    for key in content_path {
+        if let Ok(idx) = key.parse::<usize>() {
+            node = &node[idx];
+        } else {
+            node = &node[*key];
+        }
+    }
+    let content = node
+        .as_str()
+        .ok_or_else(|| LlmError::RequestFailed("No content in response".to_string()))?;
+
+    parse_classification_response(content, expenses.len())
+}
+
 // ── OpenAI Provider ──
 
-pub struct OpenAiProvider;
+struct OpenAiProvider;
 
 impl LlmProvider for OpenAiProvider {
     fn name(&self) -> &str {
@@ -188,50 +236,26 @@ impl LlmProvider for OpenAiProvider {
         existing_categories: &[String],
         config: &LlmConfig,
     ) -> Result<Vec<Option<LlmClassification>>, LlmError> {
-        if expenses.is_empty() {
-            return Ok(vec![]);
-        }
-        if config.api_key.is_empty() {
-            return Err(LlmError::InvalidApiKey);
-        }
-
         let prompt = build_classification_prompt(expenses, existing_categories);
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", config.api_key))
-            .json(&serde_json::json!({
+        http_classify(
+            expenses,
+            "https://api.openai.com/v1/chat/completions",
+            vec![("Authorization", format!("Bearer {}", config.api_key))],
+            serde_json::json!({
                 "model": "gpt-4o-mini",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1
-            }))
-            .send()
-            .map_err(|e| LlmError::RequestFailed(format!("Connection failed: {}", e)))?;
-
-        match resp.status().as_u16() {
-            401 | 403 => return Err(LlmError::InvalidApiKey),
-            s if s >= 400 => {
-                let body = resp.text().unwrap_or_default();
-                return Err(LlmError::RequestFailed(format!("HTTP {}: {}", s, body)));
-            }
-            _ => {}
-        }
-
-        let body: serde_json::Value = resp
-            .json()
-            .map_err(|e| LlmError::RequestFailed(format!("Failed to parse response: {}", e)))?;
-
-        let content = body["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| LlmError::RequestFailed("No content in response".to_string()))?;
-
-        parse_classification_response(content, expenses.len())
+            }),
+            &["choices", "0", "message", "content"],
+            true,
+            config,
+        )
     }
 }
 
 // ── Anthropic Provider ──
 
-pub struct AnthropicProvider;
+struct AnthropicProvider;
 
 impl LlmProvider for AnthropicProvider {
     fn name(&self) -> &str {
@@ -273,62 +297,39 @@ impl LlmProvider for AnthropicProvider {
         existing_categories: &[String],
         config: &LlmConfig,
     ) -> Result<Vec<Option<LlmClassification>>, LlmError> {
-        if expenses.is_empty() {
-            return Ok(vec![]);
-        }
-        if config.api_key.is_empty() {
-            return Err(LlmError::InvalidApiKey);
-        }
-
         let prompt = build_classification_prompt(expenses, existing_categories);
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .post("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", &config.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("content-type", "application/json")
-            .json(&serde_json::json!({
+        http_classify(
+            expenses,
+            "https://api.anthropic.com/v1/messages",
+            vec![
+                ("x-api-key", config.api_key.clone()),
+                ("anthropic-version", "2023-06-01".to_string()),
+                ("content-type", "application/json".to_string()),
+            ],
+            serde_json::json!({
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 1024,
                 "temperature": 0.1,
                 "messages": [{"role": "user", "content": prompt}]
-            }))
-            .send()
-            .map_err(|e| LlmError::RequestFailed(format!("Connection failed: {}", e)))?;
-
-        match resp.status().as_u16() {
-            401 | 403 => return Err(LlmError::InvalidApiKey),
-            s if s >= 400 => {
-                let body = resp.text().unwrap_or_default();
-                return Err(LlmError::RequestFailed(format!("HTTP {}: {}", s, body)));
-            }
-            _ => {}
-        }
-
-        let body: serde_json::Value = resp
-            .json()
-            .map_err(|e| LlmError::RequestFailed(format!("Failed to parse response: {}", e)))?;
-
-        let content = body["content"][0]["text"]
-            .as_str()
-            .ok_or_else(|| LlmError::RequestFailed("No content in response".to_string()))?;
-
-        parse_classification_response(content, expenses.len())
+            }),
+            &["content", "0", "text"],
+            true,
+            config,
+        )
     }
 }
 
 // ── Ollama Provider ──
 
-pub struct OllamaProvider;
+struct OllamaProvider;
 
 impl OllamaProvider {
     fn endpoint(config: &LlmConfig) -> String {
-        let base = if config.api_key.is_empty() {
+        if config.api_key.is_empty() {
             "http://localhost:11434".to_string()
         } else {
             config.api_key.trim_end_matches('/').to_string()
-        };
-        base
+        }
     }
 }
 
@@ -361,46 +362,30 @@ impl LlmProvider for OllamaProvider {
         existing_categories: &[String],
         config: &LlmConfig,
     ) -> Result<Vec<Option<LlmClassification>>, LlmError> {
-        if expenses.is_empty() {
-            return Ok(vec![]);
-        }
-
         let base = Self::endpoint(config);
         let prompt = build_classification_prompt(expenses, existing_categories);
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .post(format!("{}/api/chat", base))
-            .json(&serde_json::json!({
+        http_classify(
+            expenses,
+            &format!("{}/api/chat", base),
+            vec![],
+            serde_json::json!({
                 "model": "llama3",
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": false,
                 "options": {"temperature": 0.1}
-            }))
-            .send()
-            .map_err(|e| LlmError::RequestFailed(format!("Connection failed: {}", e)))?;
-
-        if !resp.status().is_success() {
-            let body = resp.text().unwrap_or_default();
-            return Err(LlmError::RequestFailed(format!("Ollama error: {}", body)));
-        }
-
-        let body: serde_json::Value = resp
-            .json()
-            .map_err(|e| LlmError::RequestFailed(format!("Failed to parse response: {}", e)))?;
-
-        let content = body["message"]["content"]
-            .as_str()
-            .ok_or_else(|| LlmError::RequestFailed("No content in Ollama response".to_string()))?;
-
-        parse_classification_response(content, expenses.len())
+            }),
+            &["message", "content"],
+            false,
+            config,
+        )
     }
 }
 
 // ── Factory ──
 
-/// Create the appropriate LLM provider from a provider name string.
+/// Create the appropriate LLM provider from a provider name string (case-insensitive).
 pub fn create_provider(provider_name: &str) -> Option<Box<dyn LlmProvider>> {
-    match provider_name {
+    match provider_name.to_lowercase().as_str() {
         "openai" => Some(Box::new(OpenAiProvider)),
         "anthropic" => Some(Box::new(AnthropicProvider)),
         "ollama" => Some(Box::new(OllamaProvider)),
@@ -460,7 +445,14 @@ mod tests {
     fn test_create_provider_unknown() {
         assert!(create_provider("grok").is_none());
         assert!(create_provider("").is_none());
-        assert!(create_provider("OPENAI").is_none());
+    }
+
+    #[test]
+    fn test_create_provider_case_insensitive() {
+        assert!(create_provider("OPENAI").is_some());
+        assert!(create_provider("OpenAI").is_some());
+        assert!(create_provider("Anthropic").is_some());
+        assert!(create_provider("OLLAMA").is_some());
     }
 
     // ── Validation tests (no real API calls) ──
@@ -572,14 +564,6 @@ mod tests {
         assert!(result[0].is_some());
         assert!(result[1].is_none());
         assert!(result[2].is_some());
-    }
-
-    #[test]
-    fn test_parse_legacy_string_response() {
-        let response = r#"["Groceries", "Transport"]"#;
-        let result = parse_classification_response(response, 2).unwrap();
-        assert_eq!(result[0].as_ref().unwrap().category, "Groceries");
-        assert_eq!(result[1].as_ref().unwrap().category, "Transport");
     }
 
     #[test]

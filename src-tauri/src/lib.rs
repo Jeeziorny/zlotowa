@@ -2,9 +2,9 @@ use accountant_core::classifiers::{classify_pipeline, Classifier, RegexClassifie
 use accountant_core::db::Database;
 use accountant_core::llm::{create_provider, LlmConfig};
 use accountant_core::models::{
-    BudgetCategory, BudgetCategoryStatus, CalendarEvent, CategoryAverage, CategoryStats,
-    ClassificationRule, ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult,
-    ParsedExpense, PlannedExpense, TitleCleanupRule, UploadBatch, Budget,
+    BudgetCategory, BudgetCategoryStatus, BudgetStatus, CalendarEvent, CategoryAverage,
+    CategoryStats, ClassificationRule, ClassificationSource, Expense, ExpenseQuery,
+    ExpenseQueryResult, ParsedExpense, PlannedExpense, TitleCleanupRule, UploadBatch, Budget,
 };
 use accountant_core::parsers::{self, ColumnMapping};
 use serde::{Deserialize, Serialize};
@@ -376,9 +376,6 @@ fn export_expenses(
 ) -> Result<(), String> {
     use accountant_core::exporters::{CsvExporter, ExportColumns, Exporter};
 
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let expenses = db.get_all_expenses().map_err(|e| e.to_string())?;
-
     let export_columns = ExportColumns {
         date: columns.date,
         title: columns.title,
@@ -387,8 +384,14 @@ fn export_expenses(
         classification_source: columns.classification_source,
     };
 
-    let exporter = CsvExporter;
-    let bytes = exporter.export(&expenses, &export_columns).map_err(|e| e.to_string())?;
+    // Fetch data under lock, then release before disk I/O
+    let bytes = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let expenses = db.get_all_expenses().map_err(|e| e.to_string())?;
+        let exporter = CsvExporter;
+        exporter.export(&expenses, &export_columns).map_err(|e| e.to_string())?
+    };
+
     std::fs::write(&path, &bytes).map_err(|e| format!("Failed to write file: {}", e))
 }
 
@@ -400,9 +403,7 @@ fn bulk_save_expenses(
     expenses: Vec<BulkSaveExpense>,
     filename: Option<String>,
 ) -> Result<usize, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-
-    // Build all expenses first, fail fast on invalid data
+    // Build all expenses first (pure computation, no lock needed), fail fast on invalid data
     let mut to_insert: Vec<Expense> = Vec::with_capacity(expenses.len());
     let mut rules: Vec<ClassificationRule> = Vec::new();
 
@@ -434,7 +435,8 @@ fn bulk_save_expenses(
         }
     }
 
-    // Insert expenses and rules atomically in a single transaction
+    // Acquire lock only for the DB insert
+    let db = state.db.lock().map_err(|e| e.to_string())?;
     let saved = db
         .insert_expenses_bulk(&to_insert, filename.as_deref(), &rules)
         .map_err(|e| e.to_string())?;
@@ -587,7 +589,7 @@ pub struct BudgetSummaryOutput {
 }
 
 fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryOutput, String> {
-    let budget_id = budget.id.unwrap();
+    let budget_id = budget.id.ok_or_else(|| "Budget has no id".to_string())?;
     let budget_cats = db.get_budget_categories(budget_id).map_err(|e| e.to_string())?;
     let planned = db.get_planned_expenses(budget_id).map_err(|e| e.to_string())?;
     let cal_events = db.get_calendar_events(budget_id).map_err(|e| e.to_string())?;
@@ -611,13 +613,6 @@ fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryO
         } else {
             0.0
         };
-        let status = if ratio > 1.0 {
-            "over"
-        } else if ratio >= 0.8 {
-            "approaching"
-        } else {
-            "under"
-        };
 
         total_budgeted += bc.amount;
         total_spent += spent;
@@ -626,7 +621,7 @@ fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryO
             category: bc.category.clone(),
             budgeted: bc.amount,
             spent,
-            status: status.to_string(),
+            status: BudgetStatus::from_ratio(ratio),
         });
     }
 
@@ -1676,7 +1671,7 @@ mod tests {
         let state: State<AppState> = app.state();
         let summary = get_budget_summary(state, budget_id).unwrap();
         assert_eq!(summary.total_spent, 85.0);
-        assert_eq!(summary.categories[0].status, "approaching"); // 85/100 = 0.85
+        assert_eq!(summary.categories[0].status, BudgetStatus::Approaching); // 85/100 = 0.85
     }
 
     // ── Calendar Events ──

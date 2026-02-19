@@ -2,8 +2,6 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
 
-  let { expenses } = $props();
-
   let loading = $state(true);
   let summary = $state(null);
 
