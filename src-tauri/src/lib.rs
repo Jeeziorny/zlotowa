@@ -38,7 +38,7 @@ pub struct LlmConfigOutput {
     pub api_key: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PreviewResult {
     pub parser_name: String,
     pub rows: Vec<Vec<String>>,
@@ -546,7 +546,7 @@ fn apply_title_cleanup(state: State<AppState>, rule_id: i64, expense_ids: Vec<i6
 
 // ── Budget Planning ──
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BudgetCategoryInput {
     pub category: String,
     pub amount: f64,
@@ -560,7 +560,7 @@ pub struct PlannedExpenseInput {
     pub category: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BudgetSummaryOutput {
     pub budget_id: i64,
     pub start_date: String,
@@ -841,6 +841,1049 @@ fn save_active_widgets(state: State<AppState>, widget_ids: Vec<String>) -> Resul
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let json = serde_json::to_string(&widget_ids).map_err(|e| e.to_string())?;
     db.set_config("active_widgets", &json).map_err(|e| e.to_string())
+}
+
+// ── Tests ──
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::Manager;
+
+    fn app() -> tauri::App<tauri::test::MockRuntime> {
+        tauri::test::mock_builder()
+            .manage(AppState {
+                db: Mutex::new(Database::open_memory().unwrap()),
+            })
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap()
+    }
+
+    // ── Expense CRUD ──
+
+    #[test]
+    fn add_and_get_expense() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let id = add_expense(
+            state,
+            ExpenseInput {
+                title: "Coffee".into(),
+                amount: 3.50,
+                date: "2024-01-15".into(),
+                category: Some("Food".into()),
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+        assert!(id > 0);
+
+        let state: State<AppState> = app.state();
+        let all = get_expenses(state).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].title, "Coffee");
+        assert_eq!(all[0].amount, 3.50);
+        assert_eq!(all[0].category.as_deref(), Some("Food"));
+    }
+
+    #[test]
+    fn add_expense_invalid_date() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let err = add_expense(
+            state,
+            ExpenseInput {
+                title: "X".into(),
+                amount: 1.0,
+                date: "not-a-date".into(),
+                category: None,
+                rule_pattern: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("Invalid date"));
+    }
+
+    #[test]
+    fn update_expense_happy_path() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let id = add_expense(
+            state,
+            ExpenseInput {
+                title: "Old".into(),
+                amount: 10.0,
+                date: "2024-02-01".into(),
+                category: None,
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        update_expense(
+            state,
+            id,
+            ExpenseInput {
+                title: "New".into(),
+                amount: 20.0,
+                date: "2024-02-02".into(),
+                category: Some("Transport".into()),
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        let all = get_expenses(state).unwrap();
+        assert_eq!(all[0].title, "New");
+        assert_eq!(all[0].amount, 20.0);
+    }
+
+    #[test]
+    fn update_expense_invalid_date() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let id = add_expense(
+            state,
+            ExpenseInput {
+                title: "X".into(),
+                amount: 1.0,
+                date: "2024-01-01".into(),
+                category: None,
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        let err = update_expense(
+            state,
+            id,
+            ExpenseInput {
+                title: "X".into(),
+                amount: 1.0,
+                date: "bad".into(),
+                category: None,
+                rule_pattern: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("Invalid date"));
+    }
+
+    #[test]
+    fn delete_single_expense() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let id = add_expense(
+            state,
+            ExpenseInput {
+                title: "Gone".into(),
+                amount: 5.0,
+                date: "2024-03-01".into(),
+                category: None,
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        delete_expense(state, id).unwrap();
+
+        let state: State<AppState> = app.state();
+        assert!(get_expenses(state).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_expense_nonexistent() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let err = delete_expense(state, 99999).unwrap_err();
+        assert!(err.contains("not found"));
+    }
+
+    #[test]
+    fn delete_multiple_expenses() {
+        let app = app();
+        for i in 0..3 {
+            let state: State<AppState> = app.state();
+            add_expense(
+                state,
+                ExpenseInput {
+                    title: format!("E{}", i),
+                    amount: 1.0,
+                    date: "2024-01-01".into(),
+                    category: None,
+                    rule_pattern: None,
+                },
+            )
+            .unwrap();
+        }
+
+        let state: State<AppState> = app.state();
+        let all = get_expenses(state).unwrap();
+        let ids: Vec<i64> = all.iter().map(|e| e.id.unwrap()).collect();
+
+        let state: State<AppState> = app.state();
+        let deleted = delete_expenses(state, ids[..2].to_vec()).unwrap();
+        assert_eq!(deleted, 2);
+
+        let state: State<AppState> = app.state();
+        let remaining = get_expenses(state).unwrap();
+        assert_eq!(remaining.len(), 1);
+    }
+
+    // ── Query Expenses ──
+
+    #[test]
+    fn query_expenses_search_and_pagination() {
+        let app = app();
+        let items = vec![
+            ("Coffee shop", 5.0, "Food"),
+            ("Bus ticket", 2.5, "Transport"),
+            ("Coffee beans", 12.0, "Food"),
+        ];
+        for (title, amount, cat) in items {
+            let state: State<AppState> = app.state();
+            add_expense(
+                state,
+                ExpenseInput {
+                    title: title.into(),
+                    amount,
+                    date: "2024-01-15".into(),
+                    category: Some(cat.into()),
+                    rule_pattern: None,
+                },
+            )
+            .unwrap();
+        }
+
+        // Search
+        let state: State<AppState> = app.state();
+        let result = query_expenses(
+            state,
+            ExpenseQuery {
+                search: Some("Coffee".into()),
+                category: None,
+                date_from: None,
+                date_to: None,
+                amount_min: None,
+                amount_max: None,
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(result.total_count, 2);
+
+        // Category filter
+        let state: State<AppState> = app.state();
+        let result = query_expenses(
+            state,
+            ExpenseQuery {
+                search: None,
+                category: Some("Transport".into()),
+                date_from: None,
+                date_to: None,
+                amount_min: None,
+                amount_max: None,
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.expenses[0].title, "Bus ticket");
+
+        // Pagination
+        let state: State<AppState> = app.state();
+        let result = query_expenses(
+            state,
+            ExpenseQuery {
+                search: None,
+                category: None,
+                date_from: None,
+                date_to: None,
+                amount_min: None,
+                amount_max: None,
+                limit: Some(1),
+                offset: Some(0),
+            },
+        )
+        .unwrap();
+        assert_eq!(result.expenses.len(), 1);
+        assert_eq!(result.total_count, 3);
+    }
+
+    // ── Categories ──
+
+    #[test]
+    fn category_lifecycle() {
+        let app = app();
+
+        // Add expense to create a category implicitly
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "X".into(),
+                amount: 1.0,
+                date: "2024-01-01".into(),
+                category: Some("Food".into()),
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        let cats = get_categories(state).unwrap();
+        assert!(cats.contains(&"Food".to_string()));
+
+        // Create standalone category
+        let state: State<AppState> = app.state();
+        create_category(state, "Entertainment".into()).unwrap();
+
+        // Duplicate should fail
+        let state: State<AppState> = app.state();
+        let err = create_category(state, "Entertainment".into()).unwrap_err();
+        assert!(err.contains("already exists"));
+
+        // Rename
+        let state: State<AppState> = app.state();
+        rename_category(state, "Entertainment".into(), "Fun".into()).unwrap();
+
+        // Rename to existing should fail
+        let state: State<AppState> = app.state();
+        let err = rename_category(state, "Fun".into(), "Food".into()).unwrap_err();
+        assert!(err.contains("already exists"));
+
+        // Rename same casing is ok
+        let state: State<AppState> = app.state();
+        rename_category(state, "Fun".into(), "fun".into()).unwrap();
+    }
+
+    #[test]
+    fn merge_categories_happy_path() {
+        let app = app();
+        for (title, cat) in [("A", "Cat1"), ("B", "Cat2"), ("C", "Cat3")] {
+            let state: State<AppState> = app.state();
+            add_expense(
+                state,
+                ExpenseInput {
+                    title: title.into(),
+                    amount: 1.0,
+                    date: "2024-01-01".into(),
+                    category: Some(cat.into()),
+                    rule_pattern: None,
+                },
+            )
+            .unwrap();
+        }
+
+        let state: State<AppState> = app.state();
+        merge_categories(state, vec!["Cat1".into(), "Cat2".into()], "Cat3".into()).unwrap();
+
+        let state: State<AppState> = app.state();
+        let result = query_expenses(
+            state,
+            ExpenseQuery {
+                search: None,
+                category: Some("Cat3".into()),
+                date_from: None,
+                date_to: None,
+                amount_min: None,
+                amount_max: None,
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(result.total_count, 3);
+    }
+
+    #[test]
+    fn merge_categories_empty_sources_fails() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let err = merge_categories(state, vec![], "Target".into()).unwrap_err();
+        assert!(err.contains("must not be empty"));
+    }
+
+    // ── Suggest Category ──
+
+    #[test]
+    fn suggest_category_with_rule() {
+        let app = app();
+        // Add an expense with category — this auto-creates a rule
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "Starbucks".into(),
+                amount: 5.0,
+                date: "2024-01-01".into(),
+                category: Some("Coffee".into()),
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        let suggestion = suggest_category(state, "Starbucks downtown".into()).unwrap();
+        assert_eq!(suggestion, Some("Coffee".to_string()));
+    }
+
+    #[test]
+    fn suggest_category_empty_title() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let result = suggest_category(state, "".into()).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn suggest_category_no_match() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let result = suggest_category(state, "xyzzy".into()).unwrap();
+        assert_eq!(result, None);
+    }
+
+    // ── Bulk Save + Batches ──
+
+    #[test]
+    fn bulk_save_and_batch_undo() {
+        let app = app();
+        let expenses = vec![
+            BulkSaveExpense {
+                title: "Item1".into(),
+                amount: 10.0,
+                date: "2024-01-01".into(),
+                category: Some("Food".into()),
+                source: Some("Manual".into()),
+                rule_pattern: None,
+            },
+            BulkSaveExpense {
+                title: "Item2".into(),
+                amount: 20.0,
+                date: "2024-01-02".into(),
+                category: None,
+                source: None,
+                rule_pattern: None,
+            },
+        ];
+
+        let state: State<AppState> = app.state();
+        let saved = bulk_save_expenses(state, expenses, Some("test.csv".into())).unwrap();
+        assert_eq!(saved, 2);
+
+        // Check batches
+        let state: State<AppState> = app.state();
+        let batches = get_upload_batches(state).unwrap();
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].filename, Some("test.csv".to_string()));
+        assert_eq!(batches[0].expense_count, 2);
+
+        // Delete batch (undo)
+        let state: State<AppState> = app.state();
+        let deleted = delete_batch(state, batches[0].id).unwrap();
+        assert_eq!(deleted, 2);
+
+        let state: State<AppState> = app.state();
+        assert!(get_expenses(state).unwrap().is_empty());
+    }
+
+    #[test]
+    fn bulk_save_invalid_date_fails() {
+        let app = app();
+        let expenses = vec![BulkSaveExpense {
+            title: "Bad".into(),
+            amount: 1.0,
+            date: "nope".into(),
+            category: None,
+            source: None,
+            rule_pattern: None,
+        }];
+
+        let state: State<AppState> = app.state();
+        let err = bulk_save_expenses(state, expenses, None).unwrap_err();
+        assert!(err.contains("Invalid date"));
+    }
+
+    // ── CSV Preview + Parse ──
+
+    #[test]
+    fn preview_csv_happy_path() {
+        let csv = "date,title,amount\n2024-01-01,Coffee,3.50\n2024-01-02,Bus,2.00\n";
+        let result = preview_csv(csv.into()).unwrap();
+        assert_eq!(result.parser_name, "CSV");
+        assert!(!result.rows.is_empty());
+    }
+
+    #[test]
+    fn preview_csv_unrecognized_format() {
+        let err = preview_csv("not a csv at all".into()).unwrap_err();
+        assert!(err.contains("Could not detect"));
+    }
+
+    #[test]
+    fn parse_and_classify_happy_path() {
+        let app = app();
+        let csv = "date,title,amount\n2024-01-01,Coffee,3.50\n2024-01-02,Bus,2.00\n";
+        let mapping = ColumnMapping {
+            title_index: 1,
+            amount_index: 2,
+            date_index: 0,
+            date_format: "%Y-%m-%d".into(),
+        };
+
+        let state: State<AppState> = app.state();
+        let rows = parse_and_classify(state, csv.into(), mapping).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].title, "Coffee");
+        assert_eq!(rows[0].amount, 3.50);
+        assert!(!rows[0].is_duplicate);
+    }
+
+    #[test]
+    fn parse_and_classify_with_existing_rule() {
+        let app = app();
+
+        // Create rule by adding a categorized expense
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "Coffee".into(),
+                amount: 5.0,
+                date: "2024-06-01".into(),
+                category: Some("Drinks".into()),
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let csv = "date,title,amount\n2024-01-01,Coffee,3.50\n";
+        let mapping = ColumnMapping {
+            title_index: 1,
+            amount_index: 2,
+            date_index: 0,
+            date_format: "%Y-%m-%d".into(),
+        };
+
+        let state: State<AppState> = app.state();
+        let rows = parse_and_classify(state, csv.into(), mapping).unwrap();
+        assert_eq!(rows[0].category.as_deref(), Some("Drinks"));
+        assert_eq!(rows[0].source.as_deref(), Some("Database"));
+    }
+
+    #[test]
+    fn parse_and_classify_detects_duplicates() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "Coffee".into(),
+                amount: 3.50,
+                date: "2024-01-01".into(),
+                category: None,
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let csv = "date,title,amount\n2024-01-01,Coffee,3.50\n";
+        let mapping = ColumnMapping {
+            title_index: 1,
+            amount_index: 2,
+            date_index: 0,
+            date_format: "%Y-%m-%d".into(),
+        };
+
+        let state: State<AppState> = app.state();
+        let rows = parse_and_classify(state, csv.into(), mapping).unwrap();
+        assert!(rows[0].is_duplicate);
+    }
+
+    // ── Export ──
+
+    #[test]
+    fn export_expenses_to_file() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "Test".into(),
+                amount: 42.0,
+                date: "2024-01-01".into(),
+                category: Some("Misc".into()),
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("export.csv");
+
+        let state: State<AppState> = app.state();
+        export_expenses(
+            state,
+            ExportColumnsInput {
+                date: true,
+                title: true,
+                amount: true,
+                category: true,
+                classification_source: false,
+            },
+            path.to_str().unwrap().into(),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("Test"));
+        assert!(content.contains("42"));
+    }
+
+    // ── Title Cleanup ──
+
+    #[test]
+    fn title_cleanup_lifecycle() {
+        let app = app();
+
+        // Add expense
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "CARD *1234 Coffee Shop".into(),
+                amount: 5.0,
+                date: "2024-01-01".into(),
+                category: None,
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        // Create rule
+        let rule = TitleCleanupRule {
+            id: None,
+            pattern: "CARD *1234 ".into(),
+            replacement: "".into(),
+            is_regex: false,
+        };
+        let state: State<AppState> = app.state();
+        let rule_id = save_title_cleanup_rule(state, rule).unwrap();
+        assert!(rule_id > 0);
+
+        // List rules
+        let state: State<AppState> = app.state();
+        let rules = get_title_cleanup_rules(state).unwrap();
+        assert_eq!(rules.len(), 1);
+
+        // Preview
+        let preview_rule = TitleCleanupRule {
+            id: Some(rule_id),
+            pattern: "CARD *1234 ".into(),
+            replacement: "".into(),
+            is_regex: false,
+        };
+        let state: State<AppState> = app.state();
+        let previews = preview_title_cleanup(state, preview_rule).unwrap();
+        assert_eq!(previews.len(), 1);
+        assert_eq!(previews[0].cleaned, "Coffee Shop");
+
+        // Apply
+        let expense_ids: Vec<i64> = previews.iter().map(|p| p.expense_id).collect();
+        let state: State<AppState> = app.state();
+        let applied = apply_title_cleanup(state, rule_id, expense_ids).unwrap();
+        assert_eq!(applied, 1);
+
+        // Verify
+        let state: State<AppState> = app.state();
+        let all = get_expenses(state).unwrap();
+        assert_eq!(all[0].title, "Coffee Shop");
+
+        // Delete rule
+        let state: State<AppState> = app.state();
+        delete_title_cleanup_rule(state, rule_id).unwrap();
+
+        let state: State<AppState> = app.state();
+        assert!(get_title_cleanup_rules(state).unwrap().is_empty());
+    }
+
+    // ── Budget Planning ──
+
+    #[test]
+    fn budget_lifecycle() {
+        let app = app();
+
+        // Use dates that span "today" so get_active_budget works
+        let today = chrono::Local::now().date_naive();
+        let start = today.format("%Y-%m-%d").to_string();
+        let end = (today + chrono::Duration::days(30)).format("%Y-%m-%d").to_string();
+        let mid = (today + chrono::Duration::days(15)).format("%Y-%m-%d").to_string();
+
+        // Create budget
+        let state: State<AppState> = app.state();
+        let budget_id = create_budget(
+            state,
+            start.clone(),
+            end.clone(),
+            vec![
+                BudgetCategoryInput {
+                    category: "Food".into(),
+                    amount: 500.0,
+                },
+                BudgetCategoryInput {
+                    category: "Transport".into(),
+                    amount: 200.0,
+                },
+            ],
+        )
+        .unwrap();
+        assert!(budget_id > 0);
+
+        // Get summary
+        let state: State<AppState> = app.state();
+        let summary = get_budget_summary(state, budget_id).unwrap();
+        assert_eq!(summary.budget_id, budget_id);
+        assert_eq!(summary.categories.len(), 2);
+        assert_eq!(summary.total_budgeted, 700.0);
+        assert_eq!(summary.total_spent, 0.0);
+
+        // Active budget
+        let state: State<AppState> = app.state();
+        let active = get_active_budget_summary(state).unwrap();
+        assert!(active.is_some());
+
+        // Add planned expense
+        let state: State<AppState> = app.state();
+        let pe_id = add_planned_expense(
+            state,
+            budget_id,
+            PlannedExpenseInput {
+                title: "Groceries".into(),
+                amount: 50.0,
+                date: mid,
+                category: Some("Food".into()),
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        let summary = get_budget_summary(state, budget_id).unwrap();
+        assert_eq!(summary.total_planned, 50.0);
+        assert_eq!(summary.planned_expenses.len(), 1);
+
+        // Delete planned expense
+        let state: State<AppState> = app.state();
+        delete_planned_expense(state, pe_id).unwrap();
+
+        // Update categories
+        let state: State<AppState> = app.state();
+        save_budget_categories(
+            state,
+            budget_id,
+            vec![BudgetCategoryInput {
+                category: "Food".into(),
+                amount: 600.0,
+            }],
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        let summary = get_budget_summary(state, budget_id).unwrap();
+        assert_eq!(summary.categories.len(), 1);
+        assert_eq!(summary.total_budgeted, 600.0);
+
+        // Delete budget
+        let state: State<AppState> = app.state();
+        delete_budget(state, budget_id).unwrap();
+
+        let state: State<AppState> = app.state();
+        let active = get_active_budget_summary(state).unwrap();
+        assert!(active.is_none());
+    }
+
+    #[test]
+    fn budget_summary_nonexistent() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let err = get_budget_summary(state, 99999).unwrap_err();
+        assert!(err.contains("not found"));
+    }
+
+    #[test]
+    fn budget_overlap_check() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        create_budget(state, "2024-01-01".into(), "2024-01-31".into(), vec![]).unwrap();
+
+        // Overlapping range
+        let state: State<AppState> = app.state();
+        let overlaps = check_budget_overlap(state, "2024-01-15".into(), "2024-02-15".into()).unwrap();
+        assert!(overlaps);
+
+        // Non-overlapping range
+        let state: State<AppState> = app.state();
+        let overlaps = check_budget_overlap(state, "2024-02-01".into(), "2024-02-28".into()).unwrap();
+        assert!(!overlaps);
+    }
+
+    #[test]
+    fn budget_with_actual_spending() {
+        let app = app();
+
+        let state: State<AppState> = app.state();
+        let budget_id = create_budget(
+            state,
+            "2024-01-01".into(),
+            "2024-01-31".into(),
+            vec![BudgetCategoryInput {
+                category: "Food".into(),
+                amount: 100.0,
+            }],
+        )
+        .unwrap();
+
+        // Add expense in budget range
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "Lunch".into(),
+                amount: 85.0,
+                date: "2024-01-10".into(),
+                category: Some("Food".into()),
+                rule_pattern: None,
+            },
+        )
+        .unwrap();
+
+        let state: State<AppState> = app.state();
+        let summary = get_budget_summary(state, budget_id).unwrap();
+        assert_eq!(summary.total_spent, 85.0);
+        assert_eq!(summary.categories[0].status, "approaching"); // 85/100 = 0.85
+    }
+
+    // ── Calendar Events ──
+
+    #[test]
+    fn import_calendar_events_and_update_amount() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let budget_id = create_budget(state, "2024-01-01".into(), "2024-01-31".into(), vec![]).unwrap();
+
+        let ics = "BEGIN:VCALENDAR\r\n\
+BEGIN:VEVENT\r\n\
+DTSTART:20240115\r\n\
+DTEND:20240116\r\n\
+SUMMARY:Dentist\r\n\
+END:VEVENT\r\n\
+BEGIN:VEVENT\r\n\
+DTSTART:20240601\r\n\
+DTEND:20240602\r\n\
+SUMMARY:Out of range\r\n\
+END:VEVENT\r\n\
+END:VCALENDAR";
+
+        let state: State<AppState> = app.state();
+        let count = import_calendar_events(state, budget_id, ics.into()).unwrap();
+        assert_eq!(count, 1); // only the Jan event
+
+        let state: State<AppState> = app.state();
+        let summary = get_budget_summary(state, budget_id).unwrap();
+        assert_eq!(summary.calendar_events.len(), 1);
+        assert_eq!(summary.calendar_events[0].summary, "Dentist");
+        assert_eq!(summary.calendar_events[0].amount, None);
+
+        // Update amount
+        let event_id = summary.calendar_events[0].id.unwrap();
+        let state: State<AppState> = app.state();
+        update_calendar_event_amount(state, event_id, Some(150.0)).unwrap();
+
+        let state: State<AppState> = app.state();
+        let summary = get_budget_summary(state, budget_id).unwrap();
+        assert_eq!(summary.calendar_events[0].amount, Some(150.0));
+        assert_eq!(summary.total_calendar, 150.0);
+    }
+
+    #[test]
+    fn import_calendar_nonexistent_budget() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let err = import_calendar_events(state, 99999, "BEGIN:VCALENDAR\r\nEND:VCALENDAR".into()).unwrap_err();
+        assert!(err.contains("not found"));
+    }
+
+    // ── Category Averages ──
+
+    #[test]
+    fn category_averages() {
+        let app = app();
+        // Add expenses across recent months (get_category_averages uses last 3 months from "now")
+        let today = chrono::Local::now().date_naive();
+        let dates = [
+            (today - chrono::Duration::days(60)).format("%Y-%m-%d").to_string(),
+            (today - chrono::Duration::days(30)).format("%Y-%m-%d").to_string(),
+            today.format("%Y-%m-%d").to_string(),
+        ];
+        for date in &dates {
+            let state: State<AppState> = app.state();
+            add_expense(
+                state,
+                ExpenseInput {
+                    title: "Meal".into(),
+                    amount: 100.0,
+                    date: date.clone(),
+                    category: Some("Food".into()),
+                    rule_pattern: None,
+                },
+            )
+            .unwrap();
+        }
+
+        let state: State<AppState> = app.state();
+        let avgs = get_category_averages(state).unwrap();
+        assert!(!avgs.is_empty());
+        assert_eq!(avgs[0].category, "Food");
+    }
+
+    // ── Widget Config ──
+
+    #[test]
+    fn widget_config_save_and_load() {
+        let app = app();
+
+        // Initially none
+        let state: State<AppState> = app.state();
+        let result = get_active_widgets(state).unwrap();
+        assert!(result.is_none());
+
+        // Save
+        let state: State<AppState> = app.state();
+        save_active_widgets(state, vec!["total".into(), "chart".into()]).unwrap();
+
+        // Load
+        let state: State<AppState> = app.state();
+        let result = get_active_widgets(state).unwrap();
+        assert_eq!(result.unwrap(), vec!["total", "chart"]);
+    }
+
+    // ── LLM Config ──
+
+    #[test]
+    fn llm_config_lifecycle() {
+        let app = app();
+
+        // Initially empty
+        let state: State<AppState> = app.state();
+        let config = get_llm_config(state).unwrap();
+        assert!(config.provider.is_none() || config.provider.as_deref() == Some(""));
+
+        // Validate unknown provider
+        let err = validate_llm_config(LlmConfigInput {
+            provider: "unknown".into(),
+            api_key: "key".into(),
+        })
+        .unwrap_err();
+        assert!(err.contains("Unknown provider"));
+
+        // save_llm_config calls provider.validate() which hits the network,
+        // so we test the DB layer directly via set_config
+        {
+            let state: State<AppState> = app.state();
+            let db = state.db.lock().unwrap();
+            db.set_config("llm_provider", "ollama").unwrap();
+            db.set_config("llm_api_key", "").unwrap();
+        }
+
+        let state: State<AppState> = app.state();
+        let config = get_llm_config(state).unwrap();
+        assert_eq!(config.provider.as_deref(), Some("ollama"));
+
+        // Clear
+        let state: State<AppState> = app.state();
+        clear_llm_config(state).unwrap();
+
+        let state: State<AppState> = app.state();
+        let config = get_llm_config(state).unwrap();
+        assert_eq!(config.provider.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn save_llm_config_unknown_provider() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        let err = save_llm_config(
+            state,
+            LlmConfigInput {
+                provider: "nonexistent".into(),
+                api_key: "x".into(),
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("Unknown provider"));
+    }
+
+    // ── Category Stats ──
+
+    #[test]
+    fn category_stats() {
+        let app = app();
+        for (title, cat) in [("A", "Food"), ("B", "Food"), ("C", "Transport")] {
+            let state: State<AppState> = app.state();
+            add_expense(
+                state,
+                ExpenseInput {
+                    title: title.into(),
+                    amount: 10.0,
+                    date: "2024-01-01".into(),
+                    category: Some(cat.into()),
+                    rule_pattern: None,
+                },
+            )
+            .unwrap();
+        }
+
+        let state: State<AppState> = app.state();
+        let stats = get_category_stats(state).unwrap();
+        assert_eq!(stats.len(), 2);
+        let food = stats.iter().find(|s| s.name == "Food").unwrap();
+        assert_eq!(food.expense_count, 2);
+    }
+
+    // ── Add Expense with Rule Pattern ──
+
+    #[test]
+    fn add_expense_with_custom_rule_pattern() {
+        let app = app();
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "CARD*1234 Starbucks NYC".into(),
+                amount: 5.0,
+                date: "2024-01-01".into(),
+                category: Some("Coffee".into()),
+                rule_pattern: Some("Starbucks".into()),
+            },
+        )
+        .unwrap();
+
+        // The rule should match "Starbucks" not the full title
+        let state: State<AppState> = app.state();
+        let suggestion = suggest_category(state, "Starbucks Seattle".into()).unwrap();
+        assert_eq!(suggestion, Some("Coffee".to_string()));
+
+        // Full noisy title should also match (Starbucks is a substring)
+        let state: State<AppState> = app.state();
+        let suggestion = suggest_category(state, "Another Starbucks".into()).unwrap();
+        assert_eq!(suggestion, Some("Coffee".to_string()));
+    }
 }
 
 // ── App Entry ──

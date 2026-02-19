@@ -16,6 +16,7 @@ cargo build --release    # Rust only
 # Tests
 cargo test                       # All workspace tests
 cargo test -p accountant-core    # Core crate only
+cargo test -p accountant-app     # Tauri IPC layer tests
 cargo test -p accountant-core -- test_name  # Single test
 
 # Docs (mdBook)
