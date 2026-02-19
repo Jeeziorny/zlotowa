@@ -5,6 +5,7 @@
   let rules = $state([]);
   let error = $state("");
   let success = $state("");
+  let showHelp = $state(false);
 
   // Add/edit form
   let showForm = $state(false);
@@ -149,6 +150,27 @@
     >
       + Add Rule
     </button>
+  </div>
+
+  <!-- Help section -->
+  <div class="bg-gray-900 rounded-xl border border-gray-800 mb-6">
+    <button
+      onclick={() => (showHelp = !showHelp)}
+      class="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400
+             hover:text-gray-300 transition-colors"
+    >
+      <span>How title cleanup works</span>
+      <span class="text-xs transition-transform {showHelp ? 'rotate-180' : ''}">&#x25BC;</span>
+    </button>
+    {#if showHelp}
+      <div class="px-4 pb-4 text-sm text-gray-400 space-y-2 border-t border-gray-800 pt-3">
+        <p>Clean up messy bank transaction titles with find-and-replace rules. Rules match text in expense titles and replace it (or remove it if the replacement is empty). Whitespace is auto-normalized after each replacement.</p>
+        <p class="font-mono text-xs text-gray-500">
+          Example: pattern <span class="text-gray-300">CARD *1234</span> with empty replacement → strips card numbers from titles.
+        </p>
+        <p class="text-amber-400/80">Rules are applied manually — they do not run automatically during bulk import. After importing new data, re-preview existing rules to clean up new titles.</p>
+      </div>
+    {/if}
   </div>
 
   {#if error}

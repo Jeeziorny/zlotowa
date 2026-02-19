@@ -2868,6 +2868,40 @@ mod tests {
     }
 
     #[test]
+    fn title_cleanup_rules_do_not_auto_apply_on_insert() {
+        let db = test_db();
+
+        // Create a title cleanup rule
+        let rule = make_literal_rule("NOISE ", "");
+        db.insert_title_cleanup_rule(&rule).unwrap();
+
+        // Insert expenses with titles matching the rule
+        db.insert_expense(&make_expense("NOISE Coffee Shop", 4.50, "2025-01-15"))
+            .unwrap();
+        db.insert_expense(&make_expense("NOISE Grocery Store", 52.30, "2025-01-16"))
+            .unwrap();
+
+        // Also test bulk insert path
+        let bulk = vec![
+            make_expense("NOISE Gas Station", 60.00, "2025-01-17"),
+            make_expense("NOISE Pharmacy", 12.99, "2025-01-18"),
+        ];
+        db.insert_expenses_bulk(&bulk, Some("test.csv")).unwrap();
+
+        // Verify titles were NOT cleaned — rules don't auto-apply on insert
+        let all = db.get_all_expenses().unwrap();
+        assert_eq!(all.len(), 4);
+        for e in &all {
+            assert!(
+                e.title.starts_with("NOISE "),
+                "Expected title to still contain 'NOISE ', got: '{}'. \
+                 Title cleanup rules should not auto-apply during insert.",
+                e.title
+            );
+        }
+    }
+
+    #[test]
     fn preview_title_cleanup_returns_correct_affected_rows() {
         let db = test_db();
         // Insert 50 expenses, half matching the rule

@@ -43,6 +43,12 @@ Rules are saved for reuse. After importing new bank data, you can re-preview and
 - **Edit** a rule by clicking the pencil icon
 - **Delete** a rule by clicking the X icon (with confirmation)
 
+## Bulk Import
+
+Title cleanup rules **do not run automatically** during bulk import. When you upload a CSV through Bulk Upload, the expenses are parsed, classified, and saved with their original bank titles — no cleanup rules are applied.
+
+After importing new bank data, revisit the **Title Cleanup** page and re-preview your existing rules. Any new expenses matching a rule will appear in the preview, ready to be cleaned.
+
 ## Tips
 
 - Start with literal rules for common noise patterns like `PLATNOSC KARTA` or `Zakup BLIK`
