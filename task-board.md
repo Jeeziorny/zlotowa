@@ -8,7 +8,6 @@
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 25 | Bulk Upload UX Overhaul | LLM progress overlay, review table layout redesign (fields below row), chip input, column mapping simplification (1 row + placeholders), dismissible LLM warning, rename tab. |
 | 26 | Expense List Cleanup | Drop Source column, widen Category, add proper delete confirmation dialog. |
-| 27 | Navigation Fix | Fix app resetting to Dashboard when performing actions on other pages. |
 | 28 | Title Cleanup Explanation | Add persistent help text explaining what Title Cleanup does and how it works. Clarify bulk upload integration. |
 | 29 | Dashboard Widget Clicks | Make Total Expenses/Transactions click → Expenses tab, Spending by Category click → Categories tab. |
 | 30 | Budget Planning Redesign | Date-range budgets (no overlap), Overview as default tab, multi-step "Create +" flow, category defaults from averages, calendar event amounts. |
@@ -45,3 +44,4 @@
 | # | Task | Summary |
 |---|------|---------|
 | 16 | TBD | Notes file that spawned tasks 17–23. Not a task itself. |
+| 27 | Navigation Fix | Dev-only HMR issue, not a production bug. |
