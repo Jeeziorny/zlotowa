@@ -377,12 +377,13 @@
 
 <!-- Delete confirmation modal -->
 {#if deleteTarget}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+    role="presentation"
     onclick={(e) => { if (e.target === e.currentTarget) deleteTarget = null; }}
+    onkeydown={(e) => { if (e.key === "Escape") deleteTarget = null; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96">
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog">
       <h3 class="text-lg font-semibold mb-2">Delete rule?</h3>
       <p class="text-sm text-gray-400 mb-1">Pattern:</p>
       <p class="text-sm font-mono text-gray-200 mb-4 break-all">{deleteTarget.pattern}</p>

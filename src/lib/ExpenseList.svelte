@@ -660,8 +660,11 @@
   <!-- Single delete confirmation modal -->
   {#if deleteModalExpense}
     <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-         onclick={() => { if (!deleting) deleteModalExpense = null; }}>
+         role="presentation"
+         onclick={() => { if (!deleting) deleteModalExpense = null; }}
+         onkeydown={(e) => { if (e.key === "Escape" && !deleting) deleteModalExpense = null; }}>
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
+           role="dialog"
            onclick={(e) => e.stopPropagation()}>
         <h3 class="text-lg font-semibold text-gray-100 mb-2">Delete expense?</h3>
         <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
@@ -693,8 +696,11 @@
   <!-- Batch delete confirmation modal -->
   {#if confirmBatchDelete}
     <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-         onclick={() => { if (!batchDeleting) confirmBatchDelete = false; }}>
+         role="presentation"
+         onclick={() => { if (!batchDeleting) confirmBatchDelete = false; }}
+         onkeydown={(e) => { if (e.key === "Escape" && !batchDeleting) confirmBatchDelete = false; }}>
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
+           role="dialog"
            onclick={(e) => e.stopPropagation()}>
         <h3 class="text-lg font-semibold text-gray-100 mb-2">Delete {selected.size} expense{selected.size > 1 ? "s" : ""}?</h3>
         <p class="text-sm text-gray-400 mb-5">This cannot be undone.</p>

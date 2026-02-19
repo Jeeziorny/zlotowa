@@ -217,15 +217,24 @@
           <tr class="border-b border-gray-800 text-sm text-gray-400">
             <th class="w-10 px-4 py-3"></th>
             <th class="text-left px-4 py-3 cursor-pointer select-none hover:text-gray-200"
-                onclick={() => toggleSort("name")}>
+                tabindex="0"
+                aria-sort={sortBy === "name" ? (sortAsc ? "ascending" : "descending") : "none"}
+                onclick={() => toggleSort("name")}
+                onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("name"); } }}>
               Name{sortIndicator("name")}
             </th>
             <th class="text-right px-4 py-3 cursor-pointer select-none hover:text-gray-200"
-                onclick={() => toggleSort("expenses")}>
+                tabindex="0"
+                aria-sort={sortBy === "expenses" ? (sortAsc ? "ascending" : "descending") : "none"}
+                onclick={() => toggleSort("expenses")}
+                onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("expenses"); } }}>
               Expenses{sortIndicator("expenses")}
             </th>
             <th class="text-right px-4 py-3 cursor-pointer select-none hover:text-gray-200"
-                onclick={() => toggleSort("rules")}>
+                tabindex="0"
+                aria-sort={sortBy === "rules" ? (sortAsc ? "ascending" : "descending") : "none"}
+                onclick={() => toggleSort("rules")}
+                onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("rules"); } }}>
               Rules{sortIndicator("rules")}
             </th>
             <th class="w-16 px-4 py-3"></th>
@@ -286,12 +295,13 @@
 
 <!-- Delete modal -->
 {#if deleteTarget}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+    role="presentation"
     onclick={(e) => { if (e.target === e.currentTarget) deleteTarget = null; }}
+    onkeydown={(e) => { if (e.key === "Escape") deleteTarget = null; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96">
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog">
       <h3 class="text-lg font-semibold mb-2">Delete "{deleteTarget.name}"</h3>
       <p class="text-sm text-gray-400 mb-4">
         Reassign {deleteTarget.expense_count} expenses and {deleteTarget.rule_count} rules to:
@@ -325,12 +335,13 @@
 
 <!-- Merge modal -->
 {#if showMerge}
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+    role="presentation"
     onclick={(e) => { if (e.target === e.currentTarget) showMerge = false; }}
+    onkeydown={(e) => { if (e.key === "Escape") showMerge = false; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96">
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog">
       <h3 class="text-lg font-semibold mb-2">Merge {selected.size} categories</h3>
       <p class="text-sm text-gray-400 mb-1">Merging:</p>
       <div class="flex flex-wrap gap-1 mb-4">

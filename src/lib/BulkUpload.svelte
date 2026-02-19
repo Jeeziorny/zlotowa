@@ -448,12 +448,18 @@
 
       <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
         <h3 class="text-lg font-semibold mb-3">Or upload a file</h3>
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           ondrop={handleFileDrop}
           ondragover={handleDragOver}
+          onkeydown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.currentTarget.querySelector("input[type=file]")?.click();
+            }
+          }}
           role="button"
           tabindex="0"
+          aria-label="Upload CSV file"
           class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center
                  hover:border-emerald-500/50 transition-colors cursor-pointer"
         >
