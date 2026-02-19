@@ -1,6 +1,5 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
-  import { tick } from "svelte";
 
   // Steps: input -> column-mapping -> review -> done
   let step = $state("input");
@@ -208,7 +207,7 @@
     }
     mappingError = "";
     classifying = true;
-    await tick();
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       const rows = await invoke("parse_and_classify", {
         input: inputText,
