@@ -247,37 +247,39 @@ fn parse_and_classify(
     input: String,
     mapping: ColumnMapping,
 ) -> Result<Vec<ClassifiedExpenseRow>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-
-    // Parse
+    // Phase 1: Parse CSV (no DB needed)
     let parsers = parsers::builtin_parsers();
     let parser = parsers::detect_parser(&input, &parsers)
         .ok_or("Could not detect input format.")?;
-
     let parsed = parser.parse(&input, &mapping).map_err(|e| e.to_string())?;
 
-    // Classify using regex rules from DB
-    let rules = db.get_all_rules().map_err(|e| e.to_string())?;
+    // Phase 2: Read all needed DB data in a single lock, then release
+    let (rules, llm_provider_name, llm_api_key, categories, dup_flags) = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let rules = db.get_all_rules().map_err(|e| e.to_string())?;
+        let llm_provider_name = db.get_config("llm_provider").map_err(|e| e.to_string())?;
+        let llm_api_key = db.get_config("llm_api_key").map_err(|e| e.to_string())?;
+        let categories = db.get_all_categories().unwrap_or_default();
+        let dup_inputs: Vec<(&str, f64, &chrono::NaiveDate)> = parsed
+            .iter()
+            .map(|e| (e.title.as_str(), e.amount, &e.date))
+            .collect();
+        let dup_flags = db.check_duplicates_batch(&dup_inputs).map_err(|e| e.to_string())?;
+        (rules, llm_provider_name, llm_api_key, categories, dup_flags)
+    }; // mutex released here
+
+    // Phase 3: Classify with regex rules (no DB needed)
     let regex_classifier = RegexClassifier::from_rules(&rules);
-    let classifiers: Vec<Box<dyn accountant_core::classifiers::Classifier>> =
-        vec![Box::new(regex_classifier)];
+    let classifiers: Vec<Box<dyn Classifier>> = vec![Box::new(regex_classifier)];
     let classified = classify_pipeline(&parsed, &classifiers);
 
-    // Batch duplicate check
-    let dup_inputs: Vec<(&str, f64, &chrono::NaiveDate)> = classified
-        .iter()
-        .map(|(e, _)| (e.title.as_str(), e.amount, &e.date))
-        .collect();
-    let dup_flags = db.check_duplicates_batch(&dup_inputs).map_err(|e| e.to_string())?;
-
-    // Build initial result
+    // Phase 4: Build result rows
     let mut rows: Vec<ClassifiedExpenseRow> = Vec::new();
     for ((expense, class_result), &is_dup) in classified.iter().zip(dup_flags.iter()) {
         let (category, source, confidence) = match class_result {
             Some(cr) => (Some(cr.category.clone()), Some(cr.source.to_string()), Some(cr.confidence)),
             None => (None, None, None),
         };
-
         rows.push(ClassifiedExpenseRow {
             title: expense.title.clone(),
             amount: expense.amount,
@@ -289,10 +291,7 @@ fn parse_and_classify(
         });
     }
 
-    // LLM fallback for unclassified, non-duplicate expenses
-    let llm_provider_name = db.get_config("llm_provider").map_err(|e| e.to_string())?;
-    let llm_api_key = db.get_config("llm_api_key").map_err(|e| e.to_string())?;
-
+    // Phase 5: LLM fallback (no DB lock held during HTTP calls)
     if let (Some(provider_name), Some(api_key)) = (&llm_provider_name, &llm_api_key) {
         if !provider_name.is_empty() && !api_key.is_empty() {
             let unclassified_indices: Vec<usize> = rows
@@ -308,7 +307,6 @@ fn parse_and_classify(
                         provider: provider_name.clone(),
                         api_key: api_key.clone(),
                     };
-                    let categories = db.get_all_categories().unwrap_or_default();
                     let unclassified_expenses: Vec<ParsedExpense> = unclassified_indices
                         .iter()
                         .filter_map(|&i| {
@@ -322,7 +320,6 @@ fn parse_and_classify(
                         })
                         .collect();
 
-                    // Best-effort: if LLM fails, expenses stay unclassified
                     if let Ok(llm_results) =
                         provider.classify_batch(&unclassified_expenses, &categories, &config)
                     {
