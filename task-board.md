@@ -5,10 +5,7 @@
 | # | Task | Summary |
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
-| 41 | Frontend Error Handling | User-visible error feedback for 6 `invoke()` catch blocks. Fix TitleCleanup `deleteTarget` logic bug. Replace native `confirm()` with custom modal. |
-| 46 | Accessibility Round 2 | `aria-label` on icon-only buttons, `for` on form labels, `aria-modal`+`aria-labelledby` on dialogs, keyboard handler on CalendarEvents drop zone. |
 | 47 | Docs Sync Round 2 | CLAUDE.md: missing commands, `ical` module, trait methods. mdBook: budget "monthly"→"date-range", dashboard "active budget", LLM model version, export source strings. |
-| 48 | Integration Tests | Parse→classify→save→query roundtrip, export→reimport roundtrip, title cleanup→classify. Budget migration test. Edge cases for `from_pattern`, iCal, CSV, exporters. |
 | 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (extract modals), Settings (LLM + uploads). |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
 
@@ -57,6 +54,9 @@
 | 43 | Dead Code Cleanup | Removed `ClassifiedExpense`, `ClassifyError::LlmNotConfigured`, `ExportError::Failed`, 2 `ParseError` variants, `filter_events_by_month`, `is_duplicate`, `get_all_budgets`, dead BudgetStatus prop, legacy LLM string parsing. |
 | 44 | DB Constraint Hardening | FK indices on `budget_categories`, `planned_expenses`, `calendar_events`. UNIQUE index on `title_cleanup_rules`. |
 | 45 | LLM Provider Dedup | Shared `http_classify()` helper for all 3 providers. Provider structs made private. ~80 lines removed. |
+| 41 | Frontend Error Handling | User-visible error feedback for 6 `invoke()` catch blocks. Fixed TitleCleanup `deleteTarget` logic bug. Replaced native `confirm()` with custom modal. |
+| 46 | Accessibility Round 2 | `aria-label` on icon-only buttons, `for` on form labels, `aria-modal`+`aria-labelledby` on dialogs, keyboard handler on CalendarEvents drop zone. |
+| 48 | Integration Tests | 27 tests: parse→classify→save→query roundtrip, export→reimport, title cleanup→reclassify. Edge cases for `from_pattern` metacharacters, iCal, CSV, exporters, bulk insert. |
 
 ## N/A
 

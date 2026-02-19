@@ -92,8 +92,8 @@
   <div class="max-w-lg bg-gray-900 rounded-xl p-6 border border-gray-800">
     <div class="space-y-4">
       <div>
-        <label class="block text-sm text-gray-400 mb-1">Date</label>
-        <DatePicker value={date} onchange={(d) => date = d} />
+        <label for="expense-date" class="block text-sm text-gray-400 mb-1">Date</label>
+        <DatePicker id="expense-date" value={date} onchange={(d) => date = d} />
       </div>
 
       <div>

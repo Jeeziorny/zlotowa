@@ -77,9 +77,10 @@
 
   async function confirmDelete() {
     try {
-      await invoke("delete_title_cleanup_rule", { id: deleteTarget.id });
+      const deletedId = deleteTarget.id;
+      await invoke("delete_title_cleanup_rule", { id: deletedId });
       deleteTarget = null;
-      if (previewRule?.id === deleteTarget?.id) {
+      if (previewRule?.id === deletedId) {
         previewRule = null;
         previews = [];
       }
@@ -189,8 +190,9 @@
       </h3>
       <div class="space-y-3">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">Pattern (text to find)</label>
+          <label for="cleanup-pattern" class="block text-xs text-gray-500 mb-1">Pattern (text to find)</label>
           <input
+            id="cleanup-pattern"
             type="text"
             bind:value={formPattern}
             placeholder="e.g. PLATNOSC KARTA"
@@ -199,8 +201,9 @@
           />
         </div>
         <div>
-          <label class="block text-xs text-gray-500 mb-1">Replacement (empty = remove match)</label>
+          <label for="cleanup-replacement" class="block text-xs text-gray-500 mb-1">Replacement (empty = remove match)</label>
           <input
+            id="cleanup-replacement"
             type="text"
             bind:value={formReplacement}
             placeholder="Leave empty to delete the match"
@@ -299,6 +302,7 @@
                     onclick={() => openEdit(rule)}
                     class="text-gray-500 hover:text-gray-300 transition-colors text-sm"
                     title="Edit rule"
+                    aria-label="Edit rule"
                   >
                     &#x270E;
                   </button>
@@ -306,6 +310,7 @@
                     onclick={() => (deleteTarget = rule)}
                     class="text-gray-600 hover:text-red-400 transition-colors text-sm"
                     title="Delete rule"
+                    aria-label="Delete rule"
                   >
                     &#x2715;
                   </button>
@@ -405,8 +410,8 @@
     onclick={(e) => { if (e.target === e.currentTarget) deleteTarget = null; }}
     onkeydown={(e) => { if (e.key === "Escape") deleteTarget = null; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog">
-      <h3 class="text-lg font-semibold mb-2">Delete rule?</h3>
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog" aria-modal="true" aria-labelledby="delete-rule-modal-title">
+      <h3 id="delete-rule-modal-title" class="text-lg font-semibold mb-2">Delete rule?</h3>
       <p class="text-sm text-gray-400 mb-1">Pattern:</p>
       <p class="text-sm font-mono text-gray-200 mb-4 break-all">{deleteTarget.pattern}</p>
       <div class="flex gap-3">

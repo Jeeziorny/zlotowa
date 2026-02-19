@@ -50,11 +50,13 @@
 
   // Delete
   let deleting = $state(false);
+  let deleteError = $state("");
 
   // Batch select/delete
   let selected = $state(new Set());
   let confirmBatchDelete = $state(false);
   let batchDeleting = $state(false);
+  let batchDeleteError = $state("");
 
   let allSelected = $derived(expenses.length > 0 && selected.size === expenses.length);
   let someSelected = $derived(selected.size > 0);
@@ -68,7 +70,9 @@
   onMount(async () => {
     try {
       categories = await invoke("get_categories");
-    } catch (_) {}
+    } catch (err) {
+      console.warn("Failed to load categories:", err);
+    }
     await fetchExpenses();
   });
 
@@ -231,12 +235,13 @@
 
   async function doDelete(id) {
     deleting = true;
+    deleteError = "";
     try {
       await invoke("delete_expense", { id });
       deleteModalExpense = null;
       await fetchExpenses();
     } catch (err) {
-      console.error("Delete failed:", err);
+      deleteError = `Delete failed: ${err}`;
     }
     deleting = false;
   }
@@ -262,13 +267,14 @@
 
   async function doBatchDelete() {
     batchDeleting = true;
+    batchDeleteError = "";
     try {
       const ids = [...selected];
       await invoke("delete_expenses", { ids });
       confirmBatchDelete = false;
       await fetchExpenses();
     } catch (err) {
-      console.error("Batch delete failed:", err);
+      batchDeleteError = `Delete failed: ${err}`;
     }
     batchDeleting = false;
   }
@@ -661,19 +667,25 @@
   {#if deleteModalExpense}
     <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
          role="presentation"
-         onclick={() => { if (!deleting) deleteModalExpense = null; }}
-         onkeydown={(e) => { if (e.key === "Escape" && !deleting) deleteModalExpense = null; }}>
+         onclick={() => { if (!deleting) { deleteModalExpense = null; deleteError = ""; } }}
+         onkeydown={(e) => { if (e.key === "Escape" && !deleting) { deleteModalExpense = null; deleteError = ""; } }}>
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
            role="dialog"
+           aria-modal="true"
+           aria-labelledby="delete-modal-title"
+           tabindex="-1"
            onclick={(e) => e.stopPropagation()}>
-        <h3 class="text-lg font-semibold text-gray-100 mb-2">Delete expense?</h3>
+        <h3 id="delete-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete expense?</h3>
         <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
         <p class="text-sm text-gray-300 mb-5 break-words">
           "{deleteModalExpense.title}" &mdash; {deleteModalExpense.amount.toFixed(2)}
         </p>
+        {#if deleteError}
+          <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deleteError}</div>
+        {/if}
         <div class="flex gap-3 justify-end">
           <button
-            onclick={() => deleteModalExpense = null}
+            onclick={() => { deleteModalExpense = null; deleteError = ""; }}
             disabled={deleting}
             class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
                    text-sm transition-colors disabled:opacity-50"
@@ -697,16 +709,22 @@
   {#if confirmBatchDelete}
     <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
          role="presentation"
-         onclick={() => { if (!batchDeleting) confirmBatchDelete = false; }}
-         onkeydown={(e) => { if (e.key === "Escape" && !batchDeleting) confirmBatchDelete = false; }}>
+         onclick={() => { if (!batchDeleting) { confirmBatchDelete = false; batchDeleteError = ""; } }}
+         onkeydown={(e) => { if (e.key === "Escape" && !batchDeleting) { confirmBatchDelete = false; batchDeleteError = ""; } }}>
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
            role="dialog"
+           aria-modal="true"
+           aria-labelledby="batch-delete-modal-title"
+           tabindex="-1"
            onclick={(e) => e.stopPropagation()}>
-        <h3 class="text-lg font-semibold text-gray-100 mb-2">Delete {selected.size} expense{selected.size > 1 ? "s" : ""}?</h3>
+        <h3 id="batch-delete-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete {selected.size} expense{selected.size > 1 ? "s" : ""}?</h3>
         <p class="text-sm text-gray-400 mb-5">This cannot be undone.</p>
+        {#if batchDeleteError}
+          <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{batchDeleteError}</div>
+        {/if}
         <div class="flex gap-3 justify-end">
           <button
-            onclick={() => confirmBatchDelete = false}
+            onclick={() => { confirmBatchDelete = false; batchDeleteError = ""; }}
             disabled={batchDeleting}
             class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
                    text-sm transition-colors disabled:opacity-50"

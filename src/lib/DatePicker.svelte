@@ -1,5 +1,5 @@
 <script>
-  let { value, onchange } = $props();
+  let { value, onchange, id = undefined } = $props();
 
   let open = $state(false);
   let inputRef = $state(null);
@@ -75,6 +75,7 @@
 <div class="relative">
   <input
     bind:this={inputRef}
+    {id}
     type="text"
     value={value}
     oninput={handleInputChange}
@@ -94,6 +95,7 @@
         <button
           type="button"
           onclick={prevMonth}
+          aria-label="Previous month"
           class="px-2 py-1 rounded text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
         >&lt;</button>
         <span class="text-sm font-medium text-gray-200">
@@ -102,6 +104,7 @@
         <button
           type="button"
           onclick={nextMonth}
+          aria-label="Next month"
           class="px-2 py-1 rounded text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
         >&gt;</button>
       </div>

@@ -24,6 +24,7 @@
 <div class="flex items-center gap-4">
   <button
     onclick={prev}
+    aria-label="Previous month"
     class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-800
            hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
   >
@@ -34,6 +35,7 @@
   </span>
   <button
     onclick={next}
+    aria-label="Next month"
     class="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-800
            hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
   >

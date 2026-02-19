@@ -125,8 +125,9 @@
       <h3 class="text-lg font-semibold mb-4">Set Budget Period</h3>
       <div class="flex gap-4 items-end">
         <div>
-          <label class="text-xs text-gray-500 block mb-1">Start Date</label>
+          <label for="budget-start-date" class="text-xs text-gray-500 block mb-1">Start Date</label>
           <input
+            id="budget-start-date"
             type="date"
             bind:value={startDate}
             class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm
@@ -134,8 +135,9 @@
           />
         </div>
         <div>
-          <label class="text-xs text-gray-500 block mb-1">End Date</label>
+          <label for="budget-end-date" class="text-xs text-gray-500 block mb-1">End Date</label>
           <input
+            id="budget-end-date"
             type="date"
             bind:value={endDate}
             class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm

@@ -29,6 +29,10 @@
   let peCategory = $state("");
   let peError = $state("");
 
+  // Error states
+  let deletePlannedError = $state("");
+  let deleteBudgetError = $state("");
+
   // Budget category editing
   let editAmounts = $state({});
   let saving = $state(false);
@@ -97,23 +101,26 @@
   }
 
   async function deletePlanned(id) {
+    deletePlannedError = "";
     try {
       await invoke("delete_planned_expense", { id });
       onrefresh();
     } catch (err) {
-      console.error("Failed to delete planned expense:", err);
+      deletePlannedError = `Failed to delete: ${err}`;
     }
   }
 
   let deleting = $state(false);
+  let showDeleteBudgetModal = $state(false);
   async function deleteBudget() {
-    if (!confirm("Delete this budget and all its data?")) return;
     deleting = true;
+    deleteBudgetError = "";
     try {
       await invoke("delete_budget", { id: budgetId });
+      showDeleteBudgetModal = false;
       onrefresh();
     } catch (err) {
-      console.error("Failed to delete budget:", err);
+      deleteBudgetError = `Failed to delete budget: ${err}`;
     }
     deleting = false;
   }
@@ -132,11 +139,11 @@
       >
     </div>
     <button
-      onclick={deleteBudget}
+      onclick={() => showDeleteBudgetModal = true}
       disabled={deleting}
       class="text-xs text-gray-600 hover:text-red-400 transition-colors"
     >
-      {deleting ? "Deleting..." : "Delete Budget"}
+      Delete Budget
     </button>
   </div>
 
@@ -338,11 +345,16 @@
       </div>
     {/if}
 
+    {#if deletePlannedError}
+      <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deletePlannedError}</div>
+    {/if}
+
     <!-- Add planned expense form -->
     <div class="flex flex-wrap gap-2 items-end">
       <div>
-        <label class="text-xs text-gray-500 block mb-1">Title</label>
+        <label for="pe-title" class="text-xs text-gray-500 block mb-1">Title</label>
         <input
+          id="pe-title"
           type="text"
           bind:value={peTitle}
           placeholder="e.g. Dentist"
@@ -351,8 +363,9 @@
         />
       </div>
       <div>
-        <label class="text-xs text-gray-500 block mb-1">Amount</label>
+        <label for="pe-amount" class="text-xs text-gray-500 block mb-1">Amount</label>
         <input
+          id="pe-amount"
           type="number"
           step="0.01"
           bind:value={peAmount}
@@ -362,8 +375,9 @@
         />
       </div>
       <div>
-        <label class="text-xs text-gray-500 block mb-1">Date</label>
+        <label for="pe-date" class="text-xs text-gray-500 block mb-1">Date</label>
         <input
+          id="pe-date"
           type="date"
           bind:value={peDate}
           class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm
@@ -371,8 +385,9 @@
         />
       </div>
       <div>
-        <label class="text-xs text-gray-500 block mb-1">Category</label>
+        <label for="pe-category" class="text-xs text-gray-500 block mb-1">Category</label>
         <select
+          id="pe-category"
           bind:value={peCategory}
           class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm
                  text-gray-100 focus:outline-none focus:border-emerald-500"
@@ -397,3 +412,41 @@
     {/if}
   </div>
 </div>
+
+<!-- Delete budget confirmation modal -->
+{#if showDeleteBudgetModal}
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+       role="presentation"
+       onclick={(e) => { if (e.target === e.currentTarget && !deleting) { showDeleteBudgetModal = false; deleteBudgetError = ""; } }}
+       onkeydown={(e) => { if (e.key === "Escape" && !deleting) { showDeleteBudgetModal = false; deleteBudgetError = ""; } }}>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="delete-budget-modal-title">
+      <h3 id="delete-budget-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete budget?</h3>
+      <p class="text-sm text-gray-400 mb-1">This will delete this budget and all its data.</p>
+      <p class="text-sm text-gray-300 mb-5 font-mono">{startDate} — {endDate}</p>
+      {#if deleteBudgetError}
+        <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deleteBudgetError}</div>
+      {/if}
+      <div class="flex gap-3 justify-end">
+        <button
+          onclick={() => { showDeleteBudgetModal = false; deleteBudgetError = ""; }}
+          disabled={deleting}
+          class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
+                 text-sm transition-colors disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onclick={deleteBudget}
+          disabled={deleting}
+          class="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-2
+                 rounded-lg text-sm font-medium transition-colors"
+        >
+          {deleting ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

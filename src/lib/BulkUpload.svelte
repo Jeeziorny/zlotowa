@@ -356,6 +356,7 @@
               <button
                 onclick={() => removeCategory(origIndex)}
                 class="text-emerald-400 hover:text-emerald-300 text-base leading-none"
+                aria-label="Remove category {row.category}"
               >&times;</button>
             </span>
           {:else}
@@ -525,6 +526,7 @@
             <button
               onclick={() => (llmWarningDismissed = true)}
               class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
+              aria-label="Dismiss warning"
             >&times;</button>
           </div>
         {/if}

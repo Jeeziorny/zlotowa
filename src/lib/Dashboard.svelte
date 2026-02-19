@@ -119,6 +119,7 @@
               class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
                      disabled:opacity-30 disabled:hover:text-gray-500"
               title="Move left"
+              aria-label="Move {widget.name} left"
             >
               ←
             </button>
@@ -128,6 +129,7 @@
               class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
                      disabled:opacity-30 disabled:hover:text-gray-500"
               title="Move right"
+              aria-label="Move {widget.name} right"
             >
               →
             </button>
@@ -135,6 +137,7 @@
               onclick={() => removeWidget(widget.id)}
               class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-red-400"
               title="Remove widget"
+              aria-label="Remove {widget.name}"
             >
               ×
             </button>

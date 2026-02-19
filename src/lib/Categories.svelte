@@ -281,6 +281,7 @@
                   onclick={() => { deleteTarget = cat; deleteReplacement = ""; deleteError = ""; }}
                   class="text-gray-600 hover:text-red-400 transition-colors text-sm"
                   title="Delete category"
+                  aria-label="Delete category {cat.name}"
                 >
                   &#x2715;
                 </button>
@@ -301,8 +302,8 @@
     onclick={(e) => { if (e.target === e.currentTarget) deleteTarget = null; }}
     onkeydown={(e) => { if (e.key === "Escape") deleteTarget = null; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog">
-      <h3 class="text-lg font-semibold mb-2">Delete "{deleteTarget.name}"</h3>
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog" aria-modal="true" aria-labelledby="delete-category-modal-title">
+      <h3 id="delete-category-modal-title" class="text-lg font-semibold mb-2">Delete "{deleteTarget.name}"</h3>
       <p class="text-sm text-gray-400 mb-4">
         Reassign {deleteTarget.expense_count} expenses and {deleteTarget.rule_count} rules to:
       </p>
@@ -341,16 +342,17 @@
     onclick={(e) => { if (e.target === e.currentTarget) showMerge = false; }}
     onkeydown={(e) => { if (e.key === "Escape") showMerge = false; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog">
-      <h3 class="text-lg font-semibold mb-2">Merge {selected.size} categories</h3>
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog" aria-modal="true" aria-labelledby="merge-modal-title">
+      <h3 id="merge-modal-title" class="text-lg font-semibold mb-2">Merge {selected.size} categories</h3>
       <p class="text-sm text-gray-400 mb-1">Merging:</p>
       <div class="flex flex-wrap gap-1 mb-4">
         {#each [...selected] as s}
           <span class="px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-300">{s}</span>
         {/each}
       </div>
-      <label class="block text-sm text-gray-400 mb-1">Target name</label>
+      <label for="merge-target-name" class="block text-sm text-gray-400 mb-1">Target name</label>
       <input
+        id="merge-target-name"
         type="text"
         bind:value={mergeTarget}
         onkeydown={(e) => e.key === "Enter" && confirmMerge()}

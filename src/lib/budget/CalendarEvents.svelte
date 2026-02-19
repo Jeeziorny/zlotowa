@@ -6,6 +6,7 @@
   let importing = $state(false);
   let importMsg = $state("");
   let file = $state(null);
+  let updateError = $state("");
 
   function handleFileDrop(event) {
     event.preventDefault();
@@ -47,11 +48,12 @@
 
   async function updateAmount(eventId, value) {
     const amount = value === "" || value == null ? null : Number(value);
+    updateError = "";
     try {
       await invoke("update_calendar_event_amount", { eventId, amount });
       onrefresh();
     } catch (err) {
-      console.error("Failed to update amount:", err);
+      updateError = `Failed to update amount: ${err}`;
     }
   }
 </script>
@@ -69,8 +71,15 @@
     <div
       ondrop={handleFileDrop}
       ondragover={handleDragOver}
+      onkeydown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.currentTarget.querySelector("input[type=file]")?.click();
+        }
+      }}
       role="button"
       tabindex="0"
+      aria-label="Upload iCal file"
       class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center
              hover:border-emerald-500/50 transition-colors cursor-pointer"
     >
@@ -163,6 +172,10 @@
       </div>
     {:else}
       <p class="text-sm text-gray-500">No events imported yet.</p>
+    {/if}
+
+    {#if updateError}
+      <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mt-3">{updateError}</div>
     {/if}
   </div>
 </div>
