@@ -10,7 +10,6 @@
 | 28 | Title Cleanup Explanation | Add persistent help text explaining what Title Cleanup does and how it works. Clarify bulk upload integration. |
 | 29 | Dashboard Widget Clicks | Make Total Expenses/Transactions click → Expenses tab, Spending by Category click → Categories tab. |
 | 30 | Budget Planning Redesign | Date-range budgets (no overlap), Overview as default tab, multi-step "Create +" flow, category defaults from averages, calendar event amounts. |
-| 31 | DB Query Performance | Batch N+1 queries (title cleanup, delete), replace `strftime()` with range queries, chunk duplicate check, add budget index. |
 | 33 | Accessibility Fixes | Escape-to-close modals, keyboard-accessible drop zone, keyboard-sortable table headers. |
 | 34 | Tauri IPC Tests | Test coverage for all `#[tauri::command]` functions — happy paths + error paths with in-memory DB. |
 | 37 | CLAUDE.md Sync | Add 7 missing IPC commands to docs. |
@@ -45,6 +44,7 @@
 | 35 | DB & Core Edge Case Tests | 29 edge case tests across db.rs, classifiers.rs, llm.rs, csv_parser.rs. |
 | 32 | Release Mutex Before LLM | Restructured `parse_and_classify()` into 5 phases — DB lock released before LLM HTTP calls. |
 | 36 | ClassificationSource Roundtrip | Already fixed — `from_str_opt()` handles both cases, roundtrip test exists. |
+| 31 | DB Query Performance | Batch N+1 queries (title cleanup, delete), replace `strftime()` with range queries, chunk duplicate check, add budget index. 7 new tests. |
 
 ## N/A
 

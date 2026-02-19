@@ -100,6 +100,8 @@ impl Database {
                 UNIQUE(year, month)
             );
 
+            CREATE INDEX IF NOT EXISTS idx_budgets_year_month ON budgets(year, month);
+
             CREATE TABLE IF NOT EXISTS budget_categories (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 budget_id INTEGER NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
@@ -378,47 +380,55 @@ impl Database {
             return Ok(vec![]);
         }
 
-        // For small batches, use OR-chained conditions in a single query
-        let mut conditions = Vec::new();
-        let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        const CHUNK_SIZE: usize = 100;
+        let mut all_found: Vec<(String, f64, String)> = Vec::new();
 
-        for (i, (title, amount, date)) in expenses.iter().enumerate() {
-            let base = i * 3;
-            conditions.push(format!(
-                "(title = ?{} AND amount = ?{} AND date = ?{})",
-                base + 1,
-                base + 2,
-                base + 3
-            ));
-            param_values.push(Box::new(title.to_string()));
-            param_values.push(Box::new(*amount));
-            param_values.push(Box::new(date.to_string()));
+        for chunk in expenses.chunks(CHUNK_SIZE) {
+            let mut conditions = Vec::new();
+            let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            for (i, (title, amount, date)) in chunk.iter().enumerate() {
+                let base = i * 3;
+                conditions.push(format!(
+                    "(title = ?{} AND amount = ?{} AND date = ?{})",
+                    base + 1,
+                    base + 2,
+                    base + 3
+                ));
+                param_values.push(Box::new(title.to_string()));
+                param_values.push(Box::new(*amount));
+                param_values.push(Box::new(date.to_string()));
+            }
+
+            let sql = format!(
+                "SELECT title, amount, date FROM expenses WHERE {}",
+                conditions.join(" OR ")
+            );
+
+            let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+                param_values.iter().map(|p| p.as_ref()).collect();
+            let mut stmt = self.conn.prepare(&sql)?;
+            let found_rows = stmt.query_map(params_refs.as_slice(), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, f64>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?;
+
+            let found: Vec<(String, f64, String)> = found_rows
+                .collect::<SqlResult<Vec<_>>>()
+                .map_err(DbError::from)?;
+            all_found.extend(found);
         }
-
-        let sql = format!(
-            "SELECT title, amount, date FROM expenses WHERE {}",
-            conditions.join(" OR ")
-        );
-
-        let params_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
-        let mut stmt = self.conn.prepare(&sql)?;
-        let found_rows = stmt.query_map(params_refs.as_slice(), |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, f64>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })?;
-
-        let found: Vec<(String, f64, String)> = found_rows
-            .collect::<SqlResult<Vec<_>>>()
-            .map_err(DbError::from)?;
 
         let results = expenses
             .iter()
             .map(|(title, amount, date)| {
                 let date_str = date.to_string();
-                found.iter().any(|(t, a, d)| t == title && *a == *amount && *d == date_str)
+                all_found
+                    .iter()
+                    .any(|(t, a, d)| t == title && *a == *amount && *d == date_str)
             })
             .collect();
 
@@ -472,12 +482,14 @@ impl Database {
         if ids.is_empty() {
             return Ok(0);
         }
-        let tx = self.conn.unchecked_transaction()?;
-        let mut count = 0;
-        for id in ids {
-            count += tx.execute("DELETE FROM expenses WHERE id = ?1", params![id])?;
-        }
-        tx.commit()?;
+        let placeholders: Vec<String> = (1..=ids.len()).map(|i| format!("?{}", i)).collect();
+        let sql = format!(
+            "DELETE FROM expenses WHERE id IN ({})",
+            placeholders.join(",")
+        );
+        let params: Vec<&dyn rusqlite::types::ToSql> =
+            ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
+        let count = self.conn.execute(&sql, params.as_slice())?;
         Ok(count)
     }
 
@@ -727,13 +739,19 @@ impl Database {
         rule: &TitleCleanupRule,
     ) -> Result<Vec<(i64, String, String)>, DbError> {
         let re = Self::build_cleanup_regex(rule)?;
-        let expenses = self.get_all_expenses()?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, title FROM expenses")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let id_titles: Vec<(i64, String)> = rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)?;
         let mut results = Vec::new();
-        for expense in expenses {
-            let cleaned = re.replace_all(&expense.title, rule.replacement.as_str());
+        for (id, title) in id_titles {
+            let cleaned = re.replace_all(&title, rule.replacement.as_str());
             let cleaned = Self::normalize_whitespace(&cleaned);
-            if cleaned != expense.title {
-                results.push((expense.id.unwrap(), expense.title, cleaned));
+            if cleaned != title {
+                results.push((id, title, cleaned));
             }
         }
         Ok(results)
@@ -749,26 +767,38 @@ impl Database {
             return Ok(0);
         }
         let re = Self::build_cleanup_regex(rule)?;
+
+        // Batch-fetch all titles in one query
+        let placeholders: Vec<String> = (1..=expense_ids.len()).map(|i| format!("?{}", i)).collect();
+        let sql = format!(
+            "SELECT id, title FROM expenses WHERE id IN ({})",
+            placeholders.join(",")
+        );
+        let params: Vec<&dyn rusqlite::types::ToSql> =
+            expense_ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(params.as_slice(), |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let fetched: Vec<(i64, String)> = rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)?;
+
+        // Check all requested IDs were found
+        if fetched.len() != expense_ids.len() {
+            let found_ids: std::collections::HashSet<i64> = fetched.iter().map(|(id, _)| *id).collect();
+            for &id in expense_ids {
+                if !found_ids.contains(&id) {
+                    return Err(DbError::InvalidData(format!("Expense with id {} not found", id)));
+                }
+            }
+        }
+
+        // Apply regex and batch-update
         let tx = self.conn.unchecked_transaction()?;
         let mut count = 0;
-
-        for &id in expense_ids {
-            let title: String = tx
-                .query_row(
-                    "SELECT title FROM expenses WHERE id = ?1",
-                    params![id],
-                    |row| row.get(0),
-                )
-                .map_err(|e| match e {
-                    rusqlite::Error::QueryReturnedNoRows => {
-                        DbError::InvalidData(format!("Expense with id {} not found", id))
-                    }
-                    other => DbError::from(other),
-                })?;
-
-            let cleaned = re.replace_all(&title, rule.replacement.as_str());
+        for (id, title) in &fetched {
+            let cleaned = re.replace_all(title, rule.replacement.as_str());
             let cleaned = Self::normalize_whitespace(&cleaned);
-            if cleaned != title {
+            if cleaned != *title {
                 tx.execute(
                     "UPDATE expenses SET title = ?1 WHERE id = ?2",
                     params![cleaned, id],
@@ -776,7 +806,6 @@ impl Database {
                 count += 1;
             }
         }
-
         tx.commit()?;
         Ok(count)
     }
@@ -1003,15 +1032,21 @@ impl Database {
     }
 
     pub fn get_expenses_for_month(&self, year: i32, month: u32) -> Result<Vec<Expense>, DbError> {
-        let month_str = format!("{:02}", month);
-        let year_str = year.to_string();
+        let first_of_month = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+            .ok_or_else(|| DbError::InvalidData(format!("Invalid year/month: {}/{}", year, month)))?;
+        let first_of_next_month = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .ok_or_else(|| DbError::InvalidData(format!("Invalid year/month: {}/{}", year, month)))?;
         let mut stmt = self.conn.prepare(
             "SELECT id, title, amount, date, category, classification_source
              FROM expenses
-             WHERE strftime('%Y', date) = ?1 AND strftime('%m', date) = ?2
+             WHERE date >= ?1 AND date < ?2
              ORDER BY date DESC",
         )?;
-        let rows = stmt.query_map(params![year_str, month_str], |row| {
+        let rows = stmt.query_map(params![first_of_month.to_string(), first_of_next_month.to_string()], |row| {
             let source_str: Option<String> = row.get(5)?;
             let source = source_str.as_deref().and_then(ClassificationSource::from_str_opt);
             let date_str: String = row.get(3)?;
@@ -2396,5 +2431,169 @@ mod tests {
         let db = test_db();
         // Merging nonexistent categories should be a no-op
         db.merge_categories(&["NoSuch".into(), "AlsoNot".into()], "Food").unwrap();
+    }
+
+    // ── Performance optimization tests ──
+
+    #[test]
+    fn delete_expenses_batch_large_input() {
+        let db = test_db();
+        let expenses: Vec<Expense> = (0..160)
+            .map(|i| make_expense(&format!("Item {}", i), i as f64, "2025-06-01"))
+            .collect();
+        db.insert_expenses_bulk(&expenses, None).unwrap();
+        let all = db.get_all_expenses().unwrap();
+        assert_eq!(all.len(), 160);
+
+        let ids: Vec<i64> = all.iter().map(|e| e.id.unwrap()).collect();
+        let count = db.delete_expenses(&ids).unwrap();
+        assert_eq!(count, 160);
+        assert!(db.get_all_expenses().unwrap().is_empty());
+    }
+
+    #[test]
+    fn check_duplicates_batch_large_input() {
+        let db = test_db();
+        // Insert 50 expenses
+        let dates: Vec<NaiveDate> = (1..=28)
+            .map(|d| NaiveDate::from_ymd_opt(2025, 6, d).unwrap())
+            .collect();
+        for (i, date) in dates.iter().enumerate() {
+            db.insert_expense(&Expense {
+                id: None,
+                title: format!("Expense {}", i),
+                amount: (i + 1) as f64 * 10.0,
+                date: *date,
+                category: None,
+                classification_source: None,
+            })
+            .unwrap();
+        }
+
+        // Build 160 check entries: first 28 are duplicates, rest are new
+        let check_dates: Vec<NaiveDate> = (0..160)
+            .map(|i| {
+                let day = (i % 28) + 1;
+                NaiveDate::from_ymd_opt(2025, 6, day as u32).unwrap()
+            })
+            .collect();
+        let titles: Vec<String> = (0..160)
+            .map(|i| {
+                if i < 28 {
+                    format!("Expense {}", i)
+                } else {
+                    format!("New expense {}", i)
+                }
+            })
+            .collect();
+        let inputs: Vec<(&str, f64, &NaiveDate)> = (0..160)
+            .map(|i| {
+                (
+                    titles[i].as_str(),
+                    if i < 28 { (i + 1) as f64 * 10.0 } else { i as f64 * 100.0 },
+                    &check_dates[i],
+                )
+            })
+            .collect();
+
+        let results = db.check_duplicates_batch(&inputs).unwrap();
+        assert_eq!(results.len(), 160);
+        // First 28 should be duplicates
+        for i in 0..28 {
+            assert!(results[i], "Expected duplicate at index {}", i);
+        }
+        // Rest should not be duplicates
+        for i in 28..160 {
+            assert!(!results[i], "Expected non-duplicate at index {}", i);
+        }
+    }
+
+    #[test]
+    fn get_expenses_for_month_boundary_exclusion() {
+        let db = test_db();
+        // Last day of January
+        db.insert_expense(&make_expense("Jan 31", 10.0, "2026-01-31")).unwrap();
+        // All of February
+        db.insert_expense(&make_expense("Feb 1", 20.0, "2026-02-01")).unwrap();
+        db.insert_expense(&make_expense("Feb 15", 30.0, "2026-02-15")).unwrap();
+        db.insert_expense(&make_expense("Feb 28", 40.0, "2026-02-28")).unwrap();
+        // First day of March
+        db.insert_expense(&make_expense("Mar 1", 50.0, "2026-03-01")).unwrap();
+
+        let feb = db.get_expenses_for_month(2026, 2).unwrap();
+        assert_eq!(feb.len(), 3);
+        let titles: Vec<&str> = feb.iter().map(|e| e.title.as_str()).collect();
+        assert!(titles.contains(&"Feb 1"));
+        assert!(titles.contains(&"Feb 15"));
+        assert!(titles.contains(&"Feb 28"));
+        assert!(!titles.contains(&"Jan 31"));
+        assert!(!titles.contains(&"Mar 1"));
+    }
+
+    #[test]
+    fn get_expenses_for_month_december_boundary() {
+        let db = test_db();
+        db.insert_expense(&make_expense("Nov 30", 10.0, "2025-11-30")).unwrap();
+        db.insert_expense(&make_expense("Dec 1", 20.0, "2025-12-01")).unwrap();
+        db.insert_expense(&make_expense("Dec 31", 30.0, "2025-12-31")).unwrap();
+        db.insert_expense(&make_expense("Jan 1 next", 40.0, "2026-01-01")).unwrap();
+
+        let dec = db.get_expenses_for_month(2025, 12).unwrap();
+        assert_eq!(dec.len(), 2);
+        let titles: Vec<&str> = dec.iter().map(|e| e.title.as_str()).collect();
+        assert!(titles.contains(&"Dec 1"));
+        assert!(titles.contains(&"Dec 31"));
+    }
+
+    #[test]
+    fn preview_title_cleanup_returns_correct_affected_rows() {
+        let db = test_db();
+        // Insert 50 expenses, half matching the rule
+        for i in 0..50 {
+            let title = if i % 2 == 0 {
+                format!("NOISE Item {}", i)
+            } else {
+                format!("Clean Item {}", i)
+            };
+            db.insert_expense(&make_expense(&title, i as f64, "2025-01-01"))
+                .unwrap();
+        }
+
+        let rule = make_literal_rule("NOISE ", "");
+        let results = db.preview_title_cleanup(&rule).unwrap();
+        assert_eq!(results.len(), 25);
+        for (_, original, cleaned) in &results {
+            assert!(original.starts_with("NOISE "));
+            assert!(!cleaned.starts_with("NOISE "));
+        }
+    }
+
+    #[test]
+    fn apply_title_cleanup_batch_fetch() {
+        let db = test_db();
+        let mut ids = Vec::new();
+        for i in 0..30 {
+            let id = db
+                .insert_expense(&make_expense(
+                    &format!("PREFIX Item {}", i),
+                    i as f64,
+                    "2025-01-01",
+                ))
+                .unwrap();
+            ids.push(id);
+        }
+
+        let rule = make_literal_rule("PREFIX ", "");
+        let count = db.apply_title_cleanup(&rule, &ids).unwrap();
+        assert_eq!(count, 30);
+
+        let all = db.get_all_expenses().unwrap();
+        for e in &all {
+            assert!(
+                e.title.starts_with("Item "),
+                "Expected title to start with 'Item ', got: {}",
+                e.title
+            );
+        }
     }
 }
