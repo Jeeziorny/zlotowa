@@ -394,10 +394,13 @@
 <div>
   {#if classifying}
     <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-10 flex flex-col items-center gap-4 shadow-2xl">
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-10 flex flex-col items-center gap-4 shadow-2xl max-w-sm w-full mx-4">
         <div class="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
-        <p class="text-lg font-semibold text-gray-100">Classifying expenses with AI...</p>
-        <p class="text-sm text-gray-400">This may take a moment</p>
+        <p class="text-lg font-semibold text-gray-100">Classifying expenses...</p>
+        <p class="text-sm text-gray-400">{dataRows.length} expenses — matching rules, then calling AI for the rest</p>
+        <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+          <div class="h-full bg-emerald-500 rounded-full animate-progress"></div>
+        </div>
       </div>
     </div>
   {/if}
