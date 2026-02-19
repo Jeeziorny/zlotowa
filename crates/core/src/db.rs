@@ -2225,4 +2225,176 @@ mod tests {
         let batches = db.get_upload_batches().unwrap();
         assert!(batches.is_empty());
     }
+
+    // ── Edge cases: query_expenses ──
+
+    #[test]
+    fn query_expenses_amount_min_greater_than_max_returns_empty() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery {
+            amount_min: Some(100.0),
+            amount_max: Some(1.0),
+            ..Default::default()
+        };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 0);
+        assert!(result.expenses.is_empty());
+    }
+
+    #[test]
+    fn query_expenses_date_from_after_date_to_returns_empty() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery {
+            date_from: Some(NaiveDate::from_ymd_opt(2025, 12, 1).unwrap()),
+            date_to: Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap()),
+            ..Default::default()
+        };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 0);
+    }
+
+    #[test]
+    fn query_expenses_unicode_search() {
+        let db = test_db();
+        let e = Expense {
+            id: None,
+            title: "Żabka sklep".into(),
+            amount: 15.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: None,
+            classification_source: None,
+        };
+        db.insert_expense(&e).unwrap();
+        let query = ExpenseQuery { search: Some("Żabka".into()), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.expenses[0].title, "Żabka sklep");
+    }
+
+    #[test]
+    fn query_expenses_limit_zero_returns_empty_expenses_but_correct_count() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery { limit: Some(0), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert!(result.expenses.is_empty());
+        assert_eq!(result.total_count, 5);
+    }
+
+    #[test]
+    fn query_expenses_offset_beyond_total() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery { offset: Some(999), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert!(result.expenses.is_empty());
+        assert_eq!(result.total_count, 5);
+    }
+
+    #[test]
+    fn query_expenses_empty_search_string_returns_all() {
+        let db = test_db();
+        seed_query_db(&db);
+        let query = ExpenseQuery { search: Some("".into()), ..Default::default() };
+        let result = db.query_expenses(&query).unwrap();
+        assert_eq!(result.total_count, 5);
+    }
+
+    // ── Edge cases: rename_category ──
+
+    #[test]
+    fn rename_category_to_empty_string() {
+        let db = test_db();
+        let e = Expense {
+            id: None,
+            title: "Test".into(),
+            amount: 10.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: Some("Food".into()),
+            classification_source: None,
+        };
+        db.insert_expense(&e).unwrap();
+        // Renaming to empty string succeeds at DB level (no constraint)
+        db.rename_category("Food", "").unwrap();
+        let expenses = db.get_all_expenses().unwrap();
+        assert_eq!(expenses[0].category.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn rename_category_nonexistent_is_noop() {
+        let db = test_db();
+        // Renaming a category that doesn't exist should not error
+        db.rename_category("NonExistent", "Whatever").unwrap();
+    }
+
+    #[test]
+    fn rename_category_same_name_is_noop() {
+        let db = test_db();
+        let e = Expense {
+            id: None,
+            title: "Test".into(),
+            amount: 10.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: Some("Food".into()),
+            classification_source: None,
+        };
+        db.insert_expense(&e).unwrap();
+        db.rename_category("Food", "Food").unwrap();
+        let expenses = db.get_all_expenses().unwrap();
+        assert_eq!(expenses[0].category.as_deref(), Some("Food"));
+    }
+
+    #[test]
+    fn rename_category_to_existing_name_merges() {
+        let db = test_db();
+        let base = Expense {
+            id: None,
+            title: "".into(),
+            amount: 10.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: None,
+            classification_source: None,
+        };
+        db.insert_expense(&Expense { title: "A".into(), category: Some("Groceries".into()), ..base.clone() }).unwrap();
+        db.insert_expense(&Expense { title: "B".into(), category: Some("Food".into()), ..base.clone() }).unwrap();
+        db.rename_category("Groceries", "Food").unwrap();
+        let expenses = db.get_all_expenses().unwrap();
+        assert!(expenses.iter().all(|e| e.category.as_deref() == Some("Food")));
+    }
+
+    // ── Edge cases: merge_categories ──
+
+    #[test]
+    fn merge_categories_empty_sources() {
+        let db = test_db();
+        // Empty sources list should be a no-op
+        db.merge_categories(&[], "Food").unwrap();
+    }
+
+    #[test]
+    fn merge_categories_duplicate_sources() {
+        let db = test_db();
+        let base = Expense {
+            id: None,
+            title: "Lidl".into(),
+            amount: 10.0,
+            date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            category: Some("Groceries".into()),
+            classification_source: None,
+        };
+        db.insert_expense(&base).unwrap();
+        // Same source listed twice should not cause issues
+        db.merge_categories(&["Groceries".into(), "Groceries".into()], "Food").unwrap();
+        let expenses = db.get_all_expenses().unwrap();
+        assert_eq!(expenses[0].category.as_deref(), Some("Food"));
+    }
+
+    #[test]
+    fn merge_categories_nonexistent_sources() {
+        let db = test_db();
+        // Merging nonexistent categories should be a no-op
+        db.merge_categories(&["NoSuch".into(), "AlsoNot".into()], "Food").unwrap();
+    }
 }

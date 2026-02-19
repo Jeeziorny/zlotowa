@@ -477,4 +477,74 @@ mod tests {
             date_format: "%Y-%m-%d".to_string(),
         }).is_err());
     }
+
+    // ── Edge cases: parse_amount ──
+
+    #[test]
+    fn amount_signed_zero() {
+        assert_eq!(parse_amount("-0").unwrap(), 0.0);
+        assert_eq!(parse_amount("+0").unwrap(), 0.0);
+        assert_eq!(parse_amount("-0.00").unwrap(), 0.0);
+    }
+
+    #[test]
+    fn amount_multiple_signs_rejected() {
+        assert!(parse_amount("--100").is_err());
+        assert!(parse_amount("+-100").is_err());
+    }
+
+    #[test]
+    fn amount_very_large_number() {
+        let result = parse_amount("999999999999.99");
+        assert!(result.is_ok());
+        assert!((result.unwrap() - 999999999999.99).abs() < 0.01);
+    }
+
+    #[test]
+    fn amount_only_currency_symbol() {
+        assert!(parse_amount("$").is_err());
+        assert!(parse_amount("€").is_err());
+    }
+
+    #[test]
+    fn amount_only_separator() {
+        // Just a comma — cleaned to empty after removing non-digit chars? No, comma stays.
+        // "," → cleaned = "," → no digits around it
+        // Only comma, 0 digits after → treated as thousands sep → removed → empty → parse error? No...
+        // Let's just test it
+        assert!(parse_amount(",").is_err());
+        assert!(parse_amount(".").is_err());
+    }
+
+    // ── Edge cases: split_csv_line ──
+
+    #[test]
+    fn split_unmatched_quote_treated_as_quoted() {
+        // Unmatched quote — keeps parsing in "quoted" mode until end
+        let fields = CsvParser::split_csv_line("\"hello,world", ',');
+        // in_quotes stays true, so comma is part of the field
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0], "hello,world");
+    }
+
+    #[test]
+    fn split_nested_quotes() {
+        let fields = CsvParser::split_csv_line("\"he said \"\"hi\"\"\",b", ',');
+        // The parser toggles in_quotes for each '"', strips outer quotes
+        assert_eq!(fields.len(), 2);
+    }
+
+    #[test]
+    fn split_empty_fields() {
+        let fields = CsvParser::split_csv_line(",,", ',');
+        assert_eq!(fields.len(), 3);
+        assert!(fields.iter().all(|f| f.is_empty()));
+    }
+
+    #[test]
+    fn split_single_field_no_delimiter() {
+        let fields = CsvParser::split_csv_line("hello", ',');
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0], "hello");
+    }
 }

@@ -10,6 +10,12 @@
 | 28 | Title Cleanup Explanation | Add persistent help text explaining what Title Cleanup does and how it works. Clarify bulk upload integration. |
 | 29 | Dashboard Widget Clicks | Make Total Expenses/Transactions click → Expenses tab, Spending by Category click → Categories tab. |
 | 30 | Budget Planning Redesign | Date-range budgets (no overlap), Overview as default tab, multi-step "Create +" flow, category defaults from averages, calendar event amounts. |
+| 31 | DB Query Performance | Batch N+1 queries (title cleanup, delete), replace `strftime()` with range queries, chunk duplicate check, add budget index. |
+| 32 | Release Mutex Before LLM | Restructure `parse_and_classify()` to release DB lock before HTTP calls to LLM provider. |
+| 33 | Accessibility Fixes | Escape-to-close modals, keyboard-accessible drop zone, keyboard-sortable table headers. |
+| 34 | Tauri IPC Tests | Test coverage for all `#[tauri::command]` functions — happy paths + error paths with in-memory DB. |
+| 35 | DB & Core Edge Case Tests | Edge case tests for `query_expenses`, `rename_category`, `merge_categories`, classifiers, LLM parsing, CSV parser. |
+| 37 | CLAUDE.md Sync | Add 7 missing IPC commands to docs. |
 
 ## DONE
 
@@ -38,6 +44,8 @@
 | 24 | Tests & Docs Sync | 11 new tests for category management, batch duplicate check, upload batches. Docs updated: roadmap, navigation, dashboard widget table, introduction feature list. |
 | 26 | Expense List Cleanup | Removed Source column, Category column wider, delete confirmation modals (single + batch). |
 | 24b | DEMO_TBD | Client demo notes file that spawned tasks 25–30. Not a task itself. |
+| 35 | DB & Core Edge Case Tests | 29 edge case tests across db.rs, classifiers.rs, llm.rs, csv_parser.rs. |
+| 36 | ClassificationSource Roundtrip | Already fixed — `from_str_opt()` handles both cases, roundtrip test exists. |
 
 ## N/A
 

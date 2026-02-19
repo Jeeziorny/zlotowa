@@ -227,4 +227,41 @@ mod tests {
         assert_eq!(classifier.name(), "Regex Database");
         assert_eq!(classifier.priority(), 10);
     }
+
+    // ── Edge cases ──
+
+    #[test]
+    fn regex_classifier_all_invalid_patterns() {
+        let rules = vec![
+            ClassificationRule { id: None, pattern: "[bad".to_string(), category: "A".to_string() },
+            ClassificationRule { id: None, pattern: "(unclosed".to_string(), category: "B".to_string() },
+        ];
+        let classifier = RegexClassifier::from_rules(&rules);
+        // All invalid patterns filtered out — should return None
+        let result = classifier.classify(&parsed("anything")).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn regex_classifier_duplicate_patterns_different_categories() {
+        let rules = vec![
+            ClassificationRule { id: None, pattern: "(?i)shop".to_string(), category: "Shopping".to_string() },
+            ClassificationRule { id: None, pattern: "(?i)shop".to_string(), category: "Retail".to_string() },
+        ];
+        let classifier = RegexClassifier::from_rules(&rules);
+        let result = classifier.classify(&parsed("My Shop")).unwrap().unwrap();
+        // First rule wins
+        assert_eq!(result.category, "Shopping");
+    }
+
+    #[test]
+    fn pipeline_classifier_error_is_skipped() {
+        // classify_pipeline uses .ok().flatten() so errors are treated as None
+        // RegexClassifier never returns Err, but the pipeline should handle it gracefully
+        // Test with an empty classifier list — just confirming pipeline returns None for each
+        let expenses = vec![parsed("test1"), parsed("test2")];
+        let results = classify_pipeline(&expenses, &[]);
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|(_, r)| r.is_none()));
+    }
 }

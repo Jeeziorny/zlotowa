@@ -671,6 +671,82 @@ mod tests {
         assert_eq!(OllamaProvider::endpoint(&config), "http://myserver:11434");
     }
 
+    // ── Edge cases: parse_classification_response ──
+
+    #[test]
+    fn test_parse_zero_indexed_id_ignored() {
+        // ID 0 is out of range (1-based indexing) — should be ignored
+        let response = r#"[{"id": 0, "category": "Food", "confidence": "high"}]"#;
+        let result = parse_classification_response(response, 1).unwrap();
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn test_parse_empty_category_ignored() {
+        let response = r#"[{"id": 1, "category": "", "confidence": "high"}]"#;
+        let result = parse_classification_response(response, 1).unwrap();
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn test_parse_id_gaps_produce_none() {
+        // IDs 1 and 3 present, ID 2 missing
+        let response = r#"[{"id": 1, "category": "A", "confidence": "high"}, {"id": 3, "category": "C", "confidence": "low"}]"#;
+        let result = parse_classification_response(response, 3).unwrap();
+        assert!(result[0].is_some());
+        assert!(result[1].is_none());
+        assert!(result[2].is_some());
+    }
+
+    #[test]
+    fn test_parse_unknown_confidence_defaults_to_medium() {
+        let response = r#"[{"id": 1, "category": "Food", "confidence": "very_sure"}]"#;
+        let result = parse_classification_response(response, 1).unwrap();
+        let item = result[0].as_ref().unwrap();
+        assert_eq!(item.confidence, 0.5); // unknown string → 0.5
+    }
+
+    #[test]
+    fn test_parse_missing_confidence_field() {
+        let response = r#"[{"id": 1, "category": "Food"}]"#;
+        let result = parse_classification_response(response, 1).unwrap();
+        let item = result[0].as_ref().unwrap();
+        assert_eq!(item.confidence, 0.6); // missing → defaults to "medium" → 0.6
+    }
+
+    #[test]
+    fn test_parse_expected_count_zero() {
+        let response = r#"[]"#;
+        let result = parse_classification_response(response, 0).unwrap();
+        assert!(result.is_empty());
+    }
+
+    // ── Edge cases: extract_json_array ──
+
+    #[test]
+    fn test_extract_json_array_trailing_comma() {
+        // Trailing commas are invalid JSON — should error
+        let response = r#"[{"id": 1, "category": "A"},]"#;
+        let result = extract_json_array(response);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_json_array_multiple_arrays_uses_outermost() {
+        // First '[' to last ']' — captures "[{"id": 1}] and also [{"id": 2}]"
+        // which is invalid JSON, so it should error
+        let response = r#"Here are results: [{"id": 1}] and also [{"id": 2}]"#;
+        assert!(extract_json_array(response).is_err());
+    }
+
+    #[test]
+    fn test_extract_json_nested_arrays() {
+        // Nested array inside objects — should parse fine
+        let response = r#"[{"id": 1, "category": "Food", "tags": ["a","b"]}]"#;
+        let result = extract_json_array(response).unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
     // ── Integration tests (require real API keys) ──
 
     #[test]
