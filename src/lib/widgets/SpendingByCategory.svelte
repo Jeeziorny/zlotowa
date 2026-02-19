@@ -1,5 +1,5 @@
 <script>
-  let { expenses } = $props();
+  let { expenses, onnavigate = () => {} } = $props();
 
   let totalExpenses = $derived(
     expenses.reduce((sum, e) => sum + Math.abs(e.amount), 0)
@@ -15,7 +15,11 @@
   });
 </script>
 
-<div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+<button
+  onclick={() => onnavigate("categories")}
+  class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-full text-left
+         cursor-pointer hover:border-emerald-500/50 hover:bg-gray-900/80 transition-all"
+>
   <h3 class="text-lg font-semibold mb-4">Spending by Category</h3>
 
   {#if sortedCategories.length > 0}
@@ -40,4 +44,4 @@
   {:else}
     <p class="text-sm text-gray-500">No data yet.</p>
   {/if}
-</div>
+</button>

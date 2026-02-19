@@ -3,6 +3,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { widgets, defaultWidgetIds } from "./widgets/registry.js";
 
+  let { onnavigate = () => {} } = $props();
+
   let expenses = $state([]);
   let activeWidgetIds = $state([]);
   let showPicker = $state(false);
@@ -139,7 +141,7 @@
           </div>
 
           <!-- Widget content -->
-          <widget.component {expenses} />
+          <widget.component {expenses} {onnavigate} />
         </div>
       {/each}
     </div>

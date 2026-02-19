@@ -20,3 +20,13 @@ The dashboard displays configurable widgets that visualize your expense data.
 - Click **×** to remove a widget from the dashboard
 
 Your widget configuration (which widgets are shown and their order) is saved automatically and persists across sessions.
+
+## Click-to-navigate
+
+Some widgets act as navigation shortcuts:
+
+- **Total Expenses** / **Transactions** cards → opens the **Expenses** tab
+- **Categories** card → opens the **Categories** tab
+- **Spending by Category** widget → opens the **Categories** tab
+
+Clickable widgets show a highlighted border on hover.

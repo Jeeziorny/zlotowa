@@ -6,7 +6,6 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 28 | Title Cleanup Explanation | Add persistent help text explaining what Title Cleanup does and how it works. Clarify bulk upload integration. |
-| 29 | Dashboard Widget Clicks | Make Total Expenses/Transactions click → Expenses tab, Spending by Category click → Categories tab. |
 | 34 | Tauri IPC Tests | Test coverage for all `#[tauri::command]` functions — happy paths + error paths with in-memory DB. |
 
 ## DONE
@@ -45,6 +44,7 @@
 | 33 | Accessibility Fixes | Escape-to-close modals (Categories, ExpenseList, TitleCleanup), keyboard-accessible drop zone (Enter/Space), keyboard-sortable table headers with `aria-sort`. |
 | 30 | Budget Planning Redesign | Date-range budgets (no overlap), Overview as default tab, multi-step "Create +" flow, category defaults from averages, calendar event amounts. |
 | 37 | CLAUDE.md Sync | IPC commands synced with code. |
+| 29 | Dashboard Widget Clicks | Total Expenses/Transactions → Expenses tab, Spending by Category/Categories count → Categories tab. Hover affordance on clickable widgets. |
 
 ## N/A
 

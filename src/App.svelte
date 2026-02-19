@@ -17,7 +17,7 @@
 
   <main class="flex-1 overflow-y-auto p-8">
     {#if currentPage === "dashboard"}
-      <Dashboard />
+      <Dashboard onnavigate={(page) => currentPage = page} />
     {:else if currentPage === "add"}
       <AddExpense />
     {:else if currentPage === "bulk"}
