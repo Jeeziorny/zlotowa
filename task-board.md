@@ -5,6 +5,18 @@
 | # | Task | Summary |
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
+| 39 | Transaction Safety | Wrap multi-write IPC commands in DB transactions. Fix silent `let _ =` error drops. Wrap budget migration in transaction. |
+| 40 | Unwrap & Mutex Safety | Replace `budget.id.unwrap()` with `?`. Release mutex before disk I/O in `export_expenses`. Build data before acquiring lock in `bulk_save_expenses`. |
+| 41 | Frontend Error Handling | User-visible error feedback for 6 `invoke()` catch blocks. Fix TitleCleanup `deleteTarget` logic bug. Replace native `confirm()` with custom modal. |
+| 42 | Type Safety: Magic Strings | `LlmProviderType` enum, case-insensitive `ClassificationSource` parsing, `BudgetStatus` enum, `"uncategorized"` constant. |
+| 43 | Dead Code Cleanup | Remove unused structs (`ClassifiedExpense`), enum variants (`ClassifyError`, `ExportError::Failed`, 2 `ParseError` variants), functions (`filter_events_by_month`, `is_duplicate`, `get_all_budgets`), dead prop. |
+| 44 | DB Constraint Hardening | UNIQUE on `expenses(title,amount,date)`, ON DELETE for `batch_id` FK, FK indices on child tables, UNIQUE on `title_cleanup_rules`. |
+| 45 | LLM Provider Dedup | Extract shared HTTP classify helper across 3 providers. Reduce ~120 lines of duplicated code. Tighten provider struct visibility. |
+| 46 | Accessibility Round 2 | `aria-label` on icon-only buttons, `for` on form labels, `aria-modal`+`aria-labelledby` on dialogs, keyboard handler on CalendarEvents drop zone. |
+| 47 | Docs Sync Round 2 | CLAUDE.md: missing commands, `ical` module, trait methods. mdBook: budget "monthly"→"date-range", dashboard "active budget", LLM model version, export source strings. |
+| 48 | Integration Tests | Parse→classify→save→query roundtrip, export→reimport roundtrip, title cleanup→classify. Budget migration test. Edge cases for `from_pattern`, iCal, CSV, exporters. |
+| 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (extract modals), Settings (LLM + uploads). |
+| 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
 
 ## DONE
 
