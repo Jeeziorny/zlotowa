@@ -4,7 +4,7 @@
   const items = [
     { id: "dashboard", label: "Dashboard", icon: "⊞" },
     { id: "add", label: "Add Expense", icon: "+" },
-    { id: "bulk", label: "Bulk Upload", icon: "↑" },
+    { id: "bulk", label: "Expense bulk upload", icon: "↑" },
     { id: "expenses", label: "Expenses", icon: "☰" },
     { id: "categories", label: "Categories", icon: "▤" },
     { id: "cleanup", label: "Title Cleanup", icon: "✂" },

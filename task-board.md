@@ -4,9 +4,7 @@
 
 | # | Task | Summary |
 |---|------|---------|
-| 19 | Chip Input Category | Replace plain text category input in BulkUpload review with a tag/chip component. Autocomplete from existing categories, add/remove with Enter/Backspace/x. |
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
-| 25 | Bulk Upload UX Overhaul | LLM progress overlay, review table layout redesign (fields below row), chip input, column mapping simplification (1 row + placeholders), dismissible LLM warning, rename tab. |
 | 28 | Title Cleanup Explanation | Add persistent help text explaining what Title Cleanup does and how it works. Clarify bulk upload integration. |
 | 29 | Dashboard Widget Clicks | Make Total Expenses/Transactions click → Expenses tab, Spending by Category click → Categories tab. |
 | 30 | Budget Planning Redesign | Date-range budgets (no overlap), Overview as default tab, multi-step "Create +" flow, category defaults from averages, calendar event amounts. |
@@ -45,6 +43,8 @@
 | 32 | Release Mutex Before LLM | Restructured `parse_and_classify()` into 5 phases — DB lock released before LLM HTTP calls. |
 | 36 | ClassificationSource Roundtrip | Already fixed — `from_str_opt()` handles both cases, roundtrip test exists. |
 | 31 | DB Query Performance | Batch N+1 queries (title cleanup, delete), replace `strftime()` with range queries, chunk duplicate check, add budget index. 7 new tests. |
+| 19 | Chip Input Category | Implemented as part of task 25 — chip input with autocomplete in BulkUpload review. |
+| 25 | Bulk Upload UX Overhaul | Tab rename, dismissible LLM warning, 1 preview row, LLM progress overlay, card layout with chip category input. Docs updated. |
 
 ## N/A
 

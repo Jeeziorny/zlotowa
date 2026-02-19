@@ -17,11 +17,15 @@
   let dateFormat = $state("%Y-%m-%d");
   let mappingError = $state("");
   let llmWarning = $state("");
+  let llmWarningDismissed = $state(false);
 
   // Step 3: review
   let classifiedRows = $state([]);
   let reviewError = $state("");
   let classifying = $state(false);
+  let allCategories = $state([]);
+  let activeCategoryDropdown = $state(null);
+  let categoryInputText = $state({});
 
   // Step 4: done
   let savedCount = $state(0);
@@ -214,6 +218,7 @@
         },
       });
       classifiedRows = rows.map((r) => ({ ...r, _editing: false, rule_pattern: r.title, _autoApplied: 0 }));
+      await loadCategories();
       step = "review";
     } catch (err) {
       mappingError = `${err}`;
@@ -226,28 +231,57 @@
     classifiedRows[index].source = "Manual";
   }
 
-  function onRulePatternChange(index, newPattern) {
-    classifiedRows[index].rule_pattern = newPattern;
-    if (!newPattern.trim()) return;
+  async function loadCategories() {
+    try {
+      allCategories = await invoke("get_categories");
+    } catch (err) {
+      console.warn("Failed to load categories:", err);
+      allCategories = [];
+    }
+  }
 
-    const category = classifiedRows[index].category;
-    if (!category) return;
+  function selectCategory(index, cat) {
+    editCategory(index, cat);
+    activeCategoryDropdown = null;
+    categoryInputText = { ...categoryInputText, [index]: "" };
+  }
 
-    let applied = 0;
-    for (let i = 0; i < classifiedRows.length; i++) {
-      if (i === index || classifiedRows[i].is_duplicate) continue;
-      if (classifiedRows[i].category) continue;
-      if (classifiedRows[i].title.toLowerCase().includes(newPattern.toLowerCase())) {
-        classifiedRows[i].rule_pattern = newPattern;
-        classifiedRows[i].category = category;
-        classifiedRows[i].source = "Manual";
-        applied++;
+  function removeCategory(index) {
+    editCategory(index, "");
+    activeCategoryDropdown = null;
+  }
+
+  function getCategoryFilteredSuggestions(index) {
+    const text = (categoryInputText[index] || "").toLowerCase();
+    if (!text) return allCategories;
+    return allCategories.filter((c) => c.toLowerCase().includes(text));
+  }
+
+  function onCategoryKeydown(index, e) {
+    if (e.key === "Enter") {
+      const text = (categoryInputText[index] || "").trim();
+      if (text) {
+        selectCategory(index, text);
       }
+      e.preventDefault();
+    } else if (e.key === "Escape") {
+      activeCategoryDropdown = null;
     }
-    if (applied > 0) {
-      classifiedRows[index]._autoApplied = applied;
-      setTimeout(() => { classifiedRows[index]._autoApplied = 0; }, 3000);
-    }
+  }
+
+  function onCategoryInput(index, e) {
+    categoryInputText = { ...categoryInputText, [index]: e.target.value };
+    activeCategoryDropdown = index;
+  }
+
+  function onCategoryFocus(index) {
+    activeCategoryDropdown = index;
+  }
+
+  function onCategoryBlur(index) {
+    setTimeout(() => {
+      if (activeCategoryDropdown === index) activeCategoryDropdown = null;
+    }, 150);
   }
 
   let batchFilename = $derived(file ? file.name : "Pasted data");
@@ -284,82 +318,89 @@
     dateFormat = "%Y-%m-%d";
     columnRoles = {};
     llmWarning = "";
+    llmWarningDismissed = false;
+    allCategories = [];
+    activeCategoryDropdown = null;
+    categoryInputText = {};
   }
 </script>
 
-{#snippet expenseTable(rows, showSource, showRulePattern)}
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="border-b border-gray-700 text-gray-400">
-          <th class="text-left px-4 py-2">Date</th>
-          <th class="text-left px-4 py-2">Title</th>
-          <th class="text-right px-4 py-2">Amount</th>
-          {#if showRulePattern}
-            <th class="text-left px-4 py-2">Match keyword</th>
-          {/if}
-          <th class="text-left px-4 py-2">Category</th>
-          {#if showSource}
-            <th class="text-left px-4 py-2">Confidence</th>
-          {/if}
-        </tr>
-      </thead>
-      <tbody>
-        {#each rows as row}
-          {@const origIndex = classifiedRows.indexOf(row)}
-          <tr class="border-b border-gray-800/50 hover:bg-gray-800/30">
-            <td class="px-4 py-2 text-gray-400">{row.date}</td>
-            <td class="px-4 py-2">{row.title}</td>
-            <td class="px-4 py-2 text-right font-mono">{row.amount.toFixed(2)}</td>
-            {#if showRulePattern}
-              <td class="px-4 py-2">
-                <input
-                  type="text"
-                  value={row.rule_pattern || ""}
-                  onchange={(e) => onRulePatternChange(origIndex, e.target.value)}
-                  placeholder="e.g. LIDL"
-                  class="bg-gray-800 border border-gray-700 rounded px-2 py-1
-                         text-gray-100 placeholder-gray-600 focus:outline-none
-                         focus:border-emerald-500 w-full max-w-40 text-xs"
-                />
-                {#if row._autoApplied > 0}
-                  <span class="text-xs text-emerald-500 ml-1">+{row._autoApplied}</span>
-                {/if}
-              </td>
+{#snippet expenseCards(rows, showSource)}
+  <div class="space-y-3">
+    {#each rows as row}
+      {@const origIndex = classifiedRows.indexOf(row)}
+      <div class="bg-gray-800/40 rounded-lg p-4 border border-gray-800/50">
+        <!-- Top row: Date | Title | Amount + confidence -->
+        <div class="flex items-center gap-3 mb-3">
+          <span class="text-sm text-gray-400 shrink-0">{row.date}</span>
+          <span class="text-sm truncate flex-1">{row.title}</span>
+          <span class="text-sm font-mono text-gray-100 shrink-0">{row.amount.toFixed(2)}</span>
+          {#if showSource && row.confidence != null}
+            {#if row.confidence >= 0.8}
+              <span class="px-2 py-0.5 rounded text-xs bg-emerald-900/50 text-emerald-400 shrink-0">High</span>
+            {:else if row.confidence >= 0.5}
+              <span class="px-2 py-0.5 rounded text-xs bg-yellow-900/50 text-yellow-400 shrink-0">Medium</span>
+            {:else}
+              <span class="px-2 py-0.5 rounded text-xs bg-red-900/50 text-red-400 shrink-0">Low</span>
             {/if}
-            <td class="px-4 py-2">
-              <input
-                type="text"
-                value={row.category || ""}
-                onchange={(e) => editCategory(origIndex, e.target.value)}
-                placeholder="Enter category"
-                class="bg-gray-800 border border-gray-700 rounded px-2 py-1
-                       text-gray-100 placeholder-gray-600 focus:outline-none
-                       focus:border-emerald-500 w-full max-w-48"
-              />
-            </td>
-            {#if showSource}
-              <td class="px-4 py-2">
-                {#if row.confidence != null}
-                  {#if row.confidence >= 0.8}
-                    <span class="px-2 py-0.5 rounded text-xs bg-emerald-900/50 text-emerald-400">High</span>
-                  {:else if row.confidence >= 0.5}
-                    <span class="px-2 py-0.5 rounded text-xs bg-yellow-900/50 text-yellow-400">Medium</span>
-                  {:else}
-                    <span class="px-2 py-0.5 rounded text-xs bg-red-900/50 text-red-400">Low</span>
-                  {/if}
-                {/if}
-              </td>
+          {/if}
+        </div>
+        <!-- Bottom row: Category chip input -->
+        <div class="relative">
+          <span class="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Category</span>
+          {#if row.category}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50 text-sm">
+              {row.category}
+              <button
+                onclick={() => removeCategory(origIndex)}
+                class="text-emerald-400 hover:text-emerald-300 text-base leading-none"
+              >&times;</button>
+            </span>
+          {:else}
+            <input
+              type="text"
+              value={categoryInputText[origIndex] || ""}
+              oninput={(e) => onCategoryInput(origIndex, e)}
+              onfocus={() => onCategoryFocus(origIndex)}
+              onblur={() => onCategoryBlur(origIndex)}
+              onkeydown={(e) => onCategoryKeydown(origIndex, e)}
+              placeholder="Type category..."
+              class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5
+                     text-gray-100 placeholder-gray-600 focus:outline-none
+                     focus:border-emerald-500 w-full text-sm"
+            />
+            {#if activeCategoryDropdown === origIndex}
+              {@const suggestions = getCategoryFilteredSuggestions(origIndex)}
+              {#if suggestions.length > 0}
+                <div class="absolute z-30 mt-1 left-0 right-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  {#each suggestions as cat}
+                    <button
+                      onmousedown={() => selectCategory(origIndex, cat)}
+                      class="w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-gray-700 transition-colors"
+                    >{cat}</button>
+                  {/each}
+                </div>
+              {/if}
             {/if}
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+          {/if}
+        </div>
+      </div>
+    {/each}
   </div>
 {/snippet}
 
 <div>
-  <h2 class="text-2xl font-bold mb-2">Bulk Upload</h2>
+  {#if classifying}
+    <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-10 flex flex-col items-center gap-4 shadow-2xl">
+        <div class="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+        <p class="text-lg font-semibold text-gray-100">Classifying expenses with AI...</p>
+        <p class="text-sm text-gray-400">This may take a moment</p>
+      </div>
+    </div>
+  {/if}
+
+  <h2 class="text-2xl font-bold mb-2">Expense Bulk Upload</h2>
 
   <!-- Progress bar -->
   <div class="flex items-center gap-2 mb-6 text-sm">
@@ -464,12 +505,16 @@
           Detected format: {parserName}
         </h3>
         <p class="text-sm text-gray-400 mb-4">
-          Click column headers to assign them as Title, Amount, or Date.
+          Click on column name to assign the data type.
         </p>
 
-        {#if llmWarning}
-          <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4">
-            {llmWarning}
+        {#if llmWarning && !llmWarningDismissed}
+          <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4 flex items-center justify-between gap-3">
+            <span>{llmWarning}</span>
+            <button
+              onclick={() => (llmWarningDismissed = true)}
+              class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
+            >&times;</button>
           </div>
         {/if}
 
@@ -478,7 +523,7 @@
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-700">
-                {#each headerRow as col, i}
+                {#each headerRow as _col, i}
                   <th class="text-left px-3 py-2 relative" data-popover>
                     <button
                       onclick={(e) => { e.stopPropagation(); activePopover = activePopover === i ? null : i; }}
@@ -487,7 +532,7 @@
                          columnRoles[i] === 'amount' ? 'text-blue-400' :
                          columnRoles[i] === 'date' ? 'text-purple-400' : 'text-gray-400'}"
                     >
-                      {col}
+                      Column {i + 1}
                       {#if columnRoles[i] === "title"}
                         <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-900/50 text-emerald-400">Title</span>
                       {:else if columnRoles[i] === "amount"}
@@ -523,7 +568,12 @@
               </tr>
             </thead>
             <tbody>
-              {#each dataRows.slice(0, 5) as row}
+              <tr class="border-b border-gray-800/50">
+                {#each headerRow as cell, i}
+                  <td class="px-3 py-2 text-gray-500 italic text-xs">{cell}</td>
+                {/each}
+              </tr>
+              {#each dataRows.slice(0, 1) as row}
                 <tr class="border-b border-gray-800/50">
                   {#each row as cell, i}
                     <td class="px-3 py-2">
@@ -552,9 +602,9 @@
               {/each}
             </tbody>
           </table>
-          {#if dataRows.length > 5}
+          {#if dataRows.length > 1}
             <p class="text-xs text-gray-500 mt-2 px-3">
-              ...and {dataRows.length - 5} more rows
+              ...and {dataRows.length - 1} more rows
             </p>
           {/if}
         </div>
@@ -604,8 +654,7 @@
                  py-3 rounded-xl transition-colors"
         >
           {#if classifying}
-            <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2 align-middle"></span>
-            Classifying expenses...
+            Classifying...
           {:else}
             Next: Classify & Review
           {/if}
@@ -629,7 +678,7 @@
             <span class="w-2 h-2 rounded-full bg-blue-400"></span>
             Classified by rules ({dbClassified.length})
           </h4>
-          {@render expenseTable(dbClassified, false, false)}
+          {@render expenseCards(dbClassified, false)}
         </div>
       {/if}
 
@@ -639,7 +688,7 @@
             <span class="w-2 h-2 rounded-full bg-purple-400"></span>
             Classified by AI ({llmClassified.length})
           </h4>
-          {@render expenseTable(llmClassified, true, true)}
+          {@render expenseCards(llmClassified, true)}
         </div>
       {/if}
 
@@ -649,7 +698,7 @@
             <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
             Needs your input ({unclassified.length})
           </h4>
-          {@render expenseTable(unclassified, false, true)}
+          {@render expenseCards(unclassified, false)}
         </div>
       {/if}
 
