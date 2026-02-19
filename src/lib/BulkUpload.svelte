@@ -42,7 +42,8 @@
 
   let headerRow = $derived(previewRows.length > 0 ? previewRows[0] : []);
   let dataRows = $derived(previewRows.length > 1 ? previewRows.slice(1) : []);
-  let nonDuplicateRows = $derived(classifiedRows.filter((r) => !r.is_duplicate));
+  let nonDuplicateRows = $derived(classifiedRows.filter((r) => !r.is_duplicate && r.amount < 0));
+  let incomeRows = $derived(classifiedRows.filter((r) => !r.is_duplicate && r.amount >= 0));
   let duplicateRows = $derived(classifiedRows.filter((r) => r.is_duplicate));
 
   let dbClassified = $derived(nonDuplicateRows.filter(r => r._originalSource === "Database"));
@@ -709,6 +710,39 @@
             Needs your input ({unclassified.length})
           </h4>
           {@render expenseCards(unclassified, false)}
+        </div>
+      {/if}
+
+      {#if incomeRows.length > 0}
+        <div class="bg-gray-900 rounded-xl p-6 border border-cyan-900/50">
+          <h4 class="font-semibold mb-1 text-cyan-400">
+            Income ({incomeRows.length})
+          </h4>
+          <p class="text-sm text-gray-400 mb-4">
+            These rows have no negative sign in the amount column — they are incomes, not expenses, and will not be saved.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm opacity-60">
+              <thead>
+                <tr class="border-b border-gray-700 text-gray-400">
+                  <th class="text-left px-4 py-2">Date</th>
+                  <th class="text-left px-4 py-2">Title</th>
+                  <th class="text-right px-4 py-2">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each incomeRows as row}
+                  <tr class="border-b border-gray-800/50">
+                    <td class="px-4 py-2 text-gray-500">{row.date}</td>
+                    <td class="px-4 py-2 text-gray-500">{row.title}</td>
+                    <td class="px-4 py-2 text-right font-mono text-gray-500"
+                      >{row.amount.toFixed(2)}</td
+                    >
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
         </div>
       {/if}
 
