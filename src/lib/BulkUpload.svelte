@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import { tick } from "svelte";
 
   // Steps: input -> column-mapping -> review -> done
   let step = $state("input");
@@ -45,9 +46,9 @@
   let nonDuplicateRows = $derived(classifiedRows.filter((r) => !r.is_duplicate));
   let duplicateRows = $derived(classifiedRows.filter((r) => r.is_duplicate));
 
-  let dbClassified = $derived(nonDuplicateRows.filter(r => r.source === "Database"));
-  let llmClassified = $derived(nonDuplicateRows.filter(r => r.source === "Llm"));
-  let unclassified = $derived(nonDuplicateRows.filter(r => !r.source || r.source === "Manual"));
+  let dbClassified = $derived(nonDuplicateRows.filter(r => r._originalSource === "Database"));
+  let llmClassified = $derived(nonDuplicateRows.filter(r => r._originalSource === "Llm"));
+  let unclassified = $derived(nonDuplicateRows.filter(r => !r._originalSource));
 
   // Derived column indices from roles
   let titleCol = $derived(findColByRole("title"));
@@ -207,6 +208,7 @@
     }
     mappingError = "";
     classifying = true;
+    await tick();
     try {
       const rows = await invoke("parse_and_classify", {
         input: inputText,
@@ -217,7 +219,7 @@
           date_format: dateFormat,
         },
       });
-      classifiedRows = rows.map((r) => ({ ...r, _editing: false, rule_pattern: r.title, _autoApplied: 0 }));
+      classifiedRows = rows.map((r) => ({ ...r, _editing: false, rule_pattern: r.title, _autoApplied: 0, _originalSource: r.source }));
       await loadCategories();
       step = "review";
     } catch (err) {
