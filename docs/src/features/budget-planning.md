@@ -1,51 +1,59 @@
 # Budget Planning
 
-The Budget page lets you set monthly spending limits per category, plan upcoming expenses, and import calendar events to anticipate costs.
+The Budget page lets you create date-range budgets with per-category spending limits, plan upcoming expenses, and import calendar events with estimated costs.
 
 ## Accessing Budget Planning
 
-Click **Budget** in the sidebar to open the Budget Planning page. The current month is selected by default — use the **< >** arrows to navigate between months.
+Click **Budget** in the sidebar to open the Budget Planning page.
 
 ## Tabs
 
 The page has three tabs:
 
-### Budget
+### Overview (default)
 
-Set spending limits for each category:
+If an active budget exists (one whose date range covers today), it shows:
 
-1. All your categories appear in a table with their **3-month average** as a reference
-2. Enter a **budget amount** for each category you want to track
-3. Click **Save Budget** to persist
+- **Date range** header (e.g. "2026-03-01 — 2026-03-31")
+- **Summary card** with total budgeted, spent, and remaining
+- **Per-category progress bars** with color coding:
+  - **Green** — under 80% of budget
+  - **Amber** — 80–100% of budget (approaching limit)
+  - **Red** — over budget (shows "OVER by X.XX")
+- **Calendar costs** — events with assigned amounts and their total
+- **Planned expenses** — add, view, and delete planned expenses
+- **Edit category budgets** — collapsible section to adjust budget amounts
+- **Delete Budget** button to remove the current budget
 
-You can also add **planned expenses** (e.g. dentist appointment, car service) with a title, amount, date, and optional category. These appear in the Overview tab.
+If no active budget exists, a prompt directs you to the Create+ tab.
+
+### Create +
+
+A multi-step wizard to create a new budget:
+
+1. **Step 1 — Dates**: Set start and end dates. The system checks for overlap with existing budgets.
+2. **Step 2 — Categories**: Pre-populated from your 3-month spending averages. Adjust amounts and add more categories as needed.
+3. **Step 3 — Review**: Confirm the date range, category count, and total budget before creating.
+
+This tab is disabled when an active budget already exists.
 
 ### Calendar
 
 Import calendar events from an `.ics` file (Google Calendar, Apple Calendar, etc.):
 
 1. Drag & drop an `.ics` file or click **Browse files**
-2. Events for the selected month are automatically filtered and imported
+2. Events within the budget's date range are automatically filtered and imported
 3. Re-importing replaces previous events (no duplicates)
+4. Each event has an editable **Amount** column — enter estimated costs directly in the table
 
-The event list shows each event's date, summary, and location.
-
-### Overview
-
-Visual summary of your budget vs. actual spending:
-
-- **Per-category progress bars** with color coding:
-  - **Green** — under 80% of budget
-  - **Amber** — 80–100% of budget (approaching limit)
-  - **Red** — over budget (shows "OVER by X.XX")
-- **Planned expenses** listed with their amounts
-- **Summary card** showing total budgeted, spent, and remaining
+This tab requires an active budget.
 
 ## Dashboard Widget
 
-Add the **Budget Status** widget to your dashboard for a quick glance at the current month's budget. It shows:
+Add the **Budget Status** widget to your dashboard for a quick glance. It shows:
 
+- Date range of the active budget
 - Budgeted / Spent / Remaining totals
 - A progress bar with color coding
 - Warning count for over-budget categories
-- "No budget set" message if no budget exists for the current month
+- "No active budget" message if none exists

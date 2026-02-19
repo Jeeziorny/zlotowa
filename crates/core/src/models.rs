@@ -111,8 +111,8 @@ pub struct TitleCleanupRule {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Budget {
     pub id: Option<i64>,
-    pub year: i32,
-    pub month: u32,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,6 +143,7 @@ pub struct CalendarEvent {
     pub start_date: NaiveDate,
     pub end_date: Option<NaiveDate>,
     pub all_day: bool,
+    pub amount: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

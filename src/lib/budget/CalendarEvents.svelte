@@ -1,16 +1,11 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
 
-  let { year, month, events, onrefresh } = $props();
+  let { budgetId, startDate, endDate, events, onrefresh } = $props();
 
   let importing = $state(false);
   let importMsg = $state("");
   let file = $state(null);
-
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-  ];
 
   function handleFileDrop(event) {
     event.preventDefault();
@@ -39,15 +34,25 @@
     try {
       const text = await f.text();
       const count = await invoke("import_calendar_events", {
-        year, month,
+        budgetId,
         icsContent: text,
       });
-      importMsg = `Imported ${count} event${count !== 1 ? "s" : ""} for ${monthNames[month - 1]} ${year}`;
+      importMsg = `Imported ${count} event${count !== 1 ? "s" : ""} for ${startDate} — ${endDate}`;
       onrefresh();
     } catch (err) {
       importMsg = `Error: ${err}`;
     }
     importing = false;
+  }
+
+  async function updateAmount(eventId, value) {
+    const amount = value === "" || value == null ? null : Number(value);
+    try {
+      await invoke("update_calendar_event_amount", { eventId, amount });
+      onrefresh();
+    } catch (err) {
+      console.error("Failed to update amount:", err);
+    }
   }
 </script>
 
@@ -56,7 +61,7 @@
   <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
     <h3 class="text-lg font-semibold mb-3">Import Calendar</h3>
     <p class="text-sm text-gray-400 mb-4">
-      Upload an .ics file to import events for {monthNames[month - 1]} {year}.
+      Upload an .ics file to import events for {startDate} — {endDate}.
       Re-importing replaces previous events.
     </p>
 
@@ -73,7 +78,9 @@
         <p class="text-gray-400">Importing...</p>
       {:else if file}
         <p class="text-emerald-400">{file.name}</p>
-        <p class="text-xs text-gray-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+        <p class="text-xs text-gray-500 mt-1">
+          {(file.size / 1024).toFixed(1)} KB
+        </p>
       {:else}
         <p class="text-gray-400 mb-2">Drag & drop an .ics file here</p>
         <p class="text-sm text-gray-600">or</p>
@@ -93,7 +100,11 @@
     </div>
 
     {#if importMsg}
-      <div class="text-sm mt-3 {importMsg.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}">
+      <div
+        class="text-sm mt-3 {importMsg.startsWith('Error')
+          ? 'text-red-400'
+          : 'text-emerald-400'}"
+      >
         {importMsg}
       </div>
     {/if}
@@ -104,7 +115,7 @@
     <h3 class="text-lg font-semibold mb-3">
       Events
       <span class="text-sm font-normal text-gray-500 ml-2">
-        {events.length} event{events.length !== 1 ? "s" : ""} for {monthNames[month - 1]} {year}
+        {events.length} event{events.length !== 1 ? "s" : ""}
       </span>
     </h3>
 
@@ -116,6 +127,7 @@
               <th class="text-left px-3 py-2">Date</th>
               <th class="text-left px-3 py-2">Event</th>
               <th class="text-left px-3 py-2">Location</th>
+              <th class="text-right px-3 py-2">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -128,7 +140,22 @@
                   {/if}
                 </td>
                 <td class="px-3 py-2 text-gray-300">{event.summary}</td>
-                <td class="px-3 py-2 text-gray-500">{event.location || "—"}</td>
+                <td class="px-3 py-2 text-gray-500"
+                  >{event.location || "—"}</td
+                >
+                <td class="px-3 py-2 text-right">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={event.amount ?? ""}
+                    onblur={(e) => updateAmount(event.id, e.target.value)}
+                    placeholder="—"
+                    class="w-24 bg-gray-800 border border-gray-700 rounded px-2 py-1
+                           text-right text-gray-100 font-mono text-xs focus:outline-none
+                           focus:border-emerald-500 placeholder-gray-600"
+                  />
+                </td>
               </tr>
             {/each}
           </tbody>

@@ -100,8 +100,6 @@ impl Database {
                 UNIQUE(year, month)
             );
 
-            CREATE INDEX IF NOT EXISTS idx_budgets_year_month ON budgets(year, month);
-
             CREATE TABLE IF NOT EXISTS budget_categories (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 budget_id INTEGER NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
@@ -150,6 +148,42 @@ impl Database {
         self.conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_expenses_batch_id ON expenses(batch_id);",
         )?;
+
+        // Budget date-range migration: year/month → start_date/end_date (idempotent)
+        let has_old_schema = self
+            .conn
+            .prepare("SELECT year FROM budgets LIMIT 0")
+            .is_ok();
+        if has_old_schema {
+            self.conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+            self.conn.execute_batch(
+                "CREATE TABLE budgets_v2 (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    start_date TEXT NOT NULL,
+                    end_date   TEXT NOT NULL
+                );",
+            )?;
+            // Migrate existing rows: year/month → first-of-month / last-day-of-month
+            self.conn.execute_batch(
+                "INSERT INTO budgets_v2 (id, start_date, end_date)
+                 SELECT id,
+                        printf('%04d-%02d-01', year, month),
+                        date(printf('%04d-%02d-01', year, month), '+1 month', '-1 day')
+                 FROM budgets;",
+            )?;
+            self.conn.execute_batch("DROP TABLE budgets;")?;
+            self.conn
+                .execute_batch("ALTER TABLE budgets_v2 RENAME TO budgets;")?;
+            self.conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_budgets_dates ON budgets(start_date, end_date);",
+            )?;
+            self.conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        }
+
+        // Calendar events amount column (idempotent ALTER, ignore error)
+        let _ = self
+            .conn
+            .execute_batch("ALTER TABLE calendar_events ADD COLUMN amount REAL;");
 
         Ok(())
     }
@@ -858,28 +892,55 @@ impl Database {
 
     // ── Budgets ──
 
-    pub fn get_or_create_budget(&self, year: i32, month: u32) -> Result<i64, DbError> {
+    pub fn create_budget(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<i64, DbError> {
+        if start_date >= end_date {
+            return Err(DbError::InvalidData(
+                "start_date must be before end_date".into(),
+            ));
+        }
+        if self.check_budget_overlap(start_date, end_date)? {
+            return Err(DbError::InvalidData(
+                "Budget overlaps with an existing budget".into(),
+            ));
+        }
         self.conn.execute(
-            "INSERT OR IGNORE INTO budgets (year, month) VALUES (?1, ?2)",
-            params![year, month],
+            "INSERT INTO budgets (start_date, end_date) VALUES (?1, ?2)",
+            params![start_date.to_string(), end_date.to_string()],
         )?;
-        let id: i64 = self.conn.query_row(
-            "SELECT id FROM budgets WHERE year = ?1 AND month = ?2",
-            params![year, month],
-            |row| row.get(0),
-        )?;
-        Ok(id)
+        Ok(self.conn.last_insert_rowid())
     }
 
-    pub fn get_budget(&self, year: i32, month: u32) -> Result<Option<Budget>, DbError> {
+    pub fn get_budget_by_id(&self, id: i64) -> Result<Option<Budget>, DbError> {
         let result = self.conn.query_row(
-            "SELECT id, year, month FROM budgets WHERE year = ?1 AND month = ?2",
-            params![year, month],
+            "SELECT id, start_date, end_date FROM budgets WHERE id = ?1",
+            params![id],
             |row| {
+                let start_str: String = row.get(1)?;
+                let end_str: String = row.get(2)?;
+                let start_date =
+                    chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
+                let end_date =
+                    chrono::NaiveDate::parse_from_str(&end_str, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            2,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
                 Ok(Budget {
                     id: Some(row.get(0)?),
-                    year: row.get(1)?,
-                    month: row.get::<_, u32>(2)?,
+                    start_date,
+                    end_date,
                 })
             },
         );
@@ -888,6 +949,114 @@ impl Database {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(DbError::from(e)),
         }
+    }
+
+    pub fn get_active_budget(&self) -> Result<Option<Budget>, DbError> {
+        let result = self.conn.query_row(
+            "SELECT id, start_date, end_date FROM budgets
+             WHERE start_date <= date('now') AND end_date >= date('now')",
+            [],
+            |row| {
+                let start_str: String = row.get(1)?;
+                let end_str: String = row.get(2)?;
+                let start_date =
+                    chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
+                let end_date =
+                    chrono::NaiveDate::parse_from_str(&end_str, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            2,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
+                Ok(Budget {
+                    id: Some(row.get(0)?),
+                    start_date,
+                    end_date,
+                })
+            },
+        );
+        match result {
+            Ok(b) => Ok(Some(b)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(DbError::from(e)),
+        }
+    }
+
+    pub fn get_all_budgets(&self) -> Result<Vec<Budget>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, start_date, end_date FROM budgets ORDER BY start_date DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let start_str: String = row.get(1)?;
+            let end_str: String = row.get(2)?;
+            let start_date =
+                chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d").map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+            let end_date =
+                chrono::NaiveDate::parse_from_str(&end_str, "%Y-%m-%d").map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+            Ok(Budget {
+                id: Some(row.get(0)?),
+                start_date,
+                end_date,
+            })
+        })?;
+        rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
+    }
+
+    pub fn check_budget_overlap(
+        &self,
+        start_date: chrono::NaiveDate,
+        end_date: chrono::NaiveDate,
+    ) -> Result<bool, DbError> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM budgets WHERE start_date < ?2 AND end_date > ?1",
+            params![start_date.to_string(), end_date.to_string()],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    pub fn delete_budget(&self, id: i64) -> Result<(), DbError> {
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM calendar_events WHERE budget_id = ?1",
+            params![id],
+        )?;
+        tx.execute(
+            "DELETE FROM planned_expenses WHERE budget_id = ?1",
+            params![id],
+        )?;
+        tx.execute(
+            "DELETE FROM budget_categories WHERE budget_id = ?1",
+            params![id],
+        )?;
+        let rows = tx.execute("DELETE FROM budgets WHERE id = ?1", params![id])?;
+        tx.commit()?;
+        if rows == 0 {
+            return Err(DbError::InvalidData(format!(
+                "Budget with id {} not found",
+                id
+            )));
+        }
+        Ok(())
     }
 
     pub fn save_budget_categories(
@@ -987,8 +1156,8 @@ impl Database {
         let mut count = 0;
         for event in events {
             tx.execute(
-                "INSERT INTO calendar_events (budget_id, summary, description, location, start_date, end_date, all_day)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO calendar_events (budget_id, summary, description, location, start_date, end_date, all_day, amount)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     budget_id,
                     event.summary,
@@ -997,6 +1166,7 @@ impl Database {
                     event.start_date.to_string(),
                     event.end_date.map(|d| d.to_string()),
                     event.all_day as i32,
+                    event.amount,
                 ],
             )?;
             count += 1;
@@ -1007,7 +1177,7 @@ impl Database {
 
     pub fn get_calendar_events(&self, budget_id: i64) -> Result<Vec<CalendarEvent>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, budget_id, summary, description, location, start_date, end_date, all_day
+            "SELECT id, budget_id, summary, description, location, start_date, end_date, all_day, amount
              FROM calendar_events WHERE budget_id = ?1 ORDER BY start_date",
         )?;
         let rows = stmt.query_map(params![budget_id], |row| {
@@ -1026,32 +1196,53 @@ impl Database {
                 start_date,
                 end_date,
                 all_day: row.get::<_, i32>(7)? != 0,
+                amount: row.get(8)?,
             })
         })?;
         rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
     }
 
-    pub fn get_expenses_for_month(&self, year: i32, month: u32) -> Result<Vec<Expense>, DbError> {
-        let first_of_month = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| DbError::InvalidData(format!("Invalid year/month: {}/{}", year, month)))?;
-        let first_of_next_month = if month == 12 {
-            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
-        } else {
-            chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+    pub fn update_calendar_event_amount(
+        &self,
+        event_id: i64,
+        amount: Option<f64>,
+    ) -> Result<(), DbError> {
+        let rows = self.conn.execute(
+            "UPDATE calendar_events SET amount = ?1 WHERE id = ?2",
+            params![amount, event_id],
+        )?;
+        if rows == 0 {
+            return Err(DbError::InvalidData(format!(
+                "Calendar event with id {} not found",
+                event_id
+            )));
         }
-        .ok_or_else(|| DbError::InvalidData(format!("Invalid year/month: {}/{}", year, month)))?;
+        Ok(())
+    }
+
+    pub fn get_expenses_for_date_range(
+        &self,
+        start: chrono::NaiveDate,
+        end: chrono::NaiveDate,
+    ) -> Result<Vec<Expense>, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, title, amount, date, category, classification_source
              FROM expenses
-             WHERE date >= ?1 AND date < ?2
+             WHERE date >= ?1 AND date <= ?2
              ORDER BY date DESC",
         )?;
-        let rows = stmt.query_map(params![first_of_month.to_string(), first_of_next_month.to_string()], |row| {
+        let rows = stmt.query_map(params![start.to_string(), end.to_string()], |row| {
             let source_str: Option<String> = row.get(5)?;
-            let source = source_str.as_deref().and_then(ClassificationSource::from_str_opt);
+            let source = source_str
+                .as_deref()
+                .and_then(ClassificationSource::from_str_opt);
             let date_str: String = row.get(3)?;
             let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    3,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })?;
             Ok(Expense {
                 id: Some(row.get(0)?),
@@ -1643,33 +1834,83 @@ mod tests {
 
     use crate::models::{BudgetCategory, CalendarEvent, PlannedExpense};
 
-    #[test]
-    fn budget_get_or_create_idempotent() {
-        let db = test_db();
-        let id1 = db.get_or_create_budget(2026, 3).unwrap();
-        let id2 = db.get_or_create_budget(2026, 3).unwrap();
-        assert_eq!(id1, id2);
+    fn create_test_budget(db: &Database, start: &str, end: &str) -> i64 {
+        db.create_budget(
+            NaiveDate::parse_from_str(start, "%Y-%m-%d").unwrap(),
+            NaiveDate::parse_from_str(end, "%Y-%m-%d").unwrap(),
+        ).unwrap()
     }
 
     #[test]
-    fn budget_get_returns_none_when_missing() {
+    fn budget_create_basic() {
         let db = test_db();
-        assert!(db.get_budget(2026, 3).unwrap().is_none());
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
+        assert!(bid > 0);
+        let budget = db.get_budget_by_id(bid).unwrap().unwrap();
+        assert_eq!(budget.start_date.to_string(), "2026-03-01");
+        assert_eq!(budget.end_date.to_string(), "2026-03-31");
     }
 
     #[test]
-    fn budget_get_returns_some_after_create() {
+    fn budget_create_overlap_rejected() {
         let db = test_db();
-        db.get_or_create_budget(2026, 3).unwrap();
-        let budget = db.get_budget(2026, 3).unwrap().unwrap();
-        assert_eq!(budget.year, 2026);
-        assert_eq!(budget.month, 3);
+        create_test_budget(&db, "2026-03-01", "2026-03-31");
+        // Fully contained
+        let r = db.create_budget(
+            NaiveDate::from_ymd_opt(2026, 3, 10).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 3, 20).unwrap(),
+        );
+        assert!(r.is_err());
+        assert!(r.unwrap_err().to_string().contains("overlap"));
+        // Partial overlap
+        let r = db.create_budget(
+            NaiveDate::from_ymd_opt(2026, 3, 15).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 4, 15).unwrap(),
+        );
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn budget_create_adjacent_allowed() {
+        let db = test_db();
+        create_test_budget(&db, "2026-01-01", "2026-01-31");
+        // Adjacent: Feb starts right after Jan ends
+        let bid2 = create_test_budget(&db, "2026-02-01", "2026-02-28");
+        assert!(bid2 > 0);
+    }
+
+    #[test]
+    fn budget_get_by_id() {
+        let db = test_db();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
+        assert!(db.get_budget_by_id(bid).unwrap().is_some());
+        assert!(db.get_budget_by_id(9999).unwrap().is_none());
+    }
+
+    #[test]
+    fn budget_get_active_finds_current() {
+        let db = test_db();
+        // Create budget spanning today
+        let today = chrono::Local::now().date_naive();
+        let start = today - chrono::Duration::days(5);
+        let end = today + chrono::Duration::days(25);
+        db.create_budget(start, end).unwrap();
+        let active = db.get_active_budget().unwrap();
+        assert!(active.is_some());
+    }
+
+    #[test]
+    fn budget_get_active_returns_none() {
+        let db = test_db();
+        // Budget in the past
+        create_test_budget(&db, "2020-01-01", "2020-01-31");
+        assert!(db.get_active_budget().unwrap().is_none());
     }
 
     #[test]
     fn budget_categories_save_and_retrieve() {
         let db = test_db();
-        let bid = db.get_or_create_budget(2026, 3).unwrap();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
         let cats = vec![
             BudgetCategory { id: None, budget_id: bid, category: "Food".into(), amount: 500.0 },
             BudgetCategory { id: None, budget_id: bid, category: "Transport".into(), amount: 200.0 },
@@ -1686,7 +1927,7 @@ mod tests {
     #[test]
     fn budget_categories_replace_on_resave() {
         let db = test_db();
-        let bid = db.get_or_create_budget(2026, 3).unwrap();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
         let cats1 = vec![
             BudgetCategory { id: None, budget_id: bid, category: "Food".into(), amount: 500.0 },
         ];
@@ -1707,7 +1948,7 @@ mod tests {
     #[test]
     fn planned_expenses_crud() {
         let db = test_db();
-        let bid = db.get_or_create_budget(2026, 3).unwrap();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
 
         let pe1 = PlannedExpense {
             id: None, budget_id: bid, title: "Dentist".into(), amount: 300.0,
@@ -1740,13 +1981,13 @@ mod tests {
     #[test]
     fn calendar_events_save_and_replace() {
         let db = test_db();
-        let bid = db.get_or_create_budget(2026, 3).unwrap();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
 
         let events1: Vec<CalendarEvent> = (1..=5).map(|i| CalendarEvent {
             id: None, budget_id: bid, summary: format!("Event {}", i),
             description: None, location: None,
             start_date: NaiveDate::from_ymd_opt(2026, 3, i).unwrap(),
-            end_date: None, all_day: false,
+            end_date: None, all_day: false, amount: None,
         }).collect();
         let count = db.save_calendar_events(bid, &events1).unwrap();
         assert_eq!(count, 5);
@@ -1757,7 +1998,7 @@ mod tests {
             id: None, budget_id: bid, summary: format!("New Event {}", i),
             description: None, location: None,
             start_date: NaiveDate::from_ymd_opt(2026, 3, i).unwrap(),
-            end_date: None, all_day: true,
+            end_date: None, all_day: true, amount: Some(50.0),
         }).collect();
         let count = db.save_calendar_events(bid, &events2).unwrap();
         assert_eq!(count, 3);
@@ -1765,10 +2006,82 @@ mod tests {
         let loaded = db.get_calendar_events(bid).unwrap();
         assert_eq!(loaded.len(), 3);
         assert!(loaded[0].all_day);
+        assert_eq!(loaded[0].amount, Some(50.0));
     }
 
     #[test]
-    fn get_expenses_for_month_filters() {
+    fn calendar_event_amount_update() {
+        let db = test_db();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
+        let events = vec![CalendarEvent {
+            id: None, budget_id: bid, summary: "Dentist".into(),
+            description: None, location: None,
+            start_date: NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(),
+            end_date: None, all_day: false, amount: None,
+        }];
+        db.save_calendar_events(bid, &events).unwrap();
+
+        let loaded = db.get_calendar_events(bid).unwrap();
+        assert_eq!(loaded[0].amount, None);
+
+        let event_id = loaded[0].id.unwrap();
+        db.update_calendar_event_amount(event_id, Some(150.0)).unwrap();
+
+        let loaded = db.get_calendar_events(bid).unwrap();
+        assert_eq!(loaded[0].amount, Some(150.0));
+
+        // Clear amount
+        db.update_calendar_event_amount(event_id, None).unwrap();
+        let loaded = db.get_calendar_events(bid).unwrap();
+        assert_eq!(loaded[0].amount, None);
+    }
+
+    #[test]
+    fn calendar_event_amount_null_default() {
+        let db = test_db();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
+        let events = vec![CalendarEvent {
+            id: None, budget_id: bid, summary: "Event".into(),
+            description: None, location: None,
+            start_date: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+            end_date: None, all_day: false, amount: None,
+        }];
+        db.save_calendar_events(bid, &events).unwrap();
+        let loaded = db.get_calendar_events(bid).unwrap();
+        assert_eq!(loaded[0].amount, None);
+    }
+
+    #[test]
+    fn budget_delete_cascades() {
+        let db = test_db();
+        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
+        let cats = vec![
+            BudgetCategory { id: None, budget_id: bid, category: "Food".into(), amount: 500.0 },
+        ];
+        db.save_budget_categories(bid, &cats).unwrap();
+        let pe = PlannedExpense {
+            id: None, budget_id: bid, title: "Dentist".into(), amount: 300.0,
+            date: NaiveDate::from_ymd_opt(2026, 3, 12).unwrap(), category: None,
+        };
+        db.insert_planned_expense(&pe).unwrap();
+        let events = vec![CalendarEvent {
+            id: None, budget_id: bid, summary: "Event".into(),
+            description: None, location: None,
+            start_date: NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(),
+            end_date: None, all_day: false, amount: None,
+        }];
+        db.save_calendar_events(bid, &events).unwrap();
+
+        db.delete_budget(bid).unwrap();
+
+        assert!(db.get_budget_by_id(bid).unwrap().is_none());
+        assert_eq!(db.get_budget_categories(bid).unwrap().len(), 0);
+        assert_eq!(db.get_planned_expenses(bid).unwrap().len(), 0);
+        assert_eq!(db.get_calendar_events(bid).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn get_expenses_for_date_range_filters() {
         let db = test_db();
         let mut e1 = make_expense("Jan item", 100.0, "2026-01-15");
         e1.category = Some("Food".into());
@@ -1784,7 +2097,10 @@ mod tests {
         db.insert_expense(&e3).unwrap();
         db.insert_expense(&e4).unwrap();
 
-        let feb = db.get_expenses_for_month(2026, 2).unwrap();
+        let feb = db.get_expenses_for_date_range(
+            NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 2, 28).unwrap(),
+        ).unwrap();
         assert_eq!(feb.len(), 2);
         // Ordered by date DESC
         assert_eq!(feb[0].title, "Feb item 2");
@@ -2509,7 +2825,7 @@ mod tests {
     }
 
     #[test]
-    fn get_expenses_for_month_boundary_exclusion() {
+    fn get_expenses_for_date_range_boundary_exclusion() {
         let db = test_db();
         // Last day of January
         db.insert_expense(&make_expense("Jan 31", 10.0, "2026-01-31")).unwrap();
@@ -2520,7 +2836,10 @@ mod tests {
         // First day of March
         db.insert_expense(&make_expense("Mar 1", 50.0, "2026-03-01")).unwrap();
 
-        let feb = db.get_expenses_for_month(2026, 2).unwrap();
+        let feb = db.get_expenses_for_date_range(
+            NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 2, 28).unwrap(),
+        ).unwrap();
         assert_eq!(feb.len(), 3);
         let titles: Vec<&str> = feb.iter().map(|e| e.title.as_str()).collect();
         assert!(titles.contains(&"Feb 1"));
@@ -2531,14 +2850,17 @@ mod tests {
     }
 
     #[test]
-    fn get_expenses_for_month_december_boundary() {
+    fn get_expenses_for_date_range_december_boundary() {
         let db = test_db();
         db.insert_expense(&make_expense("Nov 30", 10.0, "2025-11-30")).unwrap();
         db.insert_expense(&make_expense("Dec 1", 20.0, "2025-12-01")).unwrap();
         db.insert_expense(&make_expense("Dec 31", 30.0, "2025-12-31")).unwrap();
         db.insert_expense(&make_expense("Jan 1 next", 40.0, "2026-01-01")).unwrap();
 
-        let dec = db.get_expenses_for_month(2025, 12).unwrap();
+        let dec = db.get_expenses_for_date_range(
+            NaiveDate::from_ymd_opt(2025, 12, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2025, 12, 31).unwrap(),
+        ).unwrap();
         assert_eq!(dec.len(), 2);
         let titles: Vec<&str> = dec.iter().map(|e| e.title.as_str()).collect();
         assert!(titles.contains(&"Dec 1"));

@@ -4,7 +4,7 @@ use accountant_core::llm::{create_provider, LlmConfig};
 use accountant_core::models::{
     BudgetCategory, BudgetCategoryStatus, CalendarEvent, CategoryAverage, CategoryStats,
     ClassificationRule, ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult,
-    ParsedExpense, PlannedExpense, TitleCleanupRule, UploadBatch,
+    ParsedExpense, PlannedExpense, TitleCleanupRule, UploadBatch, Budget,
 };
 use accountant_core::parsers::{self, ColumnMapping};
 use serde::{Deserialize, Serialize};
@@ -563,8 +563,8 @@ pub struct PlannedExpenseInput {
 #[derive(Serialize, Deserialize)]
 pub struct BudgetSummaryOutput {
     pub budget_id: i64,
-    pub year: i32,
-    pub month: u32,
+    pub start_date: String,
+    pub end_date: String,
     pub categories: Vec<BudgetCategoryStatus>,
     pub budget_categories: Vec<BudgetCategoryInput>,
     pub planned_expenses: Vec<PlannedExpense>,
@@ -572,23 +572,18 @@ pub struct BudgetSummaryOutput {
     pub total_budgeted: f64,
     pub total_spent: f64,
     pub total_planned: f64,
+    pub total_calendar: f64,
 }
 
-#[tauri::command]
-fn get_budget_summary(
-    state: State<AppState>,
-    year: i32,
-    month: u32,
-) -> Result<BudgetSummaryOutput, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
-
+fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryOutput, String> {
+    let budget_id = budget.id.unwrap();
     let budget_cats = db.get_budget_categories(budget_id).map_err(|e| e.to_string())?;
     let planned = db.get_planned_expenses(budget_id).map_err(|e| e.to_string())?;
     let cal_events = db.get_calendar_events(budget_id).map_err(|e| e.to_string())?;
-    let actual_expenses = db.get_expenses_for_month(year, month).map_err(|e| e.to_string())?;
+    let actual_expenses = db
+        .get_expenses_for_date_range(budget.start_date, budget.end_date)
+        .map_err(|e| e.to_string())?;
 
-    // Compute per-category status
     let mut category_statuses: Vec<BudgetCategoryStatus> = Vec::new();
     let mut total_budgeted = 0.0;
     let mut total_spent = 0.0;
@@ -600,7 +595,11 @@ fn get_budget_summary(
             .map(|e| e.amount)
             .sum();
 
-        let ratio = if bc.amount > 0.0 { spent / bc.amount } else { 0.0 };
+        let ratio = if bc.amount > 0.0 {
+            spent / bc.amount
+        } else {
+            0.0
+        };
         let status = if ratio > 1.0 {
             "over"
         } else if ratio >= 0.8 {
@@ -621,6 +620,7 @@ fn get_budget_summary(
     }
 
     let total_planned: f64 = planned.iter().map(|p| p.amount).sum();
+    let total_calendar: f64 = cal_events.iter().filter_map(|e| e.amount).sum();
 
     let budget_category_inputs: Vec<BudgetCategoryInput> = budget_cats
         .iter()
@@ -632,8 +632,8 @@ fn get_budget_summary(
 
     Ok(BudgetSummaryOutput {
         budget_id,
-        year,
-        month,
+        start_date: budget.start_date.to_string(),
+        end_date: budget.end_date.to_string(),
         categories: category_statuses,
         budget_categories: budget_category_inputs,
         planned_expenses: planned,
@@ -641,18 +641,69 @@ fn get_budget_summary(
         total_budgeted,
         total_spent,
         total_planned,
+        total_calendar,
     })
+}
+
+#[tauri::command]
+fn get_budget_summary(
+    state: State<AppState>,
+    budget_id: i64,
+) -> Result<BudgetSummaryOutput, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let budget = db
+        .get_budget_by_id(budget_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Budget with id {} not found", budget_id))?;
+    build_budget_summary(&db, &budget)
+}
+
+#[tauri::command]
+fn get_active_budget_summary(
+    state: State<AppState>,
+) -> Result<Option<BudgetSummaryOutput>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    match db.get_active_budget().map_err(|e| e.to_string())? {
+        Some(budget) => Ok(Some(build_budget_summary(&db, &budget)?)),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+fn create_budget(
+    state: State<AppState>,
+    start_date: String,
+    end_date: String,
+    categories: Vec<BudgetCategoryInput>,
+) -> Result<i64, String> {
+    let start = parse_date(&start_date)?;
+    let end = parse_date(&end_date)?;
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let budget_id = db.create_budget(start, end).map_err(|e| e.to_string())?;
+
+    let cats: Vec<BudgetCategory> = categories
+        .into_iter()
+        .map(|c| BudgetCategory {
+            id: None,
+            budget_id,
+            category: c.category,
+            amount: c.amount,
+        })
+        .collect();
+
+    db.save_budget_categories(budget_id, &cats)
+        .map_err(|e| e.to_string())?;
+
+    Ok(budget_id)
 }
 
 #[tauri::command]
 fn save_budget_categories(
     state: State<AppState>,
-    year: i32,
-    month: u32,
+    budget_id: i64,
     categories: Vec<BudgetCategoryInput>,
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
 
     let cats: Vec<BudgetCategory> = categories
         .into_iter()
@@ -671,12 +722,10 @@ fn save_budget_categories(
 #[tauri::command]
 fn add_planned_expense(
     state: State<AppState>,
-    year: i32,
-    month: u32,
+    budget_id: i64,
     expense: PlannedExpenseInput,
 ) -> Result<i64, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
     let date = parse_date(&expense.date)?;
 
     let pe = PlannedExpense {
@@ -698,18 +747,30 @@ fn delete_planned_expense(state: State<AppState>, id: i64) -> Result<(), String>
 }
 
 #[tauri::command]
+fn delete_budget(state: State<AppState>, id: i64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.delete_budget(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn import_calendar_events(
     state: State<AppState>,
-    year: i32,
-    month: u32,
+    budget_id: i64,
     ics_content: String,
 ) -> Result<usize, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let budget_id = db.get_or_create_budget(year, month).map_err(|e| e.to_string())?;
+    let budget = db
+        .get_budget_by_id(budget_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Budget with id {} not found", budget_id))?;
 
     let all_events =
         accountant_core::ical::parse_ics(&ics_content).map_err(|e| e.to_string())?;
-    let filtered = accountant_core::ical::filter_events_by_month(&all_events, year, month);
+    let filtered = accountant_core::ical::filter_events_by_date_range(
+        &all_events,
+        budget.start_date,
+        budget.end_date,
+    );
 
     let cal_events: Vec<CalendarEvent> = filtered
         .into_iter()
@@ -722,10 +783,35 @@ fn import_calendar_events(
             start_date: e.start_date,
             end_date: e.end_date,
             all_day: e.all_day,
+            amount: None,
         })
         .collect();
 
     db.save_calendar_events(budget_id, &cal_events)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_calendar_event_amount(
+    state: State<AppState>,
+    event_id: i64,
+    amount: Option<f64>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.update_calendar_event_amount(event_id, amount)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn check_budget_overlap(
+    state: State<AppState>,
+    start_date: String,
+    end_date: String,
+) -> Result<bool, String> {
+    let start = parse_date(&start_date)?;
+    let end = parse_date(&end_date)?;
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.check_budget_overlap(start, end)
         .map_err(|e| e.to_string())
 }
 
@@ -799,10 +885,15 @@ pub fn run() {
             get_active_widgets,
             save_active_widgets,
             get_budget_summary,
+            get_active_budget_summary,
+            create_budget,
             save_budget_categories,
             add_planned_expense,
             delete_planned_expense,
+            delete_budget,
             import_calendar_events,
+            update_calendar_event_amount,
+            check_budget_overlap,
             get_category_averages,
             get_title_cleanup_rules,
             save_title_cleanup_rule,
