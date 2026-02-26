@@ -15,7 +15,7 @@ An API key is a secret token that lets 4ccountant send requests to an LLM servic
 | Provider | Model used | Cost | Key format |
 |---|---|---|---|
 | **OpenAI** | gpt-4o-mini | Pay-per-use (very cheap) | `sk-...` |
-| **Anthropic** | Claude Haiku | Pay-per-use (very cheap) | `sk-ant-...` |
+| **Anthropic** | Claude Haiku 4.5 | Pay-per-use (very cheap) | `sk-ant-...` |
 | **Ollama** | llama3 | Free (runs locally) | Not needed — enter endpoint URL |
 
 4ccountant uses small, cheap models. Classifying expenses costs fractions of a cent per batch, so even $5 in API credits will last a long time.
@@ -76,4 +76,4 @@ If the LLM call fails (network error, expired key, etc.), the expenses simply re
 
 ## Clearing configuration
 
-Click **Clear** in Settings (or re-run `4ccountant llm-conf`) to remove the stored provider and API key. The app will fall back to rule-based and manual classification only.
+Click **Clear** in Settings to remove the stored provider and API key. The app will fall back to rule-based and manual classification only. (The CLI `llm-conf` command always sets a new provider — it has no clear option.)

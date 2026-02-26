@@ -38,19 +38,29 @@ CSV → Parser (auto-detect format) → ParsedExpense → Classification Pipelin
 
 ### Key Traits
 
-**Parser** (`crates/core/src/parsers/`): `detect()` returns confidence score, `preview_rows()` for column mapping UI, `parse()` with user-confirmed `ColumnMapping`. Currently only `CsvParser`.
+**Parser** (`crates/core/src/parsers/`): `name()`, `detect()` returns confidence score, `preview_rows()` for column mapping UI, `parse()` with user-confirmed `ColumnMapping`. Currently only `CsvParser`.
 
-**Classifier** (`crates/core/src/classifiers.rs`): `classify()` returns `Option<ClassificationResult>`. Pipeline runs classifiers by priority (lower = first), winner-takes-all. `RegexClassifier` from DB rules; LLM fallback runs post-pipeline as a batch call.
+**Classifier** (`crates/core/src/classifiers.rs`): `name()`, `priority()` (lower = tried first), `classify()` returns `Option<ClassificationResult>`. Pipeline is winner-takes-all. `RegexClassifier` from DB rules; LLM fallback runs post-pipeline as a batch call.
 
 **LLM** (`crates/core/src/llm.rs`): `LlmProvider` trait with `validate()` and `classify_batch()`. Implementations: `OpenAiProvider`, `AnthropicProvider`, `OllamaProvider`. Uses blocking `reqwest`.
 
-**Exporter** (`crates/core/src/exporters.rs`): `Exporter` trait with `export()` returning bytes. `CsvExporter` with configurable `ExportColumns`.
+**Exporter** (`crates/core/src/exporters.rs`): `name()`, `extension()`, `export()` returning bytes. `CsvExporter` with configurable `ExportColumns`.
+
+**iCal** (`crates/core/src/ical.rs`): `parse_ics()` parses `.ics` content into `ParsedCalendarEvent` structs. `filter_events_by_date_range()` narrows to a budget's date range. Handles UTC, timezone-qualified, and all-day DTSTART formats.
 
 ### Tauri IPC Bridge
 
 All commands in `src-tauri/src/lib.rs`. State is `AppState { db: Mutex<Database> }`.
 
-Key commands: `get_expenses`, `query_expenses`, `add_expense`, `suggest_category`, `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_categories`, `get/save/validate/clear_llm_config`, `export_expenses`, `get/save_active_widgets`, `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`, `get_budget_summary(budget_id)`, `get_active_budget_summary`, `create_budget(start_date, end_date, categories)`, `save_budget_categories(budget_id, categories)`, `add/delete_planned_expense(budget_id, ...)`, `delete_budget(id)`, `import_calendar_events(budget_id, ics_content)`, `update_calendar_event_amount(event_id, amount)`, `check_budget_overlap(start_date, end_date)`, `get_category_averages`, `get_upload_batches`, `delete_batch`.
+41 commands grouped by domain:
+- **Expenses:** `get_expenses`, `query_expenses`, `add_expense`, `update_expense`, `delete_expense`, `delete_expenses`, `suggest_category`, `export_expenses`
+- **Bulk upload:** `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_upload_batches`, `delete_batch`
+- **Categories:** `get_categories`, `get_category_stats`, `create_category`, `rename_category`, `delete_category`, `merge_categories`, `get_category_averages`
+- **LLM:** `get/save/validate/clear_llm_config`
+- **Title cleanup:** `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`
+- **Budgets:** `get_budget_summary`, `get_active_budget_summary`, `create_budget`, `save_budget_categories`, `add/delete_planned_expense`, `delete_budget`, `check_budget_overlap`
+- **Calendar:** `import_calendar_events`, `update_calendar_event_amount`
+- **Widgets:** `get/save_active_widgets`
 
 Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/core`.
 

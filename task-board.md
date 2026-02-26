@@ -5,7 +5,6 @@
 | # | Task | Summary |
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
-| 47 | Docs Sync Round 2 | CLAUDE.md: missing commands, `ical` module, trait methods. mdBook: budget "monthly"→"date-range", dashboard "active budget", LLM model version, export source strings. |
 | 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (extract modals), Settings (LLM + uploads). |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
 
@@ -13,6 +12,7 @@
 
 | # | Task | Summary |
 |---|------|---------|
+| 47 | Docs Sync Round 2 | CLAUDE.md: added 8 missing IPC commands, `ical` module, trait methods (`name`/`priority`/`extension`), grouped commands by domain. mdBook: dashboard "active budget", Claude Haiku 4.5, CLI clear fix, export source strings. |
 | 01 | LLM Providers | `OpenAiProvider`, `AnthropicProvider`, `OllamaProvider` with `validate()` + `classify_batch()`. |
 | 02 | LLM Pipeline Wiring | LLM fallback integrated into classification pipeline in `parse_and_classify`. |
 | 03 | LLM Frontend | Settings UI for LLM config, validation feedback, source badges in bulk upload review. |

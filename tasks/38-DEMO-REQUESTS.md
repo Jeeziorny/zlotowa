@@ -16,15 +16,9 @@
 3. I have some problems with placing "Title cleanup" together with its funcionality. I want this feature probably to be visible as some kind of action that user can do in "Expense" tab.
    1. First approach is to have such functionality for "Automatic title renaming" in "Expense" tab. People could there have exactly the same functionality as they have now (only button placement will change)
    2. Second approach is to have it as it is.
+   3. Whatever approach we'd choose I think the good idea is to have expense.display_name and expense.name where display_name is by default == name, but if someone would apply title cleanup it would apply only to display_name so we won't break original title
 4. I also don't know how to handle all this automatic title renaming while adding expense / multiple expenses. Should program detect those "ugly" titles and show suggestions for renaming? Probably yes. If so, should it perform mapping to category BEFORE renaming or AFTER? How those suggestions should be presented to the user?
 5. This task should focus only on fronend. Some buttons should be replaced, but logic must remain the same.
-
-# Multiple categories for one expense.
-1. How it affect database and existing functionalities?
-2. I'd like for each expense to have up to 10 categories.
-3. Probably we'd need to refine frontend and backend changes.
-4. How we'd display this on a widget, if one item will be displayed in two categories? Probably need to refine that too.
-5. Mapping in database from title to category: there will be multiple mapping Item -> category, where Item will be the same. Does it collide with DB? How about uniquness?
 
 # Dashboard tiles improvements
 1. I'd like dashboard widgets to not to be able to change position by default. There should be a slider somewhere in the dashboard will enable "Edit dashboard" mode where each tile can be moved or removed.
