@@ -12,6 +12,7 @@ pub enum ExportError {
 pub struct ExportColumns {
     pub date: bool,
     pub title: bool,
+    pub display_title: bool,
     pub amount: bool,
     pub category: bool,
     pub classification_source: bool,
@@ -22,6 +23,7 @@ impl Default for ExportColumns {
         Self {
             date: true,
             title: true,
+            display_title: false,
             amount: true,
             category: true,
             classification_source: false,
@@ -54,6 +56,7 @@ fn build_headers(columns: &ExportColumns) -> Vec<&str> {
     let mut headers = Vec::new();
     if columns.date { headers.push("date"); }
     if columns.title { headers.push("title"); }
+    if columns.display_title { headers.push("display_title"); }
     if columns.amount { headers.push("amount"); }
     if columns.category { headers.push("category"); }
     if columns.classification_source { headers.push("source"); }
@@ -64,6 +67,12 @@ fn build_fields(expense: &Expense, columns: &ExportColumns) -> Vec<String> {
     let mut fields = Vec::new();
     if columns.date { fields.push(expense.date.to_string()); }
     if columns.title { fields.push(expense.title.clone()); }
+    if columns.display_title {
+        fields.push(
+            expense.display_title.clone()
+                .unwrap_or_else(|| expense.title.clone())
+        );
+    }
     if columns.amount { fields.push(format!("{:.2}", expense.amount)); }
     if columns.category { fields.push(expense.category.clone().unwrap_or_default()); }
     if columns.classification_source {
@@ -114,6 +123,7 @@ mod tests {
             Expense {
                 id: Some(1),
                 title: "Coffee".to_string(),
+                display_title: None,
                 amount: 4.50,
                 date: NaiveDate::from_ymd_opt(2025, 1, 15).unwrap(),
                 category: Some("Drinks".to_string()),
@@ -122,6 +132,7 @@ mod tests {
             Expense {
                 id: Some(2),
                 title: "UBER TRIP".to_string(),
+                display_title: None,
                 amount: 12.99,
                 date: NaiveDate::from_ymd_opt(2025, 1, 16).unwrap(),
                 category: Some("Transport".to_string()),
@@ -130,6 +141,7 @@ mod tests {
             Expense {
                 id: Some(3),
                 title: "Mystery shop".to_string(),
+                display_title: None,
                 amount: 100.00,
                 date: NaiveDate::from_ymd_opt(2025, 1, 17).unwrap(),
                 category: None,
@@ -160,6 +172,7 @@ mod tests {
         let columns = ExportColumns {
             date: false,
             title: true,
+            display_title: false,
             amount: true,
             category: false,
             classification_source: false,
@@ -176,6 +189,7 @@ mod tests {
         let columns = ExportColumns {
             date: true,
             title: true,
+            display_title: false,
             amount: true,
             category: true,
             classification_source: true,
@@ -195,6 +209,7 @@ mod tests {
         let expenses = vec![Expense {
             id: None,
             title: "Coffee, large".to_string(),
+            display_title: None,
             amount: 5.00,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -209,6 +224,7 @@ mod tests {
         let expenses = vec![Expense {
             id: None,
             title: r#"She said "hello""#.to_string(),
+            display_title: None,
             amount: 5.00,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -223,6 +239,7 @@ mod tests {
         let expenses = vec![Expense {
             id: None,
             title: "Line1\nLine2".to_string(),
+            display_title: None,
             amount: 5.00,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -251,6 +268,7 @@ mod tests {
         let columns = ExportColumns {
             date: false,
             title: false,
+            display_title: false,
             amount: false,
             category: false,
             classification_source: false,
@@ -266,6 +284,7 @@ mod tests {
         let columns = ExportColumns {
             date: false,
             title: true,
+            display_title: false,
             amount: false,
             category: true,
             classification_source: false,
@@ -273,6 +292,7 @@ mod tests {
         let expenses = vec![Expense {
             id: None,
             title: "Unknown".to_string(),
+            display_title: None,
             amount: 10.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -288,6 +308,7 @@ mod tests {
         let expenses = vec![Expense {
             id: None,
             title: "Item".to_string(),
+            display_title: None,
             amount: 4.5,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -302,6 +323,7 @@ mod tests {
         let expenses = vec![Expense {
             id: None,
             title: "Item".to_string(),
+            display_title: None,
             amount: 100.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,

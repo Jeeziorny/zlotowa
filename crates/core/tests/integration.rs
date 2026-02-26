@@ -61,6 +61,7 @@ fn parse_classify_save_query_roundtrip() {
         .map(|(p, c)| Expense {
             id: None,
             title: p.title,
+            display_title: None,
             amount: p.amount,
             date: p.date,
             category: c.as_ref().map(|r| r.category.clone()),
@@ -130,6 +131,7 @@ fn export_reimport_roundtrip() {
         Expense {
             id: Some(1),
             title: "Coffee".to_string(),
+            display_title: None,
             amount: 4.50,
             date: date(2025, 1, 15),
             category: Some("Drinks".to_string()),
@@ -138,6 +140,7 @@ fn export_reimport_roundtrip() {
         Expense {
             id: Some(2),
             title: "Uber Ride".to_string(),
+            display_title: None,
             amount: 23.99,
             date: date(2025, 1, 16),
             category: Some("Transport".to_string()),
@@ -146,6 +149,7 @@ fn export_reimport_roundtrip() {
         Expense {
             id: Some(3),
             title: "Uncategorized Item".to_string(),
+            display_title: None,
             amount: 100.00,
             date: date(2025, 1, 17),
             category: None,
@@ -184,6 +188,7 @@ fn title_cleanup_enables_reclassification() {
     let expense = Expense {
         id: None,
         title: "CARD PAYMENT 12345 Starbucks".to_string(),
+        display_title: None,
         amount: 5.00,
         date: date(2025, 3, 1),
         category: None,
@@ -225,16 +230,31 @@ fn title_cleanup_enables_reclassification() {
     assert_eq!(updated, 1);
 
     let all = db.get_all_expenses().unwrap();
-    assert_eq!(all[0].title, "Starbucks");
+    // Raw title stays immutable — classification rules still match against it
+    assert_eq!(all[0].title, "CARD PAYMENT 12345 Starbucks");
+    // display_title has the cleaned version
+    assert_eq!(all[0].display_title.as_deref(), Some("Starbucks"));
 
+    // Classification still uses raw title, so the strict ^starbucks$ rule won't match.
+    // In practice, rules are written to match the raw bank format (e.g. (?i)starbucks).
     let parsed_after = accountant_core::models::ParsedExpense {
         title: all[0].title.clone(),
         amount: all[0].amount,
         date: all[0].date,
     };
     let result_after = classifier.classify(&parsed_after).unwrap();
-    assert!(result_after.is_some());
-    assert_eq!(result_after.unwrap().category, "Coffee");
+    assert!(result_after.is_none(), "Strict ^starbucks$ should not match raw title");
+
+    // A rule matching the raw format would work
+    let broad_rule = ClassificationRule {
+        id: None,
+        pattern: "(?i)starbucks".to_string(),
+        category: "Coffee".to_string(),
+    };
+    let broad_classifier = RegexClassifier::from_rules(&[broad_rule]);
+    let result_broad = broad_classifier.classify(&parsed_after).unwrap();
+    assert!(result_broad.is_some());
+    assert_eq!(result_broad.unwrap().category, "Coffee");
 }
 
 // ── 4a. ClassificationRule::from_pattern with regex metacharacters ──
@@ -486,6 +506,7 @@ fn export_unicode_in_title() {
     let expenses = vec![Expense {
         id: None,
         title: "Caf\u{00E9} \u{00FC}ber Z\u{00FC}rich".to_string(),
+        display_title: None,
         amount: 15.00,
         date: date(2025, 1, 1),
         category: Some("Food".to_string()),
@@ -511,6 +532,7 @@ fn export_crlf_in_title_is_escaped() {
     let expenses = vec![Expense {
         id: None,
         title: "Line1\r\nLine2".to_string(),
+        display_title: None,
         amount: 10.00,
         date: date(2025, 1, 1),
         category: None,
@@ -530,6 +552,7 @@ fn export_newline_in_title_is_escaped() {
     let expenses = vec![Expense {
         id: None,
         title: "First\nSecond".to_string(),
+        display_title: None,
         amount: 5.00,
         date: date(2025, 1, 1),
         category: None,
@@ -583,6 +606,7 @@ fn bulk_insert_batch_tracks_correct_count() {
         Expense {
             id: None,
             title: "A".to_string(),
+            display_title: None,
             amount: 1.0,
             date: date(2025, 1, 1),
             category: None,
@@ -591,6 +615,7 @@ fn bulk_insert_batch_tracks_correct_count() {
         Expense {
             id: None,
             title: "B".to_string(),
+            display_title: None,
             amount: 2.0,
             date: date(2025, 1, 2),
             category: None,

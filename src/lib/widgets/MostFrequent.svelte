@@ -3,12 +3,17 @@
 
   let topTitles = $derived.by(() => {
     const counts = {};
+    const displayNames = {};
     for (const e of expenses) {
       counts[e.title] = (counts[e.title] || 0) + 1;
+      if (!displayNames[e.title]) {
+        displayNames[e.title] = e.display_title || e.title;
+      }
     }
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
+      .slice(0, 5)
+      .map(([rawTitle, count]) => ({ rawTitle, displayTitle: displayNames[rawTitle], count }));
   });
 </script>
 
@@ -17,10 +22,10 @@
 
   {#if topTitles.length > 0}
     <div class="space-y-3">
-      {#each topTitles as [title, count]}
+      {#each topTitles as item}
         <div class="flex justify-between items-center">
-          <span class="text-gray-300 truncate mr-4">{title}</span>
-          <span class="text-sm text-gray-400 whitespace-nowrap">{count}x</span>
+          <span class="text-gray-300 truncate mr-4" title={item.displayTitle !== item.rawTitle ? item.rawTitle : ''}>{item.displayTitle}</span>
+          <span class="text-sm text-gray-400 whitespace-nowrap">{item.count}x</span>
         </div>
       {/each}
     </div>

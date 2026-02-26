@@ -25,7 +25,7 @@
     <div class="text-3xl font-bold text-emerald-400 mb-2">
       {Math.abs(biggest.amount).toFixed(2)}
     </div>
-    <div class="text-gray-300">{biggest.title}</div>
+    <div class="text-gray-300" title={biggest.display_title ? biggest.title : ''}>{biggest.display_title || biggest.title}</div>
     <div class="text-sm text-gray-500 mt-1">
       {biggest.date}
       {#if biggest.category}

@@ -39,9 +39,12 @@
   let exportSuccess = $state("");
   let exporting = $state(false);
 
+  // Export display_title
+  let exportDisplayTitle = $state(false);
+
   // Inline edit
   let editingId = $state(null);
-  let editTitle = $state("");
+  let editDisplayTitle = $state("");
   let editAmount = $state("");
   let editDate = $state("");
   let editCategory = $state("");
@@ -164,6 +167,7 @@
         columns: {
           date: exportDate,
           title: exportTitle,
+          display_title: exportDisplayTitle,
           amount: exportAmount,
           category: exportCategory,
           classification_source: exportSource,
@@ -183,7 +187,7 @@
 
   function startEdit(expense) {
     editingId = expense.id;
-    editTitle = expense.title;
+    editDisplayTitle = expense.display_title || expense.title;
     editAmount = String(expense.amount);
     editDate = expense.date;
     editCategory = expense.category || "";
@@ -201,7 +205,7 @@
       editError = "Amount must be a valid number";
       return;
     }
-    if (!editTitle.trim()) {
+    if (!editDisplayTitle.trim()) {
       editError = "Title cannot be empty";
       return;
     }
@@ -212,10 +216,12 @@
     saving = true;
     editError = "";
     try {
+      const editedExpense = expenses.find(e => e.id === editingId);
       await invoke("update_expense", {
         id: editingId,
         input: {
-          title: editTitle.trim(),
+          title: editedExpense.title,
+          display_title: editDisplayTitle.trim(),
           amount,
           date: editDate,
           category: editCategory.trim() || null,
@@ -408,7 +414,12 @@
         <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
           <input type="checkbox" bind:checked={exportTitle}
                  class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
-          Title
+          Title (raw)
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+          <input type="checkbox" bind:checked={exportDisplayTitle}
+                 class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
+          Display Title
         </label>
         <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
           <input type="checkbox" bind:checked={exportAmount}
@@ -507,10 +518,15 @@
                 <td class="px-4 py-2">
                   <input
                     type="text"
-                    bind:value={editTitle}
+                    bind:value={editDisplayTitle}
                     class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
                            text-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
+                  {#if expense.display_title}
+                    <div class="text-xs text-gray-600 mt-0.5 truncate" title={expense.title}>
+                      Raw: {expense.title}
+                    </div>
+                  {/if}
                 </td>
                 <td class="px-4 py-2">
                   <input
@@ -574,7 +590,7 @@
                   />
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-400">{expense.date}</td>
-                <td class="px-4 py-3">{expense.title}</td>
+                <td class="px-4 py-3" title={expense.display_title ? expense.title : ''}>{expense.display_title || expense.title}</td>
                 <td class="px-4 py-3 text-right font-mono">{expense.amount.toFixed(2)}</td>
                 <td class="px-4 py-3">
                   {#if expense.category}
@@ -678,7 +694,7 @@
         <h3 id="delete-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete expense?</h3>
         <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
         <p class="text-sm text-gray-300 mb-5 break-words">
-          "{deleteModalExpense.title}" &mdash; {deleteModalExpense.amount.toFixed(2)}
+          "{deleteModalExpense.display_title || deleteModalExpense.title}" &mdash; {deleteModalExpense.amount.toFixed(2)}
         </p>
         {#if deleteError}
           <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deleteError}</div>

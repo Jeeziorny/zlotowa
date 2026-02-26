@@ -9,13 +9,13 @@
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
 | 51 | Sidebar Restructuring & Expenses Page Consolidation | Reduce nav to 3 items + Settings. Logo → Dashboard. Consolidate Add/Upload/Cleanup as sub-views within Expenses page. |
 | 52 | Title Cleanup Relocation | Move Title Cleanup into Expenses tab as a sub-view (depends on 51). |
-| 53 | `display_name` Data Model | Add `display_name` column to expenses. Title cleanup writes to `display_name`, raw `title` stays immutable for classification. |
-| 54 | Auto-suggest Title Cleanup During Bulk Upload | Run cleanup rules during import review, inline accept/reject suggestions, populate `display_name` on save (depends on 53). |
+| 54 | Auto-suggest Title Cleanup During Bulk Upload | Run cleanup rules during import review, inline accept/reject suggestions, populate `display_title` on save (depends on 53). |
 
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 53 | `display_title` Data Model | Added `display_title` column to expenses. Title cleanup writes to `display_title`, raw `title` stays immutable after insert. Classification/duplicate detection still uses raw title. Export supports both columns. Tooltip shows raw title on hover. |
 | 47 | Docs Sync Round 2 | CLAUDE.md: added 8 missing IPC commands, `ical` module, trait methods (`name`/`priority`/`extension`), grouped commands by domain. mdBook: dashboard "active budget", Claude Haiku 4.5, CLI clear fix, export source strings. |
 | 01 | LLM Providers | `OpenAiProvider`, `AnthropicProvider`, `OllamaProvider` with `validate()` + `classify_batch()`. |
 | 02 | LLM Pipeline Wiring | LLM fallback integrated into classification pipeline in `parse_and_classify`. |

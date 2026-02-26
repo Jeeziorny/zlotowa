@@ -9,6 +9,7 @@ pub const UNCATEGORIZED: &str = "uncategorized";
 pub struct Expense {
     pub id: Option<i64>,
     pub title: String,
+    pub display_title: Option<String>,
     pub amount: f64,
     pub date: NaiveDate,
     pub category: Option<String>,

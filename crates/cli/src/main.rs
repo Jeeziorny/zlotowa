@@ -190,6 +190,7 @@ fn cmd_insert(date: Option<String>, title: Option<String>, amount: Option<f64>, 
     let expense = Expense {
         id: None,
         title: title_val.clone(),
+        display_title: None,
         amount: amount_val,
         date,
         category: category_opt.clone(),
@@ -464,6 +465,7 @@ fn cmd_bulk_insert(path: PathBuf) {
         to_insert.push(Expense {
             id: None,
             title: r.0.clone(),
+            display_title: None,
             amount: r.1,
             date,
             category: r.3.clone(),
@@ -501,6 +503,7 @@ fn cmd_export(grammar: Option<PathBuf>) {
         let mut cols = ExportColumns {
             date: false,
             title: false,
+            display_title: false,
             amount: false,
             category: false,
             classification_source: false,
@@ -509,6 +512,7 @@ fn cmd_export(grammar: Option<PathBuf>) {
             match line.trim().to_lowercase().as_str() {
                 "date" => cols.date = true,
                 "title" => cols.title = true,
+                "display_title" => cols.display_title = true,
                 "amount" => cols.amount = true,
                 "category" => cols.category = true,
                 "source" | "classification_source" => cols.classification_source = true,
@@ -518,8 +522,8 @@ fn cmd_export(grammar: Option<PathBuf>) {
         }
         cols
     } else {
-        let items = vec!["date", "title", "amount", "category", "source"];
-        let defaults = vec![true, true, true, true, false];
+        let items = vec!["date", "title", "display_title", "amount", "category", "source"];
+        let defaults = vec![true, true, false, true, true, false];
         let selections = dialoguer::MultiSelect::new()
             .with_prompt("Select columns to export")
             .items(&items)
@@ -530,9 +534,10 @@ fn cmd_export(grammar: Option<PathBuf>) {
         ExportColumns {
             date: selections.contains(&0),
             title: selections.contains(&1),
-            amount: selections.contains(&2),
-            category: selections.contains(&3),
-            classification_source: selections.contains(&4),
+            display_title: selections.contains(&2),
+            amount: selections.contains(&3),
+            category: selections.contains(&4),
+            classification_source: selections.contains(&5),
         }
     };
 

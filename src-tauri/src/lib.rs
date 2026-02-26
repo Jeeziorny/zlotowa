@@ -20,6 +20,7 @@ pub struct AppState {
 #[derive(Serialize, Deserialize)]
 pub struct ExpenseInput {
     pub title: String,
+    pub display_title: Option<String>,
     pub amount: f64,
     pub date: String,
     pub category: Option<String>,
@@ -95,6 +96,7 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
         let expense = Expense {
             id: None,
             title: input.title.clone(),
+            display_title: input.display_title.clone(),
             amount: input.amount,
             date,
             category: input.category.clone(),
@@ -131,6 +133,7 @@ fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Resul
         let expense = Expense {
             id: Some(id),
             title: input.title.clone(),
+            display_title: input.display_title.clone(),
             amount: input.amount,
             date,
             category: input.category.clone(),
@@ -363,6 +366,7 @@ fn parse_and_classify(
 pub struct ExportColumnsInput {
     pub date: bool,
     pub title: bool,
+    pub display_title: bool,
     pub amount: bool,
     pub category: bool,
     pub classification_source: bool,
@@ -379,6 +383,7 @@ fn export_expenses(
     let export_columns = ExportColumns {
         date: columns.date,
         title: columns.title,
+        display_title: columns.display_title,
         amount: columns.amount,
         category: columns.category,
         classification_source: columns.classification_source,
@@ -418,6 +423,7 @@ fn bulk_save_expenses(
         to_insert.push(Expense {
             id: None,
             title: e.title.clone(),
+            display_title: None,
             amount: e.amount,
             date,
             category: e.category.clone(),
@@ -874,6 +880,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Coffee".into(),
+                display_title: None,
                 amount: 3.50,
                 date: "2024-01-15".into(),
                 category: Some("Food".into()),
@@ -899,6 +906,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "X".into(),
+                display_title: None,
                 amount: 1.0,
                 date: "not-a-date".into(),
                 category: None,
@@ -917,6 +925,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Old".into(),
+                display_title: None,
                 amount: 10.0,
                 date: "2024-02-01".into(),
                 category: None,
@@ -930,7 +939,8 @@ mod tests {
             state,
             id,
             ExpenseInput {
-                title: "New".into(),
+                title: "Old".into(),
+                display_title: Some("New".into()),
                 amount: 20.0,
                 date: "2024-02-02".into(),
                 category: Some("Transport".into()),
@@ -941,7 +951,8 @@ mod tests {
 
         let state: State<AppState> = app.state();
         let all = get_expenses(state).unwrap();
-        assert_eq!(all[0].title, "New");
+        assert_eq!(all[0].title, "Old"); // raw title is immutable
+        assert_eq!(all[0].display_title.as_deref(), Some("New"));
         assert_eq!(all[0].amount, 20.0);
     }
 
@@ -953,6 +964,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "X".into(),
+                display_title: None,
                 amount: 1.0,
                 date: "2024-01-01".into(),
                 category: None,
@@ -967,6 +979,7 @@ mod tests {
             id,
             ExpenseInput {
                 title: "X".into(),
+                display_title: None,
                 amount: 1.0,
                 date: "bad".into(),
                 category: None,
@@ -985,6 +998,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Gone".into(),
+                display_title: None,
                 amount: 5.0,
                 date: "2024-03-01".into(),
                 category: None,
@@ -1017,6 +1031,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: format!("E{}", i),
+                    display_title: None,
                     amount: 1.0,
                     date: "2024-01-01".into(),
                     category: None,
@@ -1055,6 +1070,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: title.into(),
+                    display_title: None,
                     amount,
                     date: "2024-01-15".into(),
                     category: Some(cat.into()),
@@ -1133,6 +1149,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "X".into(),
+                display_title: None,
                 amount: 1.0,
                 date: "2024-01-01".into(),
                 category: Some("Food".into()),
@@ -1177,6 +1194,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: title.into(),
+                    display_title: None,
                     amount: 1.0,
                     date: "2024-01-01".into(),
                     category: Some(cat.into()),
@@ -1226,6 +1244,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Starbucks".into(),
+                display_title: None,
                 amount: 5.0,
                 date: "2024-01-01".into(),
                 category: Some("Coffee".into()),
@@ -1361,6 +1380,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Coffee".into(),
+                display_title: None,
                 amount: 5.0,
                 date: "2024-06-01".into(),
                 category: Some("Drinks".into()),
@@ -1391,6 +1411,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Coffee".into(),
+                display_title: None,
                 amount: 3.50,
                 date: "2024-01-01".into(),
                 category: None,
@@ -1422,6 +1443,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Test".into(),
+                display_title: None,
                 amount: 42.0,
                 date: "2024-01-01".into(),
                 category: Some("Misc".into()),
@@ -1439,6 +1461,7 @@ mod tests {
             ExportColumnsInput {
                 date: true,
                 title: true,
+                display_title: false,
                 amount: true,
                 category: true,
                 classification_source: false,
@@ -1464,6 +1487,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "CARD *1234 Coffee Shop".into(),
+                display_title: None,
                 amount: 5.0,
                 date: "2024-01-01".into(),
                 category: None,
@@ -1506,10 +1530,11 @@ mod tests {
         let applied = apply_title_cleanup(state, rule_id, expense_ids).unwrap();
         assert_eq!(applied, 1);
 
-        // Verify
+        // Verify — raw title is immutable, display_title has cleaned version
         let state: State<AppState> = app.state();
         let all = get_expenses(state).unwrap();
-        assert_eq!(all[0].title, "Coffee Shop");
+        assert_eq!(all[0].title, "CARD *1234 Coffee Shop");
+        assert_eq!(all[0].display_title.as_deref(), Some("Coffee Shop"));
 
         // Delete rule
         let state: State<AppState> = app.state();
@@ -1660,6 +1685,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Lunch".into(),
+                display_title: None,
                 amount: 85.0,
                 date: "2024-01-10".into(),
                 category: Some("Food".into()),
@@ -1742,6 +1768,7 @@ END:VCALENDAR";
                 state,
                 ExpenseInput {
                     title: "Meal".into(),
+                    display_title: None,
                     amount: 100.0,
                     date: date.clone(),
                     category: Some("Food".into()),
@@ -1845,6 +1872,7 @@ END:VCALENDAR";
                 state,
                 ExpenseInput {
                     title: title.into(),
+                    display_title: None,
                     amount: 10.0,
                     date: "2024-01-01".into(),
                     category: Some(cat.into()),
@@ -1871,6 +1899,7 @@ END:VCALENDAR";
             state,
             ExpenseInput {
                 title: "CARD*1234 Starbucks NYC".into(),
+                display_title: None,
                 amount: 5.0,
                 date: "2024-01-01".into(),
                 category: Some("Coffee".into()),
