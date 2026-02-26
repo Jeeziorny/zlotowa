@@ -1,7 +1,9 @@
 <script>
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { save } from "@tauri-apps/plugin-dialog";
+  import ExportPanel from "./expense-list/ExportPanel.svelte";
+  import DeleteConfirmModal from "./expense-list/DeleteConfirmModal.svelte";
+  import BatchDeleteModal from "./expense-list/BatchDeleteModal.svelte";
 
   let expenses = $state([]);
   let totalCount = $state(0);
@@ -30,17 +32,6 @@
 
   // Export
   let showExportModal = $state(false);
-  let exportDate = $state(true);
-  let exportTitle = $state(true);
-  let exportAmount = $state(true);
-  let exportCategory = $state(true);
-  let exportSource = $state(false);
-  let exportError = $state("");
-  let exportSuccess = $state("");
-  let exporting = $state(false);
-
-  // Export display_title
-  let exportDisplayTitle = $state(false);
 
   // Inline edit
   let editingId = $state(null);
@@ -52,14 +43,11 @@
   let saving = $state(false);
 
   // Delete
-  let deleting = $state(false);
-  let deleteError = $state("");
+  let deleteModalExpense = $state(null);
 
   // Batch select/delete
   let selected = $state(new Set());
   let confirmBatchDelete = $state(false);
-  let batchDeleting = $state(false);
-  let batchDeleteError = $state("");
 
   let allSelected = $derived(expenses.length > 0 && selected.size === expenses.length);
   let someSelected = $derived(selected.size > 0);
@@ -95,7 +83,6 @@
       const result = await invoke("query_expenses", { query });
       expenses = result.expenses;
       totalCount = result.total_count;
-      // Clear selections when page changes
       selected = new Set();
     } catch (err) {
       console.error("Failed to load expenses:", err);
@@ -148,41 +135,6 @@
     }
   }
 
-  // Delete modal
-  let deleteModalExpense = $state(null);
-
-  // ── Export ──
-
-  async function doExport() {
-    exporting = true;
-    exportError = "";
-    exportSuccess = "";
-    try {
-      const path = await save({
-        defaultPath: `4ccountant-export-${new Date().toISOString().split("T")[0]}.csv`,
-        filters: [{ name: "CSV", extensions: ["csv"] }],
-      });
-      if (!path) { exporting = false; return; }
-      await invoke("export_expenses", {
-        columns: {
-          date: exportDate,
-          title: exportTitle,
-          display_title: exportDisplayTitle,
-          amount: exportAmount,
-          category: exportCategory,
-          classification_source: exportSource,
-        },
-        path,
-      });
-      const filename = path.split("/").pop() || path.split("\\").pop() || path;
-      exportSuccess = `Exported to ${filename}`;
-      setTimeout(() => { showExportModal = false; exportSuccess = ""; }, 2000);
-    } catch (err) {
-      exportError = `Export failed: ${err}`;
-    }
-    exporting = false;
-  }
-
   // ── Inline Edit ──
 
   function startEdit(expense) {
@@ -228,7 +180,6 @@
           rule_pattern: null,
         },
       });
-      // Re-fetch to reflect changes (category/title might affect filters)
       editingId = null;
       await fetchExpenses();
     } catch (err) {
@@ -237,22 +188,7 @@
     saving = false;
   }
 
-  // ── Single Delete ──
-
-  async function doDelete(id) {
-    deleting = true;
-    deleteError = "";
-    try {
-      await invoke("delete_expense", { id });
-      deleteModalExpense = null;
-      await fetchExpenses();
-    } catch (err) {
-      deleteError = `Delete failed: ${err}`;
-    }
-    deleting = false;
-  }
-
-  // ── Batch Delete ──
+  // ── Selection ──
 
   function toggleSelect(id) {
     if (selected.has(id)) {
@@ -270,20 +206,6 @@
       selected = new Set(expenses.map(e => e.id));
     }
   }
-
-  async function doBatchDelete() {
-    batchDeleting = true;
-    batchDeleteError = "";
-    try {
-      const ids = [...selected];
-      await invoke("delete_expenses", { ids });
-      confirmBatchDelete = false;
-      await fetchExpenses();
-    } catch (err) {
-      batchDeleteError = `Delete failed: ${err}`;
-    }
-    batchDeleting = false;
-  }
 </script>
 
 <div>
@@ -300,7 +222,7 @@
         </button>
       {/if}
       <button
-        onclick={() => { showExportModal = !showExportModal; exportError = ""; exportSuccess = ""; }}
+        onclick={() => { showExportModal = !showExportModal; }}
         class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
                text-sm font-medium transition-colors border border-gray-700"
       >
@@ -401,71 +323,7 @@
     {/if}
   </div>
 
-
-  {#if showExportModal}
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-6">
-      <h3 class="text-lg font-semibold mb-3">Export Settings</h3>
-      <div class="space-y-2 mb-4">
-        <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-          <input type="checkbox" bind:checked={exportDate}
-                 class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
-          Date
-        </label>
-        <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-          <input type="checkbox" bind:checked={exportTitle}
-                 class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
-          Title (raw)
-        </label>
-        <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-          <input type="checkbox" bind:checked={exportDisplayTitle}
-                 class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
-          Display Title
-        </label>
-        <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-          <input type="checkbox" bind:checked={exportAmount}
-                 class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
-          Amount
-        </label>
-        <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-          <input type="checkbox" bind:checked={exportCategory}
-                 class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
-          Category
-        </label>
-        <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-          <input type="checkbox" bind:checked={exportSource}
-                 class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500" />
-          Classification Source
-        </label>
-      </div>
-      <div class="flex gap-3">
-        <button
-          onclick={doExport}
-          disabled={exporting}
-          class="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white
-                 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          {exporting ? "Exporting..." : "Download CSV"}
-        </button>
-        <button
-          onclick={() => showExportModal = false}
-          class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
-                 text-sm transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-      {#if exportError}
-        <div class="mt-3 text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg">
-          {exportError}
-        </div>
-      {/if}
-      {#if exportSuccess}
-        <div class="mt-3 text-sm bg-emerald-900/50 text-emerald-400 px-4 py-2 rounded-lg">
-          {exportSuccess}
-        </div>
-      {/if}
-    </div>
-  {/if}
+  <ExportPanel bind:show={showExportModal} onclose={() => showExportModal = false} />
 
   {#if loading && expenses.length === 0}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
@@ -679,84 +537,19 @@
     </div>
   {/if}
 
-  <!-- Single delete confirmation modal -->
   {#if deleteModalExpense}
-    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-         role="presentation"
-         onclick={() => { if (!deleting) { deleteModalExpense = null; deleteError = ""; } }}
-         onkeydown={(e) => { if (e.key === "Escape" && !deleting) { deleteModalExpense = null; deleteError = ""; } }}>
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
-           role="dialog"
-           aria-modal="true"
-           aria-labelledby="delete-modal-title"
-           tabindex="-1"
-           onclick={(e) => e.stopPropagation()}>
-        <h3 id="delete-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete expense?</h3>
-        <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
-        <p class="text-sm text-gray-300 mb-5 break-words">
-          "{deleteModalExpense.display_title || deleteModalExpense.title}" &mdash; {deleteModalExpense.amount.toFixed(2)}
-        </p>
-        {#if deleteError}
-          <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deleteError}</div>
-        {/if}
-        <div class="flex gap-3 justify-end">
-          <button
-            onclick={() => { deleteModalExpense = null; deleteError = ""; }}
-            disabled={deleting}
-            class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
-                   text-sm transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onclick={() => doDelete(deleteModalExpense.id)}
-            disabled={deleting}
-            class="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-2
-                   rounded-lg text-sm font-medium transition-colors"
-          >
-            {deleting ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <DeleteConfirmModal
+      expense={deleteModalExpense}
+      ondelete={() => { deleteModalExpense = null; fetchExpenses(); }}
+      onclose={() => { deleteModalExpense = null; }}
+    />
   {/if}
 
-  <!-- Batch delete confirmation modal -->
   {#if confirmBatchDelete}
-    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-         role="presentation"
-         onclick={() => { if (!batchDeleting) { confirmBatchDelete = false; batchDeleteError = ""; } }}
-         onkeydown={(e) => { if (e.key === "Escape" && !batchDeleting) { confirmBatchDelete = false; batchDeleteError = ""; } }}>
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
-           role="dialog"
-           aria-modal="true"
-           aria-labelledby="batch-delete-modal-title"
-           tabindex="-1"
-           onclick={(e) => e.stopPropagation()}>
-        <h3 id="batch-delete-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete {selected.size} expense{selected.size > 1 ? "s" : ""}?</h3>
-        <p class="text-sm text-gray-400 mb-5">This cannot be undone.</p>
-        {#if batchDeleteError}
-          <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{batchDeleteError}</div>
-        {/if}
-        <div class="flex gap-3 justify-end">
-          <button
-            onclick={() => { confirmBatchDelete = false; batchDeleteError = ""; }}
-            disabled={batchDeleting}
-            class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
-                   text-sm transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onclick={doBatchDelete}
-            disabled={batchDeleting}
-            class="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-2
-                   rounded-lg text-sm font-medium transition-colors"
-          >
-            {batchDeleting ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <BatchDeleteModal
+      selectedIds={selected}
+      ondelete={() => { confirmBatchDelete = false; fetchExpenses(); }}
+      onclose={() => { confirmBatchDelete = false; }}
+    />
   {/if}
 </div>
