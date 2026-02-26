@@ -2,19 +2,17 @@
   let { currentPage, onnavigate } = $props();
 
   const items = [
-    { id: "dashboard", label: "Dashboard", icon: "⊞" },
-    { id: "add", label: "Add Expense", icon: "+" },
-    { id: "bulk", label: "Expense bulk upload", icon: "↑" },
     { id: "expenses", label: "Expenses", icon: "☰" },
     { id: "categories", label: "Categories", icon: "▤" },
-    { id: "cleanup", label: "Title Cleanup", icon: "✂" },
     { id: "budget", label: "Budget", icon: "◎" },
   ];
 </script>
 
 <aside class="w-56 bg-gray-900 border-r border-gray-800 flex flex-col">
   <div class="p-6">
-    <h1 class="text-xl font-bold text-emerald-400">4ccountant</h1>
+    <button onclick={() => onnavigate("dashboard")} class="text-xl font-bold text-emerald-400 hover:text-emerald-300 transition-colors">
+      4ccountant
+    </button>
   </div>
 
   <nav class="flex-1 px-3">

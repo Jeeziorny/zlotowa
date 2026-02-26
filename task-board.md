@@ -7,12 +7,12 @@
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (extract modals), Settings (LLM + uploads). |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 51 | Sidebar Restructuring & Expenses Page Consolidation | Reduce nav to 3 items + Settings. Logo → Dashboard. Consolidate Add/Upload/Cleanup as sub-views within Expenses page. |
-| 52 | Title Cleanup Relocation | Move Title Cleanup into Expenses tab as a sub-view (depends on 51). |
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 52 | Title Cleanup Relocation | Title Cleanup accessible via "Clean Titles" button in Expenses toolbar, rendered as sub-view with back link. |
+| 51 | Sidebar Restructuring & Expenses Page Consolidation | Sidebar reduced to 3 nav items + Settings. Logo clicks to Dashboard. Add Expense & Bulk Upload consolidated as sub-views in ExpenseList. Cleanup route removed (prep for task 52). |
 | 54 | Auto-apply Title Cleanup During Bulk Upload | Added `suggest_title_cleanups` method to core DB. Bulk save now auto-applies existing cleanup rules to populate `display_title` silently. No UI changes needed. |
 | 53 | `display_title` Data Model | Added `display_title` column to expenses. Title cleanup writes to `display_title`, raw `title` stays immutable after insert. Classification/duplicate detection still uses raw title. Export supports both columns. Tooltip shows raw title on hover. |
 | 47 | Docs Sync Round 2 | CLAUDE.md: added 8 missing IPC commands, `ical` module, trait methods (`name`/`priority`/`extension`), grouped commands by domain. mdBook: dashboard "active budget", Claude Haiku 4.5, CLI clear fix, export source strings. |

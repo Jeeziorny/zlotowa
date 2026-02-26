@@ -4,6 +4,12 @@
   import ExportPanel from "./expense-list/ExportPanel.svelte";
   import DeleteConfirmModal from "./expense-list/DeleteConfirmModal.svelte";
   import BatchDeleteModal from "./expense-list/BatchDeleteModal.svelte";
+  import AddExpense from "./AddExpense.svelte";
+  import BulkUpload from "./BulkUpload.svelte";
+  import TitleCleanup from "./TitleCleanup.svelte";
+
+  // Sub-view: "list" | "add" | "bulk" | "cleanup"
+  let subView = $state("list");
 
   let expenses = $state([]);
   let totalCount = $state(0);
@@ -209,6 +215,24 @@
 </script>
 
 <div>
+  {#if subView !== "list"}
+    <button
+      onclick={() => { subView = "list"; fetchExpenses(); }}
+      class="text-gray-400 hover:text-emerald-400 text-sm mb-4 inline-flex items-center gap-1 transition-colors"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      Back to Expenses
+    </button>
+    {#if subView === "add"}
+      <AddExpense />
+    {:else if subView === "bulk"}
+      <BulkUpload />
+    {:else if subView === "cleanup"}
+      <TitleCleanup />
+    {/if}
+  {:else}
   <div class="flex items-center justify-between mb-4">
     <h2 class="text-2xl font-bold">Expenses</h2>
     <div class="flex gap-2">
@@ -221,6 +245,27 @@
           Delete {selected.size} selected
         </button>
       {/if}
+      <button
+        onclick={() => subView = "add"}
+        class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg
+               text-sm font-medium transition-colors"
+      >
+        + Add
+      </button>
+      <button
+        onclick={() => subView = "bulk"}
+        class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
+               text-sm font-medium transition-colors border border-gray-700"
+      >
+        Upload CSV
+      </button>
+      <button
+        onclick={() => subView = "cleanup"}
+        class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
+               text-sm font-medium transition-colors border border-gray-700"
+      >
+        Clean Titles
+      </button>
       <button
         onclick={() => { showExportModal = !showExportModal; }}
         class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
@@ -551,5 +596,6 @@
       ondelete={() => { confirmBatchDelete = false; fetchExpenses(); }}
       onclose={() => { confirmBatchDelete = false; }}
     />
+  {/if}
   {/if}
 </div>
