@@ -877,6 +877,33 @@ impl Database {
         Ok(count)
     }
 
+    /// Apply all title cleanup rules to a list of titles (pure computation, no DB writes).
+    /// Returns `Some(cleaned)` for titles that changed, `None` for those that didn't.
+    pub fn suggest_title_cleanups(&self, titles: &[String]) -> Result<Vec<Option<String>>, DbError> {
+        let rules = self.get_all_title_cleanup_rules()?;
+        if rules.is_empty() {
+            return Ok(vec![None; titles.len()]);
+        }
+
+        // Pre-compile all regexes once
+        let compiled: Vec<(regex::Regex, &str)> = rules
+            .iter()
+            .map(|r| Ok((Self::build_cleanup_regex(r)?, r.replacement.as_str())))
+            .collect::<Result<Vec<_>, DbError>>()?;
+
+        Ok(titles
+            .iter()
+            .map(|title| {
+                let mut current = title.clone();
+                for (re, replacement) in &compiled {
+                    current = re.replace_all(&current, *replacement).into_owned();
+                }
+                let current = Self::normalize_whitespace(&current);
+                if current != *title { Some(current) } else { None }
+            })
+            .collect())
+    }
+
     /// Check if a category name already exists (in either rules or expenses).
     pub fn category_exists(&self, name: &str) -> Result<bool, DbError> {
         let count: i64 = self.conn.query_row(
@@ -1831,6 +1858,53 @@ mod tests {
 
         let rule = make_regex_rule("[invalid", "");
         assert!(db.preview_title_cleanup(&rule).is_err());
+    }
+
+    // ── suggest_title_cleanups tests ──
+
+    #[test]
+    fn suggest_cleanups_no_rules_returns_all_none() {
+        let db = test_db();
+        let titles = vec!["Coffee Shop".into(), "Gas Station".into()];
+        let result = db.suggest_title_cleanups(&titles).unwrap();
+        assert_eq!(result, vec![None, None]);
+    }
+
+    #[test]
+    fn suggest_cleanups_single_rule_matches_subset() {
+        let db = test_db();
+        db.insert_title_cleanup_rule(&make_literal_rule("NOISE ", "")).unwrap();
+
+        let titles = vec![
+            "NOISE Coffee Shop".into(),
+            "Gas Station".into(),
+            "NOISE Pharmacy".into(),
+        ];
+        let result = db.suggest_title_cleanups(&titles).unwrap();
+        assert_eq!(result[0], Some("Coffee Shop".into()));
+        assert_eq!(result[1], None);
+        assert_eq!(result[2], Some("Pharmacy".into()));
+    }
+
+    #[test]
+    fn suggest_cleanups_multiple_rules_compose() {
+        let db = test_db();
+        db.insert_title_cleanup_rule(&make_literal_rule("CARD ", "")).unwrap();
+        db.insert_title_cleanup_rule(&make_literal_rule("PURCHASE ", "")).unwrap();
+
+        let titles = vec!["CARD PURCHASE Coffee".into(), "CARD Tea".into(), "Milk".into()];
+        let result = db.suggest_title_cleanups(&titles).unwrap();
+        assert_eq!(result[0], Some("Coffee".into()));
+        assert_eq!(result[1], Some("Tea".into()));
+        assert_eq!(result[2], None);
+    }
+
+    #[test]
+    fn suggest_cleanups_empty_titles_returns_empty() {
+        let db = test_db();
+        db.insert_title_cleanup_rule(&make_literal_rule("X", "")).unwrap();
+        let result = db.suggest_title_cleanups(&[]).unwrap();
+        assert!(result.is_empty());
     }
 
     // ── Budget tests ──

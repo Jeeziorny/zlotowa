@@ -408,11 +408,18 @@ fn bulk_save_expenses(
     expenses: Vec<BulkSaveExpense>,
     filename: Option<String>,
 ) -> Result<usize, String> {
-    // Build all expenses first (pure computation, no lock needed), fail fast on invalid data
+    // Collect titles and compute display_title suggestions from cleanup rules
+    let titles: Vec<String> = expenses.iter().map(|e| e.title.clone()).collect();
+    let suggestions = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.suggest_title_cleanups(&titles).map_err(|e| e.to_string())?
+    };
+
+    // Build all expenses (pure computation, no lock needed), fail fast on invalid data
     let mut to_insert: Vec<Expense> = Vec::with_capacity(expenses.len());
     let mut rules: Vec<ClassificationRule> = Vec::new();
 
-    for e in &expenses {
+    for (i, e) in expenses.iter().enumerate() {
         let date = parse_date(&e.date)?;
         let source = e
             .source
@@ -423,7 +430,7 @@ fn bulk_save_expenses(
         to_insert.push(Expense {
             id: None,
             title: e.title.clone(),
-            display_title: None,
+            display_title: suggestions[i].clone(),
             amount: e.amount,
             date,
             category: e.category.clone(),
@@ -441,7 +448,7 @@ fn bulk_save_expenses(
         }
     }
 
-    // Acquire lock only for the DB insert
+    // Acquire lock for the DB insert
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let saved = db
         .insert_expenses_bulk(&to_insert, filename.as_deref(), &rules)
