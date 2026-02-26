@@ -7,6 +7,10 @@
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (extract modals), Settings (LLM + uploads). |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
+| 51 | Sidebar Restructuring & Expenses Page Consolidation | Reduce nav to 3 items + Settings. Logo → Dashboard. Consolidate Add/Upload/Cleanup as sub-views within Expenses page. |
+| 52 | Title Cleanup Relocation | Move Title Cleanup into Expenses tab as a sub-view (depends on 51). |
+| 53 | `display_name` Data Model | Add `display_name` column to expenses. Title cleanup writes to `display_name`, raw `title` stays immutable for classification. |
+| 54 | Auto-suggest Title Cleanup During Bulk Upload | Run cleanup rules during import review, inline accept/reject suggestions, populate `display_name` on save (depends on 53). |
 
 ## DONE
 
