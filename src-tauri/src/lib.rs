@@ -4,7 +4,7 @@ use accountant_core::llm::{create_provider, LlmConfig};
 use accountant_core::models::{
     BudgetCategory, BudgetCategoryStatus, BudgetStatus, CalendarEvent, CategoryAverage,
     CategoryStats, ClassificationRule, ClassificationSource, Expense, ExpenseQuery,
-    ExpenseQueryResult, ParsedExpense, PlannedExpense, TitleCleanupRule, UploadBatch, Budget,
+    ExpenseQueryResult, ParsedExpense, TitleCleanupRule, UploadBatch, Budget,
 };
 use accountant_core::parsers::{self, ColumnMapping};
 use serde::{Deserialize, Serialize};
@@ -578,14 +578,6 @@ pub struct BudgetCategoryInput {
     pub amount: f64,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct PlannedExpenseInput {
-    pub title: String,
-    pub amount: f64,
-    pub date: String,
-    pub category: Option<String>,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BudgetSummaryOutput {
     pub budget_id: i64,
@@ -593,18 +585,15 @@ pub struct BudgetSummaryOutput {
     pub end_date: String,
     pub categories: Vec<BudgetCategoryStatus>,
     pub budget_categories: Vec<BudgetCategoryInput>,
-    pub planned_expenses: Vec<PlannedExpense>,
     pub calendar_events: Vec<CalendarEvent>,
     pub total_budgeted: f64,
     pub total_spent: f64,
-    pub total_planned: f64,
     pub total_calendar: f64,
 }
 
 fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryOutput, String> {
     let budget_id = budget.id.ok_or_else(|| "Budget has no id".to_string())?;
     let budget_cats = db.get_budget_categories(budget_id).map_err(|e| e.to_string())?;
-    let planned = db.get_planned_expenses(budget_id).map_err(|e| e.to_string())?;
     let cal_events = db.get_calendar_events(budget_id).map_err(|e| e.to_string())?;
     let actual_expenses = db
         .get_expenses_for_date_range(budget.start_date, budget.end_date)
@@ -638,7 +627,6 @@ fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryO
         });
     }
 
-    let total_planned: f64 = planned.iter().map(|p| p.amount).sum();
     let total_calendar: f64 = cal_events.iter().filter_map(|e| e.amount).sum();
 
     let budget_category_inputs: Vec<BudgetCategoryInput> = budget_cats
@@ -655,11 +643,9 @@ fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryO
         end_date: budget.end_date.to_string(),
         categories: category_statuses,
         budget_categories: budget_category_inputs,
-        planned_expenses: planned,
         calendar_events: cal_events,
         total_budgeted,
         total_spent,
-        total_planned,
         total_calendar,
     })
 }
@@ -686,6 +672,12 @@ fn get_active_budget_summary(
         Some(budget) => Ok(Some(build_budget_summary(&db, &budget)?)),
         None => Ok(None),
     }
+}
+
+#[tauri::command]
+fn list_budgets(state: State<AppState>) -> Result<Vec<Budget>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_all_budgets().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -735,33 +727,6 @@ fn save_budget_categories(
 
     db.save_budget_categories(budget_id, &cats)
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn add_planned_expense(
-    state: State<AppState>,
-    budget_id: i64,
-    expense: PlannedExpenseInput,
-) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let date = parse_date(&expense.date)?;
-
-    let pe = PlannedExpense {
-        id: None,
-        budget_id,
-        title: expense.title,
-        amount: expense.amount,
-        date,
-        category: expense.category,
-    };
-
-    db.insert_planned_expense(&pe).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn delete_planned_expense(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_planned_expense(id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1561,7 +1526,6 @@ mod tests {
         let today = chrono::Local::now().date_naive();
         let start = today.format("%Y-%m-%d").to_string();
         let end = (today + chrono::Duration::days(30)).format("%Y-%m-%d").to_string();
-        let mid = (today + chrono::Duration::days(15)).format("%Y-%m-%d").to_string();
 
         // Create budget
         let state: State<AppState> = app.state();
@@ -1595,29 +1559,6 @@ mod tests {
         let state: State<AppState> = app.state();
         let active = get_active_budget_summary(state).unwrap();
         assert!(active.is_some());
-
-        // Add planned expense
-        let state: State<AppState> = app.state();
-        let pe_id = add_planned_expense(
-            state,
-            budget_id,
-            PlannedExpenseInput {
-                title: "Groceries".into(),
-                amount: 50.0,
-                date: mid,
-                category: Some("Food".into()),
-            },
-        )
-        .unwrap();
-
-        let state: State<AppState> = app.state();
-        let summary = get_budget_summary(state, budget_id).unwrap();
-        assert_eq!(summary.total_planned, 50.0);
-        assert_eq!(summary.planned_expenses.len(), 1);
-
-        // Delete planned expense
-        let state: State<AppState> = app.state();
-        delete_planned_expense(state, pe_id).unwrap();
 
         // Update categories
         let state: State<AppState> = app.state();
@@ -1668,6 +1609,25 @@ mod tests {
         let state: State<AppState> = app.state();
         let overlaps = check_budget_overlap(state, "2024-02-01".into(), "2024-02-28".into()).unwrap();
         assert!(!overlaps);
+    }
+
+    #[test]
+    fn list_budgets_returns_sorted() {
+        let app = app();
+        // Create budgets out of order
+        let state: State<AppState> = app.state();
+        create_budget(state, "2024-06-01".into(), "2024-06-30".into(), vec![]).unwrap();
+        let state: State<AppState> = app.state();
+        create_budget(state, "2024-01-01".into(), "2024-01-31".into(), vec![]).unwrap();
+        let state: State<AppState> = app.state();
+        create_budget(state, "2024-03-01".into(), "2024-03-31".into(), vec![]).unwrap();
+
+        let state: State<AppState> = app.state();
+        let budgets = list_budgets(state).unwrap();
+        assert_eq!(budgets.len(), 3);
+        assert_eq!(budgets[0].start_date.to_string(), "2024-01-01");
+        assert_eq!(budgets[1].start_date.to_string(), "2024-03-01");
+        assert_eq!(budgets[2].start_date.to_string(), "2024-06-01");
     }
 
     #[test]
@@ -1970,10 +1930,9 @@ pub fn run() {
             save_active_widgets,
             get_budget_summary,
             get_active_budget_summary,
+            list_budgets,
             create_budget,
             save_budget_categories,
-            add_planned_expense,
-            delete_planned_expense,
             delete_budget,
             import_calendar_events,
             update_calendar_event_amount,

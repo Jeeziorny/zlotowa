@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import DatePicker from "../DatePicker.svelte";
 
   let { allCategories, averages, oncreated } = $props();
 
@@ -14,6 +15,7 @@
   // Step 2: Category budgets
   let categoryBudgets = $state([]);
   let showAddCategories = $state(false);
+  let categoryError = $state("");
 
   // Step 3: Creating
   let creating = $state(false);
@@ -72,6 +74,19 @@
     ),
   );
 
+  function validateCategories() {
+    categoryError = "";
+    const invalid = categoryBudgets.filter(
+      (c) => !c.amount || Number(c.amount) <= 0,
+    );
+    if (invalid.length > 0) {
+      const names = invalid.map((c) => c.category).join(", ");
+      categoryError = `Every category needs an amount > 0. Fix: ${names}`;
+      return false;
+    }
+    return true;
+  }
+
   async function createBudget() {
     creating = true;
     createError = "";
@@ -126,23 +141,23 @@
       <div class="flex gap-4 items-end">
         <div>
           <label for="budget-start-date" class="text-xs text-gray-500 block mb-1">Start Date</label>
-          <input
-            id="budget-start-date"
-            type="date"
-            bind:value={startDate}
-            class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm
-                   text-gray-100 focus:outline-none focus:border-emerald-500"
-          />
+          <div class="w-48">
+            <DatePicker
+              value={startDate}
+              onchange={(d) => (startDate = d)}
+              id="budget-start-date"
+            />
+          </div>
         </div>
         <div>
           <label for="budget-end-date" class="text-xs text-gray-500 block mb-1">End Date</label>
-          <input
-            id="budget-end-date"
-            type="date"
-            bind:value={endDate}
-            class="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm
-                   text-gray-100 focus:outline-none focus:border-emerald-500"
-          />
+          <div class="w-48">
+            <DatePicker
+              value={endDate}
+              onchange={(d) => (endDate = d)}
+              id="budget-end-date"
+            />
+          </div>
         </div>
         <button
           onclick={validateDates}
@@ -235,13 +250,19 @@
           Back
         </button>
         <button
-          onclick={() => (step = 3)}
+          onclick={() => {
+            if (validateCategories()) step = 3;
+          }}
           class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500
                  text-white text-sm font-medium rounded-lg transition-colors"
         >
           Next
         </button>
       </div>
+
+      {#if categoryError}
+        <div class="text-sm text-red-400 mt-3">{categoryError}</div>
+      {/if}
     </div>
   {:else if step === 3}
     <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">

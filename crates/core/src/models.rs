@@ -128,16 +128,6 @@ pub struct BudgetCategory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlannedExpense {
-    pub id: Option<i64>,
-    pub budget_id: i64,
-    pub title: String,
-    pub amount: f64,
-    pub date: NaiveDate,
-    pub category: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalendarEvent {
     pub id: Option<i64>,
     pub budget_id: i64,

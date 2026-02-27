@@ -1,7 +1,6 @@
 use crate::models::{
     Budget, BudgetCategory, CalendarEvent, CategoryAverage, CategoryStats, ClassificationRule,
-    ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, PlannedExpense,
-    TitleCleanupRule, UploadBatch,
+    ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, TitleCleanupRule, UploadBatch,
 };
 use rusqlite::{params, Connection, Result as SqlResult};
 use std::path::PathBuf;
@@ -108,15 +107,6 @@ impl Database {
                 UNIQUE(budget_id, category)
             );
 
-            CREATE TABLE IF NOT EXISTS planned_expenses (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                budget_id INTEGER NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
-                title     TEXT NOT NULL,
-                amount    REAL NOT NULL,
-                date      TEXT NOT NULL,
-                category  TEXT
-            );
-
             CREATE TABLE IF NOT EXISTS calendar_events (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 budget_id   INTEGER NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
@@ -201,9 +191,12 @@ impl Database {
         // FK indices on budget child tables (idempotent)
         self.conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_budget_categories_budget_id ON budget_categories(budget_id);
-             CREATE INDEX IF NOT EXISTS idx_planned_expenses_budget_id ON planned_expenses(budget_id);
              CREATE INDEX IF NOT EXISTS idx_calendar_events_budget_id ON calendar_events(budget_id);",
         )?;
+
+        // Drop planned_expenses table (feature removed)
+        self.conn
+            .execute_batch("DROP TABLE IF EXISTS planned_expenses;")?;
 
         // UNIQUE constraint on title_cleanup_rules(pattern, replacement, is_regex)
         // Ignoring error in case existing data has duplicates
@@ -1049,6 +1042,38 @@ impl Database {
         }
     }
 
+    pub fn get_all_budgets(&self) -> Result<Vec<Budget>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, start_date, end_date FROM budgets ORDER BY start_date",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let start_str: String = row.get(1)?;
+            let end_str: String = row.get(2)?;
+            let start_date =
+                chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d").map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+            let end_date =
+                chrono::NaiveDate::parse_from_str(&end_str, "%Y-%m-%d").map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+            Ok(Budget {
+                id: Some(row.get(0)?),
+                start_date,
+                end_date,
+            })
+        })?;
+        rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
+    }
+
     pub fn check_budget_overlap(
         &self,
         start_date: chrono::NaiveDate,
@@ -1066,10 +1091,6 @@ impl Database {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(
             "DELETE FROM calendar_events WHERE budget_id = ?1",
-            params![id],
-        )?;
-        tx.execute(
-            "DELETE FROM planned_expenses WHERE budget_id = ?1",
             params![id],
         )?;
         tx.execute(
@@ -1156,55 +1177,6 @@ impl Database {
                 budget_id: row.get(1)?,
                 category: row.get(2)?,
                 amount: row.get(3)?,
-            })
-        })?;
-        rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
-    }
-
-    pub fn insert_planned_expense(&self, expense: &PlannedExpense) -> Result<i64, DbError> {
-        self.conn.execute(
-            "INSERT INTO planned_expenses (budget_id, title, amount, date, category) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                expense.budget_id,
-                expense.title,
-                expense.amount,
-                expense.date.to_string(),
-                expense.category,
-            ],
-        )?;
-        Ok(self.conn.last_insert_rowid())
-    }
-
-    pub fn delete_planned_expense(&self, id: i64) -> Result<(), DbError> {
-        let rows = self.conn.execute(
-            "DELETE FROM planned_expenses WHERE id = ?1",
-            params![id],
-        )?;
-        if rows == 0 {
-            return Err(DbError::InvalidData(format!(
-                "Planned expense with id {} not found",
-                id
-            )));
-        }
-        Ok(())
-    }
-
-    pub fn get_planned_expenses(&self, budget_id: i64) -> Result<Vec<PlannedExpense>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, budget_id, title, amount, date, category FROM planned_expenses WHERE budget_id = ?1 ORDER BY date",
-        )?;
-        let rows = stmt.query_map(params![budget_id], |row| {
-            let date_str: String = row.get(4)?;
-            let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
-            })?;
-            Ok(PlannedExpense {
-                id: Some(row.get(0)?),
-                budget_id: row.get(1)?,
-                title: row.get(2)?,
-                amount: row.get(3)?,
-                date,
-                category: row.get(5)?,
             })
         })?;
         rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
@@ -1909,7 +1881,7 @@ mod tests {
 
     // ── Budget tests ──
 
-    use crate::models::{BudgetCategory, CalendarEvent, PlannedExpense};
+    use crate::models::{BudgetCategory, CalendarEvent};
 
     fn create_test_budget(db: &Database, start: &str, end: &str) -> i64 {
         db.create_budget(
@@ -1985,6 +1957,28 @@ mod tests {
     }
 
     #[test]
+    fn budget_get_all_sorted() {
+        let db = test_db();
+        // Insert out of order
+        create_test_budget(&db, "2026-06-01", "2026-06-30");
+        create_test_budget(&db, "2026-01-01", "2026-01-31");
+        create_test_budget(&db, "2026-03-01", "2026-03-31");
+
+        let all = db.get_all_budgets().unwrap();
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].start_date.to_string(), "2026-01-01");
+        assert_eq!(all[1].start_date.to_string(), "2026-03-01");
+        assert_eq!(all[2].start_date.to_string(), "2026-06-01");
+    }
+
+    #[test]
+    fn budget_get_all_empty() {
+        let db = test_db();
+        let all = db.get_all_budgets().unwrap();
+        assert!(all.is_empty());
+    }
+
+    #[test]
     fn budget_categories_save_and_retrieve() {
         let db = test_db();
         let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
@@ -2020,39 +2014,6 @@ mod tests {
         assert_eq!(loaded.len(), 2);
         let food = loaded.iter().find(|c| c.category == "Food").unwrap();
         assert_eq!(food.amount, 800.0);
-    }
-
-    #[test]
-    fn planned_expenses_crud() {
-        let db = test_db();
-        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
-
-        let pe1 = PlannedExpense {
-            id: None, budget_id: bid, title: "Dentist".into(), amount: 300.0,
-            date: NaiveDate::from_ymd_opt(2026, 3, 12).unwrap(), category: Some("Health".into()),
-        };
-        let pe2 = PlannedExpense {
-            id: None, budget_id: bid, title: "Car service".into(), amount: 500.0,
-            date: NaiveDate::from_ymd_opt(2026, 3, 20).unwrap(), category: None,
-        };
-        let id1 = db.insert_planned_expense(&pe1).unwrap();
-        let id2 = db.insert_planned_expense(&pe2).unwrap();
-
-        let loaded = db.get_planned_expenses(bid).unwrap();
-        assert_eq!(loaded.len(), 2);
-        assert_eq!(loaded[0].title, "Dentist");
-        assert_eq!(loaded[1].title, "Car service");
-
-        db.delete_planned_expense(id1).unwrap();
-        let loaded = db.get_planned_expenses(bid).unwrap();
-        assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].id, Some(id2));
-    }
-
-    #[test]
-    fn planned_expense_delete_nonexistent_fails() {
-        let db = test_db();
-        assert!(db.delete_planned_expense(9999).is_err());
     }
 
     #[test]
@@ -2136,11 +2097,6 @@ mod tests {
             BudgetCategory { id: None, budget_id: bid, category: "Food".into(), amount: 500.0 },
         ];
         db.save_budget_categories(bid, &cats).unwrap();
-        let pe = PlannedExpense {
-            id: None, budget_id: bid, title: "Dentist".into(), amount: 300.0,
-            date: NaiveDate::from_ymd_opt(2026, 3, 12).unwrap(), category: None,
-        };
-        db.insert_planned_expense(&pe).unwrap();
         let events = vec![CalendarEvent {
             id: None, budget_id: bid, summary: "Event".into(),
             description: None, location: None,
@@ -2153,7 +2109,6 @@ mod tests {
 
         assert!(db.get_budget_by_id(bid).unwrap().is_none());
         assert_eq!(db.get_budget_categories(bid).unwrap().len(), 0);
-        assert_eq!(db.get_planned_expenses(bid).unwrap().len(), 0);
         assert_eq!(db.get_calendar_events(bid).unwrap().len(), 0);
     }
 

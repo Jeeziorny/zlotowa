@@ -7,11 +7,9 @@
     endDate,
     categories,
     budgetCategories,
-    plannedExpenses,
     calendarEvents,
     totalBudgeted,
     totalSpent,
-    totalPlanned,
     totalCalendar,
     allCategories,
     onrefresh,
@@ -22,15 +20,7 @@
     categories.filter((c) => c.status === "over").length,
   );
 
-  // Planned expense form
-  let peTitle = $state("");
-  let peAmount = $state("");
-  let peDate = $state("");
-  let peCategory = $state("");
-  let peError = $state("");
-
   // Error states
-  let deletePlannedError = $state("");
   let deleteBudgetError = $state("");
 
   // Budget category editing
@@ -72,42 +62,6 @@
     if (status === "over") return "bg-red-500";
     if (status === "approaching") return "bg-amber-500";
     return "bg-emerald-500";
-  }
-
-  async function addPlannedExpense() {
-    peError = "";
-    if (!peTitle.trim() || !peAmount || !peDate) {
-      peError = "Title, amount, and date are required.";
-      return;
-    }
-    try {
-      await invoke("add_planned_expense", {
-        budgetId,
-        expense: {
-          title: peTitle.trim(),
-          amount: Number(peAmount),
-          date: peDate,
-          category: peCategory || null,
-        },
-      });
-      peTitle = "";
-      peAmount = "";
-      peDate = "";
-      peCategory = "";
-      onrefresh();
-    } catch (err) {
-      peError = `${err}`;
-    }
-  }
-
-  async function deletePlanned(id) {
-    deletePlannedError = "";
-    try {
-      await invoke("delete_planned_expense", { id });
-      onrefresh();
-    } catch (err) {
-      deletePlannedError = `Failed to delete: ${err}`;
-    }
   }
 
   let deleting = $state(false);
@@ -301,116 +255,6 @@
     </div>
   {/if}
 
-  <!-- Planned expenses -->
-  <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-    <h3 class="text-lg font-semibold mb-3">Planned Expenses</h3>
-
-    {#if plannedExpenses.length > 0}
-      <table class="w-full text-sm mb-4">
-        <thead>
-          <tr class="border-b border-gray-700 text-gray-400">
-            <th class="text-left px-3 py-2">Date</th>
-            <th class="text-left px-3 py-2">Title</th>
-            <th class="text-right px-3 py-2">Amount</th>
-            <th class="text-left px-3 py-2">Category</th>
-            <th class="px-3 py-2"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each plannedExpenses as pe}
-            <tr class="border-b border-gray-800/50">
-              <td class="px-3 py-2 text-gray-400">{pe.date}</td>
-              <td class="px-3 py-2 text-gray-300">{pe.title}</td>
-              <td class="px-3 py-2 text-right font-mono"
-                >{pe.amount.toFixed(2)}</td
-              >
-              <td class="px-3 py-2 text-gray-400">{pe.category || "—"}</td>
-              <td class="px-3 py-2 text-right">
-                <button
-                  onclick={() => deletePlanned(pe.id)}
-                  class="text-gray-500 hover:text-red-400 text-xs transition-colors"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-      <div
-        class="mb-4 pt-2 border-t border-gray-800 flex justify-between text-sm font-medium"
-      >
-        <span class="text-gray-300">Total planned</span>
-        <span class="font-mono">{totalPlanned.toFixed(2)}</span>
-      </div>
-    {/if}
-
-    {#if deletePlannedError}
-      <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deletePlannedError}</div>
-    {/if}
-
-    <!-- Add planned expense form -->
-    <div class="flex flex-wrap gap-2 items-end">
-      <div>
-        <label for="pe-title" class="text-xs text-gray-500 block mb-1">Title</label>
-        <input
-          id="pe-title"
-          type="text"
-          bind:value={peTitle}
-          placeholder="e.g. Dentist"
-          class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm
-                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 w-40"
-        />
-      </div>
-      <div>
-        <label for="pe-amount" class="text-xs text-gray-500 block mb-1">Amount</label>
-        <input
-          id="pe-amount"
-          type="number"
-          step="0.01"
-          bind:value={peAmount}
-          placeholder="0.00"
-          class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm
-                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 w-24 font-mono"
-        />
-      </div>
-      <div>
-        <label for="pe-date" class="text-xs text-gray-500 block mb-1">Date</label>
-        <input
-          id="pe-date"
-          type="date"
-          bind:value={peDate}
-          class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm
-                 text-gray-100 focus:outline-none focus:border-emerald-500"
-        />
-      </div>
-      <div>
-        <label for="pe-category" class="text-xs text-gray-500 block mb-1">Category</label>
-        <select
-          id="pe-category"
-          bind:value={peCategory}
-          class="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm
-                 text-gray-100 focus:outline-none focus:border-emerald-500"
-        >
-          <option value="">None</option>
-          {#each allCategories as cat}
-            <option value={cat}>{cat}</option>
-          {/each}
-        </select>
-      </div>
-      <button
-        onclick={addPlannedExpense}
-        class="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm
-               rounded-lg transition-colors border border-gray-700"
-      >
-        + Add
-      </button>
-    </div>
-
-    {#if peError}
-      <div class="text-sm text-red-400 mt-2">{peError}</div>
-    {/if}
-  </div>
 </div>
 
 <!-- Delete budget confirmation modal -->

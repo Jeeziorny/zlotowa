@@ -7,9 +7,12 @@
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (extract modals), Settings (LLM + uploads). |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 55 | Budget Planning Overhaul | DatePicker in budget creator, category amount validation, remove planned expenses (full cleanup), calendar tab disabled, budget navigation (prev/next arrows). |
 | 56 | Calendar Suggestions | Simplified calendar: upload ICS during budget creation, in-memory analysis, display suggestions correlating events with expense history. No DB storage. Depends on 55. |
 ## DONE
+
+| # | Task | Summary |
+|---|------|---------|
+| 55 | Budget Planning Overhaul | DatePicker in budget creator, category amount validation, remove planned expenses (full cleanup), calendar tab disabled, budget navigation (prev/next arrows). |
 
 | # | Task | Summary |
 |---|------|---------|

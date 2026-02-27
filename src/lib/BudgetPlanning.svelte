@@ -9,25 +9,68 @@
   let loading = $state(true);
 
   // Data
-  let activeBudget = $state(null);
+  let allBudgets = $state([]);
+  let currentIndex = $state(-1);
+  let currentSummary = $state(null);
   let averages = $state([]);
   let allCategories = $state([]);
 
   async function loadData() {
     loading = true;
     try {
-      const [s, avgs, cats] = await Promise.all([
-        invoke("get_active_budget_summary"),
+      const [budgets, avgs, cats] = await Promise.all([
+        invoke("list_budgets"),
         invoke("get_category_averages"),
         invoke("get_categories"),
       ]);
-      activeBudget = s;
+      allBudgets = budgets;
       averages = avgs;
       allCategories = cats;
+
+      if (allBudgets.length > 0) {
+        // Find active budget (date range contains today)
+        const today = new Date().toISOString().slice(0, 10);
+        const activeIdx = allBudgets.findIndex(
+          (b) => b.start_date <= today && b.end_date >= today,
+        );
+        currentIndex = activeIdx >= 0 ? activeIdx : allBudgets.length - 1;
+        await loadSummary();
+      } else {
+        currentIndex = -1;
+        currentSummary = null;
+      }
     } catch (err) {
       console.error("Failed to load budget data:", err);
     }
     loading = false;
+  }
+
+  async function loadSummary() {
+    if (currentIndex < 0 || currentIndex >= allBudgets.length) {
+      currentSummary = null;
+      return;
+    }
+    try {
+      const budgetId = allBudgets[currentIndex].id;
+      currentSummary = await invoke("get_budget_summary", { budgetId });
+    } catch (err) {
+      console.error("Failed to load budget summary:", err);
+      currentSummary = null;
+    }
+  }
+
+  async function goPrev() {
+    if (currentIndex > 0) {
+      currentIndex--;
+      await loadSummary();
+    }
+  }
+
+  async function goNext() {
+    if (currentIndex < allBudgets.length - 1) {
+      currentIndex++;
+      await loadSummary();
+    }
   }
 
   onMount(loadData);
@@ -37,14 +80,14 @@
     loadData();
   }
 
+  async function onRefresh() {
+    await loadData();
+  }
+
   let tabs = $derived([
     { id: "overview", label: "Overview" },
-    {
-      id: "create",
-      label: "Create +",
-      disabled: !!activeBudget,
-    },
-    { id: "calendar", label: "Calendar", disabled: !activeBudget },
+    { id: "create", label: "Create +" },
+    { id: "calendar", label: "Calendar", disabled: true },
   ]);
 </script>
 
@@ -80,27 +123,54 @@
       Loading...
     </div>
   {:else if activeTab === "overview"}
-    {#if activeBudget}
+    {#if currentSummary}
+      <!-- Budget navigation -->
+      {#if allBudgets.length > 1}
+        <div class="flex items-center justify-center gap-4 mb-4">
+          <button
+            onclick={goPrev}
+            disabled={currentIndex <= 0}
+            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {currentIndex <= 0
+              ? 'text-gray-600 cursor-not-allowed'
+              : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}"
+          >
+            &larr; Prev
+          </button>
+          <span class="text-sm text-gray-400 font-mono">
+            {currentIndex + 1} / {allBudgets.length}
+          </span>
+          <button
+            onclick={goNext}
+            disabled={currentIndex >= allBudgets.length - 1}
+            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {currentIndex >= allBudgets.length - 1
+              ? 'text-gray-600 cursor-not-allowed'
+              : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}"
+          >
+            Next &rarr;
+          </button>
+        </div>
+      {/if}
+
       <BudgetOverview
-        budgetId={activeBudget.budget_id}
-        startDate={activeBudget.start_date}
-        endDate={activeBudget.end_date}
-        categories={activeBudget.categories}
-        budgetCategories={activeBudget.budget_categories}
-        plannedExpenses={activeBudget.planned_expenses}
-        calendarEvents={activeBudget.calendar_events}
-        totalBudgeted={activeBudget.total_budgeted}
-        totalSpent={activeBudget.total_spent}
-        totalPlanned={activeBudget.total_planned}
-        totalCalendar={activeBudget.total_calendar}
+        budgetId={currentSummary.budget_id}
+        startDate={currentSummary.start_date}
+        endDate={currentSummary.end_date}
+        categories={currentSummary.categories}
+        budgetCategories={currentSummary.budget_categories}
+        calendarEvents={currentSummary.calendar_events}
+        totalBudgeted={currentSummary.total_budgeted}
+        totalSpent={currentSummary.total_spent}
+        totalCalendar={currentSummary.total_calendar}
         {allCategories}
-        onrefresh={loadData}
+        onrefresh={onRefresh}
       />
     {:else}
       <div
         class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center"
       >
-        <p class="text-gray-400 mb-2">No active budget.</p>
+        <p class="text-gray-400 mb-2">No budgets yet.</p>
         <p class="text-sm text-gray-600">
           Go to the
           <button
@@ -108,39 +178,24 @@
             class="text-emerald-400 hover:text-emerald-300 underline"
             >Create +</button
           >
-          tab to set up a budget for the current period.
+          tab to set up a budget.
         </p>
       </div>
     {/if}
   {:else if activeTab === "create"}
-    {#if activeBudget}
-      <div
-        class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center"
-      >
-        <p class="text-gray-400">
-          An active budget already exists ({activeBudget.start_date} —
-          {activeBudget.end_date}).
-        </p>
-        <p class="text-sm text-gray-600 mt-2">
-          Delete the current budget from the Overview tab before creating a new
-          one.
-        </p>
-      </div>
-    {:else}
-      <BudgetCreator
-        {allCategories}
-        {averages}
-        oncreated={onBudgetCreated}
-      />
-    {/if}
+    <BudgetCreator
+      {allCategories}
+      {averages}
+      oncreated={onBudgetCreated}
+    />
   {:else if activeTab === "calendar"}
-    {#if activeBudget}
+    {#if currentSummary}
       <CalendarEvents
-        budgetId={activeBudget.budget_id}
-        startDate={activeBudget.start_date}
-        endDate={activeBudget.end_date}
-        events={activeBudget.calendar_events}
-        onrefresh={loadData}
+        budgetId={currentSummary.budget_id}
+        startDate={currentSummary.start_date}
+        endDate={currentSummary.end_date}
+        events={currentSummary.calendar_events}
+        onrefresh={onRefresh}
       />
     {:else}
       <div
