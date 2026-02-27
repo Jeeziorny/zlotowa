@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import BudgetCreator from "./budget/BudgetCreator.svelte";
-  import CalendarEvents from "./budget/CalendarEvents.svelte";
   import BudgetOverview from "./budget/BudgetOverview.svelte";
 
   let activeTab = $state("overview");
@@ -87,7 +86,6 @@
   let tabs = $derived([
     { id: "overview", label: "Overview" },
     { id: "create", label: "Create +" },
-    { id: "calendar", label: "Calendar", disabled: true },
   ]);
 </script>
 
@@ -100,14 +98,9 @@
   <div class="flex gap-1 mb-6">
     {#each tabs as tab}
       <button
-        onclick={() => {
-          if (!tab.disabled) activeTab = tab.id;
-        }}
-        disabled={tab.disabled}
+        onclick={() => (activeTab = tab.id)}
         class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
-          {tab.disabled
-          ? 'text-gray-600 cursor-not-allowed'
-          : activeTab === tab.id
+          {activeTab === tab.id
             ? 'bg-gray-800 text-emerald-400'
             : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}"
       >
@@ -159,10 +152,8 @@
         endDate={currentSummary.end_date}
         categories={currentSummary.categories}
         budgetCategories={currentSummary.budget_categories}
-        calendarEvents={currentSummary.calendar_events}
         totalBudgeted={currentSummary.total_budgeted}
         totalSpent={currentSummary.total_spent}
-        totalCalendar={currentSummary.total_calendar}
         {allCategories}
         onrefresh={onRefresh}
       />
@@ -188,21 +179,5 @@
       {averages}
       oncreated={onBudgetCreated}
     />
-  {:else if activeTab === "calendar"}
-    {#if currentSummary}
-      <CalendarEvents
-        budgetId={currentSummary.budget_id}
-        startDate={currentSummary.start_date}
-        endDate={currentSummary.end_date}
-        events={currentSummary.calendar_events}
-        onrefresh={onRefresh}
-      />
-    {:else}
-      <div
-        class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center"
-      >
-        <p class="text-gray-400">Create a budget first to import calendar events.</p>
-      </div>
-    {/if}
   {/if}
 </div>

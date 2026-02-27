@@ -52,14 +52,13 @@ CSV → Parser (auto-detect format) → ParsedExpense → Classification Pipelin
 
 All commands in `src-tauri/src/lib.rs`. State is `AppState { db: Mutex<Database> }`.
 
-40 commands grouped by domain:
+39 commands grouped by domain:
 - **Expenses:** `get_expenses`, `query_expenses`, `add_expense`, `update_expense`, `delete_expense`, `delete_expenses`, `suggest_category`, `export_expenses`
 - **Bulk upload:** `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_upload_batches`, `delete_batch`
 - **Categories:** `get_categories`, `get_category_stats`, `create_category`, `rename_category`, `delete_category`, `merge_categories`, `get_category_averages`
 - **LLM:** `get/save/validate/clear_llm_config`
 - **Title cleanup:** `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`
-- **Budgets:** `get_budget_summary`, `get_active_budget_summary`, `list_budgets`, `create_budget`, `save_budget_categories`, `delete_budget`, `check_budget_overlap`
-- **Calendar:** `import_calendar_events`, `update_calendar_event_amount`
+- **Budgets:** `get_budget_summary`, `get_active_budget_summary`, `list_budgets`, `create_budget`, `save_budget_categories`, `delete_budget`, `check_budget_overlap`, `parse_calendar_events`
 - **Widgets:** `get/save_active_widgets`
 
 Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/core`.
@@ -68,7 +67,7 @@ Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/co
 
 SQLite at `~/Library/Application Support/4ccountant/4ccountant.db` (macOS). Schema auto-created via `migrate()`.
 
-Tables: `expenses` (has optional `batch_id` FK), `classification_rules` (regex pattern → category), `title_cleanup_rules` (find/replace rules for title noise), `config` (key-value for LLM settings, widget state), `budgets` (start_date/end_date date-range, no overlap allowed), `budget_categories` (per-category limits), `calendar_events` (imported iCal events, optional `amount` column), `upload_batches` (filename, timestamp, count for bulk upload undo).
+Tables: `expenses` (has optional `batch_id` FK), `classification_rules` (regex pattern → category), `title_cleanup_rules` (find/replace rules for title noise), `config` (key-value for LLM settings, widget state), `budgets` (start_date/end_date date-range, no overlap allowed), `budget_categories` (per-category limits), `upload_batches` (filename, timestamp, count for bulk upload undo).
 
 Duplicate detection on `(title, amount, date)` tuple. Bulk inserts use transactions.
 

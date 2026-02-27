@@ -1,8 +1,9 @@
 use accountant_core::classifiers::{classify_pipeline, Classifier, RegexClassifier};
 use accountant_core::db::Database;
 use accountant_core::llm::{create_provider, LlmConfig};
+use accountant_core::ical::ParsedCalendarEvent;
 use accountant_core::models::{
-    BudgetCategory, BudgetCategoryStatus, BudgetStatus, CalendarEvent, CategoryAverage,
+    BudgetCategory, BudgetCategoryStatus, BudgetStatus, CategoryAverage,
     CategoryStats, ClassificationRule, ClassificationSource, Expense, ExpenseQuery,
     ExpenseQueryResult, ParsedExpense, TitleCleanupRule, UploadBatch, Budget,
 };
@@ -585,16 +586,13 @@ pub struct BudgetSummaryOutput {
     pub end_date: String,
     pub categories: Vec<BudgetCategoryStatus>,
     pub budget_categories: Vec<BudgetCategoryInput>,
-    pub calendar_events: Vec<CalendarEvent>,
     pub total_budgeted: f64,
     pub total_spent: f64,
-    pub total_calendar: f64,
 }
 
 fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryOutput, String> {
     let budget_id = budget.id.ok_or_else(|| "Budget has no id".to_string())?;
     let budget_cats = db.get_budget_categories(budget_id).map_err(|e| e.to_string())?;
-    let cal_events = db.get_calendar_events(budget_id).map_err(|e| e.to_string())?;
     let actual_expenses = db
         .get_expenses_for_date_range(budget.start_date, budget.end_date)
         .map_err(|e| e.to_string())?;
@@ -627,8 +625,6 @@ fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryO
         });
     }
 
-    let total_calendar: f64 = cal_events.iter().filter_map(|e| e.amount).sum();
-
     let budget_category_inputs: Vec<BudgetCategoryInput> = budget_cats
         .iter()
         .map(|bc| BudgetCategoryInput {
@@ -643,10 +639,8 @@ fn build_budget_summary(db: &Database, budget: &Budget) -> Result<BudgetSummaryO
         end_date: budget.end_date.to_string(),
         categories: category_statuses,
         budget_categories: budget_category_inputs,
-        calendar_events: cal_events,
         total_budgeted,
         total_spent,
-        total_calendar,
     })
 }
 
@@ -736,53 +730,18 @@ fn delete_budget(state: State<AppState>, id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn import_calendar_events(
-    state: State<AppState>,
-    budget_id: i64,
+fn parse_calendar_events(
     ics_content: String,
-) -> Result<usize, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let budget = db
-        .get_budget_by_id(budget_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Budget with id {} not found", budget_id))?;
-
+    start_date: String,
+    end_date: String,
+) -> Result<Vec<ParsedCalendarEvent>, String> {
+    let start = parse_date(&start_date)?;
+    let end = parse_date(&end_date)?;
     let all_events =
         accountant_core::ical::parse_ics(&ics_content).map_err(|e| e.to_string())?;
-    let filtered = accountant_core::ical::filter_events_by_date_range(
-        &all_events,
-        budget.start_date,
-        budget.end_date,
-    );
-
-    let cal_events: Vec<CalendarEvent> = filtered
-        .into_iter()
-        .map(|e| CalendarEvent {
-            id: None,
-            budget_id,
-            summary: e.summary,
-            description: e.description,
-            location: e.location,
-            start_date: e.start_date,
-            end_date: e.end_date,
-            all_day: e.all_day,
-            amount: None,
-        })
-        .collect();
-
-    db.save_calendar_events(budget_id, &cal_events)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn update_calendar_event_amount(
-    state: State<AppState>,
-    event_id: i64,
-    amount: Option<f64>,
-) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.update_calendar_event_amount(event_id, amount)
-        .map_err(|e| e.to_string())
+    Ok(accountant_core::ical::filter_events_by_date_range(
+        &all_events, start, end,
+    ))
 }
 
 #[tauri::command]
@@ -1667,56 +1626,6 @@ mod tests {
         assert_eq!(summary.categories[0].status, BudgetStatus::Approaching); // 85/100 = 0.85
     }
 
-    // ── Calendar Events ──
-
-    #[test]
-    fn import_calendar_events_and_update_amount() {
-        let app = app();
-        let state: State<AppState> = app.state();
-        let budget_id = create_budget(state, "2024-01-01".into(), "2024-01-31".into(), vec![]).unwrap();
-
-        let ics = "BEGIN:VCALENDAR\r\n\
-BEGIN:VEVENT\r\n\
-DTSTART:20240115\r\n\
-DTEND:20240116\r\n\
-SUMMARY:Dentist\r\n\
-END:VEVENT\r\n\
-BEGIN:VEVENT\r\n\
-DTSTART:20240601\r\n\
-DTEND:20240602\r\n\
-SUMMARY:Out of range\r\n\
-END:VEVENT\r\n\
-END:VCALENDAR";
-
-        let state: State<AppState> = app.state();
-        let count = import_calendar_events(state, budget_id, ics.into()).unwrap();
-        assert_eq!(count, 1); // only the Jan event
-
-        let state: State<AppState> = app.state();
-        let summary = get_budget_summary(state, budget_id).unwrap();
-        assert_eq!(summary.calendar_events.len(), 1);
-        assert_eq!(summary.calendar_events[0].summary, "Dentist");
-        assert_eq!(summary.calendar_events[0].amount, None);
-
-        // Update amount
-        let event_id = summary.calendar_events[0].id.unwrap();
-        let state: State<AppState> = app.state();
-        update_calendar_event_amount(state, event_id, Some(150.0)).unwrap();
-
-        let state: State<AppState> = app.state();
-        let summary = get_budget_summary(state, budget_id).unwrap();
-        assert_eq!(summary.calendar_events[0].amount, Some(150.0));
-        assert_eq!(summary.total_calendar, 150.0);
-    }
-
-    #[test]
-    fn import_calendar_nonexistent_budget() {
-        let app = app();
-        let state: State<AppState> = app.state();
-        let err = import_calendar_events(state, 99999, "BEGIN:VCALENDAR\r\nEND:VCALENDAR".into()).unwrap_err();
-        assert!(err.contains("not found"));
-    }
-
     // ── Category Averages ──
 
     #[test]
@@ -1934,8 +1843,7 @@ pub fn run() {
             create_budget,
             save_budget_categories,
             delete_budget,
-            import_calendar_events,
-            update_calendar_event_amount,
+            parse_calendar_events,
             check_budget_overlap,
             get_category_averages,
             get_title_cleanup_rules,

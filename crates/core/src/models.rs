@@ -127,19 +127,6 @@ pub struct BudgetCategory {
     pub amount: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CalendarEvent {
-    pub id: Option<i64>,
-    pub budget_id: i64,
-    pub summary: String,
-    pub description: Option<String>,
-    pub location: Option<String>,
-    pub start_date: NaiveDate,
-    pub end_date: Option<NaiveDate>,
-    pub all_day: bool,
-    pub amount: Option<f64>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum BudgetStatus {
     #[serde(rename = "over")]

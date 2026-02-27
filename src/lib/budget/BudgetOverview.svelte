@@ -7,10 +7,8 @@
     endDate,
     categories,
     budgetCategories,
-    calendarEvents,
     totalBudgeted,
     totalSpent,
-    totalCalendar,
     allCategories,
     onrefresh,
   } = $props();
@@ -79,9 +77,6 @@
     deleting = false;
   }
 
-  let calendarEventsWithAmounts = $derived(
-    calendarEvents.filter((e) => e.amount != null && e.amount > 0),
-  );
 </script>
 
 <div class="space-y-6">
@@ -227,33 +222,6 @@
     {/if}
   </div>
 
-  <!-- Calendar amounts summary -->
-  {#if calendarEventsWithAmounts.length > 0}
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-      <h3 class="text-lg font-semibold mb-3">Calendar Costs</h3>
-      <div class="space-y-2">
-        {#each calendarEventsWithAmounts as event}
-          <div class="flex justify-between text-sm">
-            <span class="text-gray-300">
-              {event.summary}
-              <span class="text-xs text-gray-500 ml-1"
-                >({event.start_date})</span
-              >
-            </span>
-            <span class="text-gray-400 font-mono"
-              >{event.amount.toFixed(2)}</span
-            >
-          </div>
-        {/each}
-      </div>
-      <div
-        class="mt-3 pt-3 border-t border-gray-800 flex justify-between text-sm font-medium"
-      >
-        <span class="text-gray-300">Total calendar costs</span>
-        <span class="font-mono">{totalCalendar.toFixed(2)}</span>
-      </div>
-    </div>
-  {/if}
 
 </div>
 

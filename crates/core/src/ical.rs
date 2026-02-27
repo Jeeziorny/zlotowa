@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use ical::parser::ical::component::IcalCalendar;
 use ical::IcalParser;
+use serde::{Deserialize, Serialize};
 use std::io::BufReader;
 use thiserror::Error;
 
@@ -10,7 +11,7 @@ pub enum IcalError {
     ParseError(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedCalendarEvent {
     pub summary: String,
     pub description: Option<String>,

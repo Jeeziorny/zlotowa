@@ -1,5 +1,5 @@
 use crate::models::{
-    Budget, BudgetCategory, CalendarEvent, CategoryAverage, CategoryStats, ClassificationRule,
+    Budget, BudgetCategory, CategoryAverage, CategoryStats, ClassificationRule,
     ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, TitleCleanupRule, UploadBatch,
 };
 use rusqlite::{params, Connection, Result as SqlResult};
@@ -107,17 +107,6 @@ impl Database {
                 UNIQUE(budget_id, category)
             );
 
-            CREATE TABLE IF NOT EXISTS calendar_events (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                budget_id   INTEGER NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
-                summary     TEXT NOT NULL,
-                description TEXT,
-                location    TEXT,
-                start_date  TEXT NOT NULL,
-                end_date    TEXT,
-                all_day     INTEGER NOT NULL DEFAULT 0
-            );
-
             PRAGMA foreign_keys = ON;
             ",
         )?;
@@ -178,11 +167,6 @@ impl Database {
             migration_result?;
         }
 
-        // Calendar events amount column (idempotent ALTER, ignore error)
-        let _ = self
-            .conn
-            .execute_batch("ALTER TABLE calendar_events ADD COLUMN amount REAL;");
-
         // display_title column for cleaned titles (idempotent ALTER, ignore error)
         let _ = self
             .conn
@@ -190,13 +174,16 @@ impl Database {
 
         // FK indices on budget child tables (idempotent)
         self.conn.execute_batch(
-            "CREATE INDEX IF NOT EXISTS idx_budget_categories_budget_id ON budget_categories(budget_id);
-             CREATE INDEX IF NOT EXISTS idx_calendar_events_budget_id ON calendar_events(budget_id);",
+            "CREATE INDEX IF NOT EXISTS idx_budget_categories_budget_id ON budget_categories(budget_id);",
         )?;
 
         // Drop planned_expenses table (feature removed)
         self.conn
             .execute_batch("DROP TABLE IF EXISTS planned_expenses;")?;
+
+        // Drop calendar_events table (feature simplified — events are now parsed in-memory)
+        self.conn
+            .execute_batch("DROP TABLE IF EXISTS calendar_events;")?;
 
         // UNIQUE constraint on title_cleanup_rules(pattern, replacement, is_regex)
         // Ignoring error in case existing data has duplicates
@@ -1090,10 +1077,6 @@ impl Database {
     pub fn delete_budget(&self, id: i64) -> Result<(), DbError> {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(
-            "DELETE FROM calendar_events WHERE budget_id = ?1",
-            params![id],
-        )?;
-        tx.execute(
             "DELETE FROM budget_categories WHERE budget_id = ?1",
             params![id],
         )?;
@@ -1180,83 +1163,6 @@ impl Database {
             })
         })?;
         rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
-    }
-
-    pub fn save_calendar_events(
-        &self,
-        budget_id: i64,
-        events: &[CalendarEvent],
-    ) -> Result<usize, DbError> {
-        let tx = self.conn.unchecked_transaction()?;
-        tx.execute(
-            "DELETE FROM calendar_events WHERE budget_id = ?1",
-            params![budget_id],
-        )?;
-        let mut count = 0;
-        for event in events {
-            tx.execute(
-                "INSERT INTO calendar_events (budget_id, summary, description, location, start_date, end_date, all_day, amount)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![
-                    budget_id,
-                    event.summary,
-                    event.description,
-                    event.location,
-                    event.start_date.to_string(),
-                    event.end_date.map(|d| d.to_string()),
-                    event.all_day as i32,
-                    event.amount,
-                ],
-            )?;
-            count += 1;
-        }
-        tx.commit()?;
-        Ok(count)
-    }
-
-    pub fn get_calendar_events(&self, budget_id: i64) -> Result<Vec<CalendarEvent>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, budget_id, summary, description, location, start_date, end_date, all_day, amount
-             FROM calendar_events WHERE budget_id = ?1 ORDER BY start_date",
-        )?;
-        let rows = stmt.query_map(params![budget_id], |row| {
-            let start_str: String = row.get(5)?;
-            let start_date = chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d").map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
-            })?;
-            let end_str: Option<String> = row.get(6)?;
-            let end_date = end_str.and_then(|s| chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok());
-            Ok(CalendarEvent {
-                id: Some(row.get(0)?),
-                budget_id: row.get(1)?,
-                summary: row.get(2)?,
-                description: row.get(3)?,
-                location: row.get(4)?,
-                start_date,
-                end_date,
-                all_day: row.get::<_, i32>(7)? != 0,
-                amount: row.get(8)?,
-            })
-        })?;
-        rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
-    }
-
-    pub fn update_calendar_event_amount(
-        &self,
-        event_id: i64,
-        amount: Option<f64>,
-    ) -> Result<(), DbError> {
-        let rows = self.conn.execute(
-            "UPDATE calendar_events SET amount = ?1 WHERE id = ?2",
-            params![amount, event_id],
-        )?;
-        if rows == 0 {
-            return Err(DbError::InvalidData(format!(
-                "Calendar event with id {} not found",
-                event_id
-            )));
-        }
-        Ok(())
     }
 
     pub fn get_expenses_for_date_range(
@@ -1881,7 +1787,7 @@ mod tests {
 
     // ── Budget tests ──
 
-    use crate::models::{BudgetCategory, CalendarEvent};
+    use crate::models::BudgetCategory;
 
     fn create_test_budget(db: &Database, start: &str, end: &str) -> i64 {
         db.create_budget(
@@ -2017,79 +1923,6 @@ mod tests {
     }
 
     #[test]
-    fn calendar_events_save_and_replace() {
-        let db = test_db();
-        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
-
-        let events1: Vec<CalendarEvent> = (1..=5).map(|i| CalendarEvent {
-            id: None, budget_id: bid, summary: format!("Event {}", i),
-            description: None, location: None,
-            start_date: NaiveDate::from_ymd_opt(2026, 3, i).unwrap(),
-            end_date: None, all_day: false, amount: None,
-        }).collect();
-        let count = db.save_calendar_events(bid, &events1).unwrap();
-        assert_eq!(count, 5);
-        assert_eq!(db.get_calendar_events(bid).unwrap().len(), 5);
-
-        // Re-save with fewer events replaces
-        let events2: Vec<CalendarEvent> = (1..=3).map(|i| CalendarEvent {
-            id: None, budget_id: bid, summary: format!("New Event {}", i),
-            description: None, location: None,
-            start_date: NaiveDate::from_ymd_opt(2026, 3, i).unwrap(),
-            end_date: None, all_day: true, amount: Some(50.0),
-        }).collect();
-        let count = db.save_calendar_events(bid, &events2).unwrap();
-        assert_eq!(count, 3);
-
-        let loaded = db.get_calendar_events(bid).unwrap();
-        assert_eq!(loaded.len(), 3);
-        assert!(loaded[0].all_day);
-        assert_eq!(loaded[0].amount, Some(50.0));
-    }
-
-    #[test]
-    fn calendar_event_amount_update() {
-        let db = test_db();
-        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
-        let events = vec![CalendarEvent {
-            id: None, budget_id: bid, summary: "Dentist".into(),
-            description: None, location: None,
-            start_date: NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(),
-            end_date: None, all_day: false, amount: None,
-        }];
-        db.save_calendar_events(bid, &events).unwrap();
-
-        let loaded = db.get_calendar_events(bid).unwrap();
-        assert_eq!(loaded[0].amount, None);
-
-        let event_id = loaded[0].id.unwrap();
-        db.update_calendar_event_amount(event_id, Some(150.0)).unwrap();
-
-        let loaded = db.get_calendar_events(bid).unwrap();
-        assert_eq!(loaded[0].amount, Some(150.0));
-
-        // Clear amount
-        db.update_calendar_event_amount(event_id, None).unwrap();
-        let loaded = db.get_calendar_events(bid).unwrap();
-        assert_eq!(loaded[0].amount, None);
-    }
-
-    #[test]
-    fn calendar_event_amount_null_default() {
-        let db = test_db();
-        let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
-        let events = vec![CalendarEvent {
-            id: None, budget_id: bid, summary: "Event".into(),
-            description: None, location: None,
-            start_date: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
-            end_date: None, all_day: false, amount: None,
-        }];
-        db.save_calendar_events(bid, &events).unwrap();
-        let loaded = db.get_calendar_events(bid).unwrap();
-        assert_eq!(loaded[0].amount, None);
-    }
-
-    #[test]
     fn budget_delete_cascades() {
         let db = test_db();
         let bid = create_test_budget(&db, "2026-03-01", "2026-03-31");
@@ -2097,19 +1930,11 @@ mod tests {
             BudgetCategory { id: None, budget_id: bid, category: "Food".into(), amount: 500.0 },
         ];
         db.save_budget_categories(bid, &cats).unwrap();
-        let events = vec![CalendarEvent {
-            id: None, budget_id: bid, summary: "Event".into(),
-            description: None, location: None,
-            start_date: NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(),
-            end_date: None, all_day: false, amount: None,
-        }];
-        db.save_calendar_events(bid, &events).unwrap();
 
         db.delete_budget(bid).unwrap();
 
         assert!(db.get_budget_by_id(bid).unwrap().is_none());
         assert_eq!(db.get_budget_categories(bid).unwrap().len(), 0);
-        assert_eq!(db.get_calendar_events(bid).unwrap().len(), 0);
     }
 
     #[test]

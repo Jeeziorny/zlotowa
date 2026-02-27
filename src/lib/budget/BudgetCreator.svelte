@@ -12,10 +12,17 @@
   let dateError = $state("");
   let checking = $state(false);
 
+  // Calendar events (optional, parsed from ICS in step 1)
+  let calendarEvents = $state([]);
+  let icsFile = $state(null);
+  let icsLoading = $state(false);
+  let icsMsg = $state("");
+
   // Step 2: Category budgets
   let categoryBudgets = $state([]);
   let showAddCategories = $state(false);
   let categoryError = $state("");
+  let showEvents = $state(false);
 
   // Step 3: Creating
   let creating = $state(false);
@@ -24,6 +31,52 @@
   function getAverage(category) {
     const avg = averages.find((a) => a.category === category);
     return avg ? avg.average : 0;
+  }
+
+  async function parseIcsFile(file) {
+    if (!startDate || !endDate) {
+      icsMsg = "Set start and end dates first.";
+      return;
+    }
+    icsLoading = true;
+    icsMsg = "";
+    try {
+      const text = await file.text();
+      const events = await invoke("parse_calendar_events", {
+        icsContent: text,
+        startDate,
+        endDate,
+      });
+      calendarEvents = events.sort((a, b) =>
+        a.start_date.localeCompare(b.start_date),
+      );
+      icsMsg = `${calendarEvents.length} event${calendarEvents.length !== 1 ? "s" : ""} found`;
+    } catch (err) {
+      icsMsg = `Error: ${err}`;
+      calendarEvents = [];
+    }
+    icsLoading = false;
+  }
+
+  function handleFileDrop(event) {
+    event.preventDefault();
+    const files = event.dataTransfer?.files;
+    if (files?.length > 0) {
+      icsFile = files[0];
+      parseIcsFile(files[0]);
+    }
+  }
+
+  function handleFileSelect(event) {
+    const f = event.target.files?.[0];
+    if (f) {
+      icsFile = f;
+      parseIcsFile(f);
+    }
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault();
   }
 
   async function validateDates() {
@@ -171,8 +224,85 @@
       {#if dateError}
         <div class="text-sm text-red-400 mt-3">{dateError}</div>
       {/if}
+
+      <!-- Optional ICS upload -->
+      <div class="mt-6 pt-5 border-t border-gray-800">
+        <p class="text-sm text-gray-400 mb-3">
+          Optionally upload an .ics calendar file to see upcoming events while setting budgets.
+        </p>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          ondrop={handleFileDrop}
+          ondragover={handleDragOver}
+          onkeydown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.currentTarget.querySelector("input[type=file]")?.click();
+            }
+          }}
+          role="button"
+          tabindex="0"
+          aria-label="Upload iCal file"
+          class="border border-dashed border-gray-700 rounded-lg p-4 text-center
+                 hover:border-emerald-500/50 transition-colors cursor-pointer"
+        >
+          {#if icsLoading}
+            <p class="text-gray-400 text-sm">Parsing...</p>
+          {:else if icsFile}
+            <p class="text-emerald-400 text-sm">{icsFile.name}</p>
+          {:else}
+            <p class="text-gray-500 text-sm">Drag & drop .ics file or
+              <label class="text-emerald-400 hover:text-emerald-300 cursor-pointer underline">
+                browse
+                <input
+                  type="file"
+                  accept=".ics,.ical"
+                  onchange={handleFileSelect}
+                  class="hidden"
+                />
+              </label>
+            </p>
+          {/if}
+        </div>
+        {#if icsMsg}
+          <div class="text-xs mt-2 {icsMsg.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}">
+            {icsMsg}
+          </div>
+        {/if}
+      </div>
     </div>
   {:else if step === 2}
+    <!-- Upcoming events panel (if ICS was uploaded) -->
+    {#if calendarEvents.length > 0}
+      <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-800">
+        <button
+          onclick={() => (showEvents = !showEvents)}
+          class="flex items-center justify-between w-full text-sm text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          <span>
+            Upcoming Events
+            <span class="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-300">
+              {calendarEvents.length}
+            </span>
+          </span>
+          <span class="text-xs">{showEvents ? "Hide" : "Show"}</span>
+        </button>
+        {#if showEvents}
+          <div class="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+            {#each calendarEvents as event}
+              <div class="flex gap-3 text-xs">
+                <span class="text-gray-500 font-mono whitespace-nowrap">{event.start_date}</span>
+                <span class="text-gray-300 truncate">{event.summary}</span>
+                {#if event.location}
+                  <span class="text-gray-600 truncate ml-auto">{event.location}</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
       <h3 class="text-lg font-semibold mb-4">Category Budgets</h3>
       <p class="text-sm text-gray-400 mb-4">
@@ -195,7 +325,7 @@
                 <td
                   class="px-3 py-2 text-right text-gray-500 font-mono text-xs"
                 >
-                  {cb.average > 0 ? cb.average.toFixed(2) : "—"}
+                  {cb.average > 0 ? cb.average.toFixed(2) : "\u2014"}
                 </td>
                 <td class="px-3 py-2 text-right">
                   <input
