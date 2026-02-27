@@ -8,6 +8,7 @@
   let expenses = $state([]);
   let activeWidgetIds = $state([]);
   let showPicker = $state(false);
+  let editing = $state(false);
   let loaded = $state(false);
 
   let activeWidgets = $derived(
@@ -39,7 +40,7 @@
 
   async function addWidget(id) {
     activeWidgetIds = [...activeWidgetIds, id];
-    showPicker = false;
+    if (inactiveWidgets.length <= 1) showPicker = false;
     await persist();
   }
 
@@ -69,13 +70,25 @@
 <div>
   <div class="flex items-center justify-between mb-6">
     <h2 class="text-2xl font-bold">Dashboard</h2>
-    <button
-      onclick={() => (showPicker = !showPicker)}
-      class="px-4 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300
-             rounded-lg transition-colors"
-    >
-      {showPicker ? "Close" : "+ Add Widget"}
-    </button>
+    <div class="flex items-center gap-3">
+      {#if editing}
+        <button
+          onclick={() => (showPicker = !showPicker)}
+          class="px-4 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300
+                 rounded-lg transition-colors"
+        >
+          {showPicker ? "Close picker" : "+ Add Widget"}
+        </button>
+      {/if}
+      <button
+        onclick={() => { editing = !editing; if (!editing) showPicker = false; }}
+        class="px-4 py-2 text-sm rounded-lg transition-colors {editing
+          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+          : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}"
+      >
+        {editing ? "Done" : "Edit dashboard"}
+      </button>
+    </div>
   </div>
 
   <!-- Widget picker -->
@@ -108,40 +121,42 @@
       <p class="text-sm">Add an expense or do a bulk upload to get started.</p>
     </div>
   {:else if loaded}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
       {#each activeWidgets as widget, i (widget.id)}
         <div class={widget.size === "full" ? "md:col-span-2" : ""}>
-          <!-- Widget toolbar -->
-          <div class="flex items-center justify-end gap-1 mb-1">
-            <button
-              onclick={() => moveWidget(i, -1)}
-              disabled={i === 0}
-              class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
-                     disabled:opacity-30 disabled:hover:text-gray-500"
-              title="Move left"
-              aria-label="Move {widget.name} left"
-            >
-              ←
-            </button>
-            <button
-              onclick={() => moveWidget(i, 1)}
-              disabled={i === activeWidgets.length - 1}
-              class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
-                     disabled:opacity-30 disabled:hover:text-gray-500"
-              title="Move right"
-              aria-label="Move {widget.name} right"
-            >
-              →
-            </button>
-            <button
-              onclick={() => removeWidget(widget.id)}
-              class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-red-400"
-              title="Remove widget"
-              aria-label="Remove {widget.name}"
-            >
-              ×
-            </button>
-          </div>
+          {#if editing}
+            <!-- Widget toolbar -->
+            <div class="flex items-center justify-end gap-1 mb-1">
+              <button
+                onclick={() => moveWidget(i, -1)}
+                disabled={i === 0}
+                class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
+                       disabled:opacity-30 disabled:hover:text-gray-500"
+                title="Move left"
+                aria-label="Move {widget.name} left"
+              >
+                ←
+              </button>
+              <button
+                onclick={() => moveWidget(i, 1)}
+                disabled={i === activeWidgets.length - 1}
+                class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
+                       disabled:opacity-30 disabled:hover:text-gray-500"
+                title="Move right"
+                aria-label="Move {widget.name} right"
+              >
+                →
+              </button>
+              <button
+                onclick={() => removeWidget(widget.id)}
+                class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-red-400"
+                title="Remove widget"
+                aria-label="Remove {widget.name}"
+              >
+                ×
+              </button>
+            </div>
+          {/if}
 
           <!-- Widget content -->
           <widget.component {expenses} {onnavigate} />
