@@ -2,9 +2,9 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::path::PathBuf;
 
+use accountant_core::backup::{create_backup, restore_backup};
 use accountant_core::classifiers::{classify_pipeline, RegexClassifier};
 use accountant_core::db::Database;
-use accountant_core::exporters::{CsvExporter, ExportColumns, Exporter};
 use accountant_core::llm::{create_provider, LlmConfig};
 use accountant_core::models::{ClassificationRule, ClassificationSource, Expense};
 use accountant_core::parsers::{self, ColumnMapping};
@@ -27,30 +27,17 @@ enum Commands {
         path: PathBuf,
     },
 
-    /// Insert a single expense
-    Insert {
-        /// Date (YYYY-MM-DD), defaults to today
-        #[arg(long)]
-        date: Option<String>,
-        /// Expense title
-        #[arg(long)]
-        title: Option<String>,
-        /// Amount
-        #[arg(long)]
-        amount: Option<f64>,
-        /// Category
-        #[arg(long)]
-        category: Option<String>,
+    /// Backup all data to a JSON file
+    Backup {
+        /// Output file path (default: 4ccountant-backup-YYYY-MM-DD_HH-MM-SS.json)
+        path: Option<PathBuf>,
     },
 
-    /// Export classified expenses
-    Export {
-        /// Optional path to grammar/config file defining export columns
-        grammar: Option<PathBuf>,
+    /// Restore data from a backup file
+    Restore {
+        /// Path to backup JSON file
+        path: PathBuf,
     },
-
-    /// Open the GUI dashboard
-    Dashboard,
 }
 
 fn open_db() -> Database {
@@ -135,78 +122,6 @@ fn cmd_llm_conf() {
         None => {
             println!("{}", "FAILED".red().bold());
             eprintln!("{}", "Unknown provider".red());
-        }
-    }
-}
-
-// ── Insert ──
-
-fn cmd_insert(date: Option<String>, title: Option<String>, amount: Option<f64>, category: Option<String>) {
-    let db = open_db();
-
-    let date_str = date.unwrap_or_else(|| {
-        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-        dialoguer::Input::<String>::new()
-            .with_prompt("Date")
-            .default(today)
-            .interact_text()
-            .unwrap_or_else(|_| std::process::exit(0))
-    });
-
-    let title_val = title.unwrap_or_else(|| {
-        dialoguer::Input::<String>::new()
-            .with_prompt("Title")
-            .interact_text()
-            .unwrap_or_else(|_| std::process::exit(0))
-    });
-
-    let amount_val = amount.unwrap_or_else(|| {
-        dialoguer::Input::<f64>::new()
-            .with_prompt("Amount")
-            .interact_text()
-            .unwrap_or_else(|_| std::process::exit(0))
-    });
-
-    let cat = category.unwrap_or_else(|| {
-        let categories = db.get_all_categories().unwrap_or_default();
-        if !categories.is_empty() {
-            println!("{} {}", "Known categories:".dimmed(), categories.join(", ").dimmed());
-        }
-        dialoguer::Input::<String>::new()
-            .with_prompt("Category (optional, press Enter to skip)")
-            .allow_empty(true)
-            .interact_text()
-            .unwrap_or_else(|_| std::process::exit(0))
-    });
-
-    let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
-        .unwrap_or_else(|e| {
-            eprintln!("{} Invalid date: {}", "Error:".red().bold(), e);
-            std::process::exit(1);
-        });
-
-    let category_opt = if cat.is_empty() { None } else { Some(cat.clone()) };
-
-    let expense = Expense {
-        id: None,
-        title: title_val.clone(),
-        display_title: None,
-        amount: amount_val,
-        date,
-        category: category_opt.clone(),
-        classification_source: Some(ClassificationSource::Manual),
-    };
-
-    match db.insert_expense(&expense) {
-        Ok(id) => {
-            println!("{} Expense #{} saved.", "OK".green().bold(), id);
-            if let Some(ref c) = category_opt {
-                let _ = db.insert_rule(&ClassificationRule::from_pattern(&title_val, c));
-            }
-        }
-        Err(e) => {
-            eprintln!("{} {}", "Error:".red().bold(), e);
-            std::process::exit(1);
         }
     }
 }
@@ -490,109 +405,108 @@ fn cmd_bulk_insert(path: PathBuf) {
     }
 }
 
-// ── Export ──
+// ── Backup ──
 
-fn cmd_export(grammar: Option<PathBuf>) {
+fn cmd_backup(path: Option<PathBuf>) {
     let db = open_db();
 
-    let columns = if let Some(ref path) = grammar {
-        let content = std::fs::read_to_string(path).unwrap_or_else(|e| {
-            eprintln!("{} Cannot read {}: {}", "Error:".red().bold(), path.display(), e);
-            std::process::exit(1);
-        });
-        let mut cols = ExportColumns {
-            date: false,
-            title: false,
-            display_title: false,
-            amount: false,
-            category: false,
-            classification_source: false,
-        };
-        for line in content.lines() {
-            match line.trim().to_lowercase().as_str() {
-                "date" => cols.date = true,
-                "title" => cols.title = true,
-                "display_title" => cols.display_title = true,
-                "amount" => cols.amount = true,
-                "category" => cols.category = true,
-                "source" | "classification_source" => cols.classification_source = true,
-                "" => {}
-                other => eprintln!("{} Unknown column: {}", "Warning:".yellow(), other),
-            }
-        }
-        cols
-    } else {
-        let items = vec!["date", "title", "display_title", "amount", "category", "source"];
-        let defaults = vec![true, true, false, true, true, false];
-        let selections = dialoguer::MultiSelect::new()
-            .with_prompt("Select columns to export")
-            .items(&items)
-            .defaults(&defaults)
-            .interact()
-            .unwrap_or_else(|_| std::process::exit(0));
+    let path = path.unwrap_or_else(|| {
+        let ts = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+        PathBuf::from(format!("4ccountant-backup-{}.json", ts))
+    });
 
-        ExportColumns {
-            date: selections.contains(&0),
-            title: selections.contains(&1),
-            display_title: selections.contains(&2),
-            amount: selections.contains(&3),
-            category: selections.contains(&4),
-            classification_source: selections.contains(&5),
-        }
-    };
-
-    let expenses = db.get_all_expenses().unwrap_or_else(|e| {
+    let backup = create_backup(&db).unwrap_or_else(|e| {
         eprintln!("{} {}", "Error:".red().bold(), e);
         std::process::exit(1);
     });
 
-    if expenses.is_empty() {
-        println!("{}", "No expenses to export.".dimmed());
+    let json = serde_json::to_string_pretty(&backup).unwrap_or_else(|e| {
+        eprintln!("{} {}", "Error:".red().bold(), e);
+        std::process::exit(1);
+    });
+
+    std::fs::write(&path, json).unwrap_or_else(|e| {
+        eprintln!("{} Cannot write {}: {}", "Error:".red().bold(), path.display(), e);
+        std::process::exit(1);
+    });
+
+    println!(
+        "{} Backup saved to {} ({} expenses, {} rules, {} cleanup rules, {} budgets)",
+        "OK".green().bold(),
+        path.display(),
+        backup.expenses.len(),
+        backup.classification_rules.len(),
+        backup.title_cleanup_rules.len(),
+        backup.budgets.len(),
+    );
+}
+
+// ── Restore ──
+
+fn cmd_restore(path: PathBuf) {
+    let db = open_db();
+
+    let content = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        eprintln!("{} Cannot read {}: {}", "Error:".red().bold(), path.display(), e);
+        std::process::exit(1);
+    });
+
+    let backup: accountant_core::backup::BackupData =
+        serde_json::from_str(&content).unwrap_or_else(|e| {
+            eprintln!("{} Invalid backup file: {}", "Error:".red().bold(), e);
+            std::process::exit(1);
+        });
+
+    println!(
+        "{} {} expenses, {} rules, {} cleanup rules, {} budgets",
+        "Backup contains:".dimmed(),
+        backup.expenses.len(),
+        backup.classification_rules.len(),
+        backup.title_cleanup_rules.len(),
+        backup.budgets.len(),
+    );
+
+    if !dialoguer::Confirm::new()
+        .with_prompt("Restore this backup?")
+        .default(true)
+        .interact()
+        .unwrap_or(false)
+    {
+        println!("{}", "Cancelled.".dimmed());
         return;
     }
 
-    let exporter = CsvExporter;
-    let data = exporter.export(&expenses, &columns).unwrap_or_else(|e| {
-        eprintln!("{} {}", "Export error:".red().bold(), e);
-        std::process::exit(1);
-    });
-
-    // Write to stdout
-    use std::io::Write;
-    std::io::stdout().write_all(&data).unwrap_or_else(|e| {
+    let summary = restore_backup(&db, &backup).unwrap_or_else(|e| {
         eprintln!("{} {}", "Error:".red().bold(), e);
         std::process::exit(1);
     });
 
-    eprintln!("{} Exported {} expenses.", "OK".green().bold(), expenses.len());
-}
+    let mut table = comfy_table::Table::new();
+    table.set_header(vec!["Data", "Inserted", "Skipped"]);
+    table.load_preset(comfy_table::presets::UTF8_BORDERS_ONLY);
+    table.add_row(vec![
+        "Expenses".to_string(),
+        summary.expenses_inserted.to_string(),
+        summary.expenses_skipped.to_string(),
+    ]);
+    table.add_row(vec![
+        "Classification rules".to_string(),
+        summary.rules_upserted.to_string(),
+        "-".to_string(),
+    ]);
+    table.add_row(vec![
+        "Title cleanup rules".to_string(),
+        summary.cleanup_rules_upserted.to_string(),
+        "-".to_string(),
+    ]);
+    table.add_row(vec![
+        "Budgets".to_string(),
+        summary.budgets_inserted.to_string(),
+        summary.budgets_skipped.to_string(),
+    ]);
 
-// ── Dashboard ──
-
-fn cmd_dashboard() {
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-
-    let candidates = [
-        exe_dir.as_ref().map(|d| d.join("accountant-app")),
-        exe_dir.as_ref().map(|d| d.join("4ccountant-app")),
-        Some(PathBuf::from("accountant-app")),
-    ];
-
-    for candidate in candidates.iter().flatten() {
-        if let Ok(mut child) = std::process::Command::new(candidate).spawn() {
-            println!("{} Dashboard launched.", "OK".green().bold());
-            let _ = child.wait();
-            return;
-        }
-    }
-
-    eprintln!(
-        "{} Could not find the GUI binary. Make sure it's built with 'cargo build -p accountant-app'.",
-        "Error:".red().bold()
-    );
-    std::process::exit(1);
+    println!("\n{}", table);
+    println!("{}", "Restore complete.".green().bold());
 }
 
 fn main() {
@@ -601,8 +515,7 @@ fn main() {
     match cli.command {
         Commands::LlmConf => cmd_llm_conf(),
         Commands::BulkInsert { path } => cmd_bulk_insert(path),
-        Commands::Insert { date, title, amount, category } => cmd_insert(date, title, amount, category),
-        Commands::Export { grammar } => cmd_export(grammar),
-        Commands::Dashboard => cmd_dashboard(),
+        Commands::Backup { path } => cmd_backup(path),
+        Commands::Restore { path } => cmd_restore(path),
     }
 }

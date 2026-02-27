@@ -1,6 +1,7 @@
 pub mod csv_parser;
 
 use crate::models::ParsedExpense;
+use log::info;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -37,12 +38,17 @@ pub trait Parser: Send + Sync {
 
 /// Find the best matching parser for the given input.
 pub fn detect_parser<'a>(input: &str, parsers: &'a [Box<dyn Parser>]) -> Option<&'a dyn Parser> {
-    parsers
+    let result = parsers
         .iter()
         .map(|p| (p.as_ref(), p.detect(input)))
         .filter(|(_, score)| *score > 0.3)
         .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|(p, _)| p)
+        .map(|(p, _)| p);
+    match &result {
+        Some(p) => info!("detect_parser: matched parser='{}'" , p.name()),
+        None => info!("detect_parser: no parser matched"),
+    }
+    result
 }
 
 /// Get all built-in parsers.

@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use ical::parser::ical::component::IcalCalendar;
 use ical::IcalParser;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::io::BufReader;
 use thiserror::Error;
@@ -72,16 +73,16 @@ pub fn parse_ics(input: &str) -> Result<Vec<ParsedCalendarEvent>, IcalError> {
             // Skip events without summary or start date
             let summary = match summary {
                 Some(s) if !s.trim().is_empty() => s,
-                _ => continue,
+                _ => { debug!("iCal: skipping event without summary"); continue; }
             };
             let dtstart_str = match dtstart {
                 Some(s) => s,
-                None => continue,
+                None => { debug!("iCal: skipping event '{}' — no DTSTART", summary); continue; }
             };
 
             let (start_date, all_day) = match parse_ical_date(&dtstart_str, &dtstart_params) {
                 Some(result) => result,
-                None => continue,
+                None => { debug!("iCal: skipping event '{}' — unparseable date '{}'", summary, dtstart_str); continue; }
             };
 
             let end_date = dtend
@@ -100,6 +101,7 @@ pub fn parse_ics(input: &str) -> Result<Vec<ParsedCalendarEvent>, IcalError> {
         }
     }
 
+    info!("iCal: parsed {} events", events.len());
     Ok(events)
 }
 
@@ -109,11 +111,13 @@ pub fn filter_events_by_date_range(
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Vec<ParsedCalendarEvent> {
-    events
+    let filtered: Vec<_> = events
         .iter()
         .filter(|e| e.start_date >= start_date && e.start_date <= end_date)
         .cloned()
-        .collect()
+        .collect();
+    info!("iCal: {}/{} events in date range {start_date} to {end_date}", filtered.len(), events.len());
+    filtered
 }
 
 /// Parse an iCal date/datetime string into a NaiveDate and all_day flag.

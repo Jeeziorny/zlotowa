@@ -1,6 +1,7 @@
 use super::{ColumnMapping, ParseError, Parser};
 use crate::models::ParsedExpense;
 use chrono::NaiveDate;
+use log::{debug, info, warn};
 
 pub struct CsvParser;
 
@@ -9,7 +10,7 @@ impl CsvParser {
         let first_lines: Vec<&str> = input.lines().take(5).collect();
         let delimiters = [',', ';', '\t', '|'];
 
-        delimiters
+        let result = delimiters
             .iter()
             .copied()
             .max_by_key(|&d| {
@@ -26,13 +27,16 @@ impl CsvParser {
                     return 0;
                 }
                 // Score = column count if consistent, 0 otherwise
-                if counts.iter().all(|&c| c == first) {
+                let score = if counts.iter().all(|&c| c == first) {
                     first
                 } else {
                     0
-                }
+                };
+                debug!("CSV delimiter '{d}': score={score}");
+                score
             })
-            .unwrap_or(',')
+            .unwrap_or(',');
+        result
     }
 
     fn split_csv_line(line: &str, delimiter: char) -> Vec<String> {
@@ -138,11 +142,9 @@ impl Parser for CsvParser {
 
             // Handle various number formats: "1,234.56", "1.234,56", "-123.45"
             let amount = parse_amount(amount_str).map_err(|_| {
-                ParseError::ParseFailed(format!(
-                    "Row {}: can't parse amount '{}'",
-                    i + 2,
-                    amount_str
-                ))
+                let msg = format!("Row {}: can't parse amount '{}'", i + 2, amount_str);
+                warn!("CSV parse error: {msg}");
+                ParseError::ParseFailed(msg)
             })?;
 
             let date_str = fields
@@ -152,12 +154,12 @@ impl Parser for CsvParser {
                 })?;
 
             let date = NaiveDate::parse_from_str(date_str, &mapping.date_format).map_err(|_| {
-                ParseError::ParseFailed(format!(
+                let msg = format!(
                     "Row {}: can't parse date '{}' with format '{}'",
-                    i + 2,
-                    date_str,
-                    mapping.date_format
-                ))
+                    i + 2, date_str, mapping.date_format
+                );
+                warn!("CSV parse error: {msg}");
+                ParseError::ParseFailed(msg)
             })?;
 
             expenses.push(ParsedExpense {
@@ -167,6 +169,7 @@ impl Parser for CsvParser {
             });
         }
 
+        info!("CSV parsed {} rows", expenses.len());
         Ok(expenses)
     }
 }

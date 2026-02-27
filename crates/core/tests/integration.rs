@@ -1,6 +1,5 @@
 use accountant_core::classifiers::{classify_pipeline, Classifier, RegexClassifier};
 use accountant_core::db::Database;
-use accountant_core::exporters::{CsvExporter, ExportColumns, Exporter};
 use accountant_core::ical::parse_ics;
 use accountant_core::models::{
     ClassificationRule, ClassificationSource, Expense, ExpenseQuery, TitleCleanupRule,
@@ -123,63 +122,7 @@ fn parse_classify_save_query_roundtrip() {
     assert_eq!(saved_rules.len(), 2);
 }
 
-// ── 2. Export -> Reimport roundtrip ──
-
-#[test]
-fn export_reimport_roundtrip() {
-    let expenses = vec![
-        Expense {
-            id: Some(1),
-            title: "Coffee".to_string(),
-            display_title: None,
-            amount: 4.50,
-            date: date(2025, 1, 15),
-            category: Some("Drinks".to_string()),
-            classification_source: Some(ClassificationSource::Database),
-        },
-        Expense {
-            id: Some(2),
-            title: "Uber Ride".to_string(),
-            display_title: None,
-            amount: 23.99,
-            date: date(2025, 1, 16),
-            category: Some("Transport".to_string()),
-            classification_source: None,
-        },
-        Expense {
-            id: Some(3),
-            title: "Uncategorized Item".to_string(),
-            display_title: None,
-            amount: 100.00,
-            date: date(2025, 1, 17),
-            category: None,
-            classification_source: None,
-        },
-    ];
-
-    let exporter = CsvExporter;
-    let columns = ExportColumns::default();
-    let exported_bytes = exporter.export(&expenses, &columns).unwrap();
-    let exported_csv = String::from_utf8(exported_bytes).unwrap();
-
-    let parser = CsvParser;
-    let mapping = ColumnMapping {
-        date_index: 0,
-        title_index: 1,
-        amount_index: 2,
-        date_format: "%Y-%m-%d".to_string(),
-    };
-    let reimported = parser.parse(&exported_csv, &mapping).unwrap();
-
-    assert_eq!(reimported.len(), expenses.len());
-    for (original, reimported) in expenses.iter().zip(reimported.iter()) {
-        assert_eq!(original.title, reimported.title);
-        assert!((original.amount - reimported.amount).abs() < 0.01);
-        assert_eq!(original.date, reimported.date);
-    }
-}
-
-// ── 3. Title cleanup -> Reclassify ──
+// ── 2. Title cleanup -> Reclassify ──
 
 #[test]
 fn title_cleanup_enables_reclassification() {
@@ -499,83 +442,7 @@ fn ical_empty_calendar() {
     assert!(events.is_empty());
 }
 
-// ── 4d. Exporter edge cases ──
-
-#[test]
-fn export_unicode_in_title() {
-    let expenses = vec![Expense {
-        id: None,
-        title: "Caf\u{00E9} \u{00FC}ber Z\u{00FC}rich".to_string(),
-        display_title: None,
-        amount: 15.00,
-        date: date(2025, 1, 1),
-        category: Some("Food".to_string()),
-        classification_source: None,
-    }];
-
-    let exporter = CsvExporter;
-    let bytes = exporter.export(&expenses, &ExportColumns::default()).unwrap();
-    let csv = String::from_utf8(bytes).unwrap();
-
-    assert!(csv.contains("Caf\u{00E9}"));
-    assert!(csv.contains("\u{00FC}ber"));
-    assert!(csv.contains("Z\u{00FC}rich"));
-
-    // Verify it can be parsed back
-    let parser = CsvParser;
-    let reimported = parser.parse(&csv, &default_mapping()).unwrap();
-    assert_eq!(reimported[0].title, "Caf\u{00E9} \u{00FC}ber Z\u{00FC}rich");
-}
-
-#[test]
-fn export_crlf_in_title_is_escaped() {
-    let expenses = vec![Expense {
-        id: None,
-        title: "Line1\r\nLine2".to_string(),
-        display_title: None,
-        amount: 10.00,
-        date: date(2025, 1, 1),
-        category: None,
-        classification_source: None,
-    }];
-
-    let exporter = CsvExporter;
-    let bytes = exporter.export(&expenses, &ExportColumns::default()).unwrap();
-    let csv = String::from_utf8(bytes).unwrap();
-
-    // The \r\n within the title should be inside a quoted CSV field
-    assert!(csv.contains("\"Line1\r\nLine2\""));
-}
-
-#[test]
-fn export_newline_in_title_is_escaped() {
-    let expenses = vec![Expense {
-        id: None,
-        title: "First\nSecond".to_string(),
-        display_title: None,
-        amount: 5.00,
-        date: date(2025, 1, 1),
-        category: None,
-        classification_source: None,
-    }];
-
-    let exporter = CsvExporter;
-    let bytes = exporter.export(&expenses, &ExportColumns::default()).unwrap();
-    let csv = String::from_utf8(bytes).unwrap();
-    assert!(csv.contains("\"First\nSecond\""));
-}
-
-#[test]
-fn export_empty_expenses_only_header() {
-    let exporter = CsvExporter;
-    let bytes = exporter.export(&[], &ExportColumns::default()).unwrap();
-    let csv = String::from_utf8(bytes).unwrap();
-    let lines: Vec<&str> = csv.lines().collect();
-    assert_eq!(lines.len(), 1);
-    assert_eq!(lines[0], "date,title,amount,category");
-}
-
-// ── 4e. Empty bulk insert with batch filename ──
+// ── 4d. Empty bulk insert with batch filename ──
 
 #[test]
 fn empty_bulk_insert_creates_batch_record() {

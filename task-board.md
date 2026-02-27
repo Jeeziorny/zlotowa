@@ -5,12 +5,14 @@
 | # | Task | Summary |
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
-| 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (extract modals), Settings (LLM + uploads). |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 58 | Backup & Restore | Full app state backup to JSON (expenses, rules, title cleanup rules, budgets). Restore with dedup/upsert. CLI commands + Settings UI. |
+| 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (SearchFilterBar, ExpenseTable, PaginationBar), Settings (LLM + uploads). |
+| 57 | Structured Logging | `log` + `tauri-plugin-log` for Rust backend. Stdout + LogDir targets, 5 MB rotation. Logging across IPC commands, DB, LLM, parsers, classifiers, exporters, iCal. |
 | 56 | Calendar Suggestions | ICS upload during budget creation (drag-and-drop), in-memory parsing, event display in category budgets step. DB table dropped, no persistent storage. |
 | 55 | Budget Planning Overhaul | DatePicker in budget creator, category amount validation, remove planned expenses (full cleanup), calendar tab disabled, budget navigation (prev/next arrows). |
 

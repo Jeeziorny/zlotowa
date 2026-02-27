@@ -1,4 +1,5 @@
 use crate::models::{ClassificationRule, ClassificationSource, ParsedExpense};
+use log::info;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -77,10 +78,11 @@ pub fn classify_pipeline(
     expenses: &[ParsedExpense],
     classifiers: &[Box<dyn Classifier>],
 ) -> Vec<(ParsedExpense, Option<ClassificationResult>)> {
+    info!("classify_pipeline: {} expenses, {} classifiers", expenses.len(), classifiers.len());
     let mut sorted: Vec<&Box<dyn Classifier>> = classifiers.iter().collect();
     sorted.sort_by_key(|c| c.priority());
 
-    expenses
+    let results: Vec<_> = expenses
         .iter()
         .map(|expense| {
             let result = sorted
@@ -88,7 +90,11 @@ pub fn classify_pipeline(
                 .find_map(|c| c.classify(expense).ok().flatten());
             (expense.clone(), result)
         })
-        .collect()
+        .collect();
+
+    let classified = results.iter().filter(|(_, r)| r.is_some()).count();
+    info!("classify_pipeline: {classified}/{} classified", results.len());
+    results
 }
 
 #[cfg(test)]

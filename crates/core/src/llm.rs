@@ -1,4 +1,5 @@
 use crate::models::ParsedExpense;
+use log::{debug, info, warn};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -152,8 +153,11 @@ fn http_classify(
         return Ok(vec![]);
     }
     if check_api_key && config.api_key.is_empty() {
+        warn!("LLM classify called with empty API key");
         return Err(LlmError::InvalidApiKey);
     }
+
+    info!("LLM HTTP classify: provider='{}' expenses={}", config.provider, expenses.len());
 
     let client = reqwest::blocking::Client::new();
     let mut req = client.post(url);
@@ -163,12 +167,16 @@ fn http_classify(
     let resp = req
         .json(&body_json)
         .send()
-        .map_err(|e| LlmError::RequestFailed(format!("Connection failed: {}", e)))?;
+        .map_err(|e| { warn!("LLM connection failed: {e}"); LlmError::RequestFailed(format!("Connection failed: {}", e)) })?;
 
-    match resp.status().as_u16() {
-        401 | 403 => return Err(LlmError::InvalidApiKey),
+    let status = resp.status().as_u16();
+    info!("LLM response status: {status}");
+
+    match status {
+        401 | 403 => { warn!("LLM auth rejected: HTTP {status}"); return Err(LlmError::InvalidApiKey); }
         s if s >= 400 => {
             let body = resp.text().unwrap_or_default();
+            warn!("LLM HTTP error {s}: {body}");
             return Err(LlmError::RequestFailed(format!("HTTP {}: {}", s, body)));
         }
         _ => {}
@@ -191,7 +199,10 @@ fn http_classify(
         .as_str()
         .ok_or_else(|| LlmError::RequestFailed("No content in response".to_string()))?;
 
-    parse_classification_response(content, expenses.len())
+    let results = parse_classification_response(content, expenses.len())?;
+    let classified_count = results.iter().filter(|r| r.is_some()).count();
+    debug!("LLM parsed {classified_count}/{} classifications", expenses.len());
+    Ok(results)
 }
 
 // ── OpenAI Provider ──

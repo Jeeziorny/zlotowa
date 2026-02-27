@@ -8,6 +8,7 @@ use accountant_core::models::{
     ExpenseQueryResult, ParsedExpense, TitleCleanupRule, UploadBatch, Budget,
 };
 use accountant_core::parsers::{self, ColumnMapping};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
@@ -78,19 +79,22 @@ fn parse_date(s: &str) -> Result<chrono::NaiveDate, String> {
 
 #[tauri::command]
 fn get_expenses(state: State<AppState>) -> Result<Vec<Expense>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_all_expenses().map_err(|e| e.to_string())
+    debug!("get_expenses called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_all_expenses().map_err(|e| { warn!("get_expenses failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn query_expenses(state: State<AppState>, query: ExpenseQuery) -> Result<ExpenseQueryResult, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.query_expenses(&query).map_err(|e| e.to_string())
+    debug!("query_expenses called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.query_expenses(&query).map_err(|e| { warn!("query_expenses failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    info!("add_expense: title='{}' amount={:.2} date={}", input.title, input.amount, input.date);
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let date = parse_date(&input.date)?;
 
     db.with_transaction(|| {
@@ -116,18 +120,20 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
         }
         Ok(id)
     })
-    .map_err(|e| e.to_string())
+    .map_err(|e| { warn!("add_expense failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn get_categories(state: State<AppState>) -> Result<Vec<String>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_all_categories().map_err(|e| e.to_string())
+    debug!("get_categories called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_all_categories().map_err(|e| { warn!("get_categories failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    info!("update_expense: id={id} title='{}' amount={:.2}", input.title, input.amount);
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let date = parse_date(&input.date)?;
 
     db.with_transaction(|| {
@@ -153,26 +159,29 @@ fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Resul
         }
         Ok(())
     })
-    .map_err(|e| e.to_string())
+    .map_err(|e| { warn!("update_expense failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn delete_expense(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_expense(id).map_err(|e| e.to_string())
+    info!("delete_expense: id={id}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.delete_expense(id).map_err(|e| { warn!("delete_expense failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn delete_expenses(state: State<AppState>, ids: Vec<i64>) -> Result<usize, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_expenses(&ids).map_err(|e| e.to_string())
+    info!("delete_expenses: count={}", ids.len());
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.delete_expenses(&ids).map_err(|e| { warn!("delete_expenses failed: {e}"); e.to_string() })
 }
 
 // ── LLM Config Commands ──
 
 #[tauri::command]
 fn get_llm_config(state: State<AppState>) -> Result<LlmConfigOutput, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    debug!("get_llm_config called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     Ok(LlmConfigOutput {
         provider: db.get_config("llm_provider").map_err(|e| e.to_string())?,
         api_key: db.get_config("llm_api_key").map_err(|e| e.to_string())?,
@@ -181,6 +190,7 @@ fn get_llm_config(state: State<AppState>) -> Result<LlmConfigOutput, String> {
 
 #[tauri::command]
 fn save_llm_config(state: State<AppState>, config: LlmConfigInput) -> Result<(), String> {
+    info!("save_llm_config: provider='{}'", config.provider);
     // Validate before saving
     let provider = create_provider(&config.provider)
         .ok_or_else(|| format!("Unknown provider: {}", config.provider))?;
@@ -188,48 +198,51 @@ fn save_llm_config(state: State<AppState>, config: LlmConfigInput) -> Result<(),
         provider: config.provider.clone(),
         api_key: config.api_key.clone(),
     };
-    provider.validate(&llm_config).map_err(|e| e.to_string())?;
+    provider.validate(&llm_config).map_err(|e| { warn!("LLM validation failed: {e}"); e.to_string() })?;
 
     // Save atomically — both keys in one transaction
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     db.with_transaction(|| {
         db.set_config("llm_provider", &config.provider)?;
         db.set_config("llm_api_key", &config.api_key)?;
         Ok(())
     })
-    .map_err(|e| e.to_string())
+    .map_err(|e| { warn!("save_llm_config failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn validate_llm_config(config: LlmConfigInput) -> Result<(), String> {
+    debug!("validate_llm_config: provider='{}'", config.provider);
     let provider = create_provider(&config.provider)
         .ok_or_else(|| format!("Unknown provider: {}", config.provider))?;
     let llm_config = LlmConfig {
         provider: config.provider,
         api_key: config.api_key,
     };
-    provider.validate(&llm_config).map_err(|e| e.to_string())
+    provider.validate(&llm_config).map_err(|e| { warn!("validate_llm_config failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn clear_llm_config(state: State<AppState>) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    info!("clear_llm_config called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     db.with_transaction(|| {
         db.set_config("llm_provider", "")?;
         db.set_config("llm_api_key", "")?;
         Ok(())
     })
-    .map_err(|e| e.to_string())
+    .map_err(|e| { warn!("clear_llm_config failed: {e}"); e.to_string() })
 }
 
 // ── Category Suggestion ──
 
 #[tauri::command]
 fn suggest_category(state: State<AppState>, title: String) -> Result<Option<String>, String> {
+    debug!("suggest_category: title='{title}'");
     if title.trim().is_empty() {
         return Ok(None);
     }
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let rules = db.get_all_rules().map_err(|e| e.to_string())?;
     let classifier = RegexClassifier::from_rules(&rules);
     let parsed = ParsedExpense {
@@ -247,11 +260,13 @@ fn suggest_category(state: State<AppState>, title: String) -> Result<Option<Stri
 
 #[tauri::command]
 fn preview_csv(input: String) -> Result<PreviewResult, String> {
+    debug!("preview_csv: input length={}", input.len());
     let parsers = parsers::builtin_parsers();
     let parser = parsers::detect_parser(&input, &parsers)
         .ok_or("Could not detect input format. Supported: CSV (comma, semicolon, tab delimited).")?;
 
-    let rows = parser.preview_rows(&input).map_err(|e| e.to_string())?;
+    let rows = parser.preview_rows(&input).map_err(|e| { warn!("preview_csv failed: {e}"); e.to_string() })?;
+    debug!("preview_csv: parser='{}' rows={}", parser.name(), rows.len());
 
     Ok(PreviewResult {
         parser_name: parser.name().to_string(),
@@ -265,15 +280,18 @@ fn parse_and_classify(
     input: String,
     mapping: ColumnMapping,
 ) -> Result<Vec<ClassifiedExpenseRow>, String> {
+    info!("parse_and_classify: input length={}", input.len());
+
     // Phase 1: Parse CSV (no DB needed)
     let parsers = parsers::builtin_parsers();
     let parser = parsers::detect_parser(&input, &parsers)
         .ok_or("Could not detect input format.")?;
-    let parsed = parser.parse(&input, &mapping).map_err(|e| e.to_string())?;
+    let parsed = parser.parse(&input, &mapping).map_err(|e| { warn!("parse_and_classify parse failed: {e}"); e.to_string() })?;
+    info!("parse_and_classify: phase 1 complete — parsed {} expenses", parsed.len());
 
     // Phase 2: Read all needed DB data in a single lock, then release
     let (rules, llm_provider_name, llm_api_key, categories, dup_flags) = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
         let rules = db.get_all_rules().map_err(|e| e.to_string())?;
         let llm_provider_name = db.get_config("llm_provider").map_err(|e| e.to_string())?;
         let llm_api_key = db.get_config("llm_api_key").map_err(|e| e.to_string())?;
@@ -285,6 +303,7 @@ fn parse_and_classify(
         let dup_flags = db.check_duplicates_batch(&dup_inputs).map_err(|e| e.to_string())?;
         (rules, llm_provider_name, llm_api_key, categories, dup_flags)
     }; // mutex released here
+    info!("parse_and_classify: phase 2 complete — loaded {} rules, {} categories", rules.len(), categories.len());
 
     // Phase 3: Classify with regex rules (no DB needed)
     let regex_classifier = RegexClassifier::from_rules(&rules);
@@ -309,6 +328,9 @@ fn parse_and_classify(
         });
     }
 
+    let regex_classified = rows.iter().filter(|r| r.category.is_some()).count();
+    info!("parse_and_classify: phase 3-4 complete — {regex_classified}/{} classified by regex", rows.len());
+
     // Phase 5: LLM fallback (no DB lock held during HTTP calls)
     if let (Some(provider_name), Some(api_key)) = (&llm_provider_name, &llm_api_key) {
         if !provider_name.is_empty() && !api_key.is_empty() {
@@ -320,6 +342,7 @@ fn parse_and_classify(
                 .collect();
 
             if !unclassified_indices.is_empty() {
+                info!("parse_and_classify: LLM fallback — {} unclassified expenses, provider='{provider_name}'", unclassified_indices.len());
                 if let Some(provider) = create_provider(provider_name) {
                     let config = LlmConfig {
                         provider: provider_name.clone(),
@@ -338,9 +361,10 @@ fn parse_and_classify(
                         })
                         .collect();
 
-                    if let Ok(llm_results) =
-                        provider.classify_batch(&unclassified_expenses, &categories, &config)
-                    {
+                    match provider.classify_batch(&unclassified_expenses, &categories, &config) {
+                    Ok(llm_results) => {
+                        let llm_classified = llm_results.iter().filter(|r| r.is_some()).count();
+                        info!("parse_and_classify: LLM classified {llm_classified}/{} expenses", unclassified_expenses.len());
                         for (idx, llm_result) in
                             unclassified_indices.iter().zip(llm_results.into_iter())
                         {
@@ -353,52 +377,61 @@ fn parse_and_classify(
                             }
                         }
                     }
+                    Err(e) => {
+                        warn!("parse_and_classify: LLM fallback failed: {e}");
+                    }
+                    }
                 }
             }
         }
     }
 
+    let final_classified = rows.iter().filter(|r| r.category.is_some()).count();
+    info!("parse_and_classify: complete — {final_classified}/{} classified total", rows.len());
     Ok(rows)
 }
 
-// ── Export ──
+// ── Backup & Restore ──
 
-#[derive(Serialize, Deserialize)]
-pub struct ExportColumnsInput {
-    pub date: bool,
-    pub title: bool,
-    pub display_title: bool,
-    pub amount: bool,
-    pub category: bool,
-    pub classification_source: bool,
+#[tauri::command]
+fn backup_database(state: State<AppState>, path: String) -> Result<(), String> {
+    use accountant_core::backup::create_backup;
+    info!("backup_database: path='{path}'");
+
+    let backup = {
+        let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+        create_backup(&db).map_err(|e| e.to_string())?
+    };
+
+    let json = serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| { warn!("backup_database write failed: {e}"); format!("Failed to write file: {}", e) })?;
+
+    info!("backup_database: complete — {} expenses, {} rules, {} cleanup rules, {} budgets",
+        backup.expenses.len(), backup.classification_rules.len(),
+        backup.title_cleanup_rules.len(), backup.budgets.len());
+    Ok(())
 }
 
 #[tauri::command]
-fn export_expenses(
+fn restore_database(
     state: State<AppState>,
-    columns: ExportColumnsInput,
     path: String,
-) -> Result<(), String> {
-    use accountant_core::exporters::{CsvExporter, ExportColumns, Exporter};
+) -> Result<accountant_core::backup::RestoreSummary, String> {
+    use accountant_core::backup::restore_backup;
+    info!("restore_database: path='{path}'");
 
-    let export_columns = ExportColumns {
-        date: columns.date,
-        title: columns.title,
-        display_title: columns.display_title,
-        amount: columns.amount,
-        category: columns.category,
-        classification_source: columns.classification_source,
-    };
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| { warn!("restore_database read failed: {e}"); format!("Failed to read file: {}", e) })?;
+    let backup: accountant_core::backup::BackupData =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid backup file: {}", e))?;
 
-    // Fetch data under lock, then release before disk I/O
-    let bytes = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
-        let expenses = db.get_all_expenses().map_err(|e| e.to_string())?;
-        let exporter = CsvExporter;
-        exporter.export(&expenses, &export_columns).map_err(|e| e.to_string())?
-    };
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    let summary = restore_backup(&db, &backup).map_err(|e| e.to_string())?;
 
-    std::fs::write(&path, &bytes).map_err(|e| format!("Failed to write file: {}", e))
+    info!("restore_database: complete — {} expenses inserted ({} skipped), {} rules, {} cleanup rules, {} budgets ({} skipped)",
+        summary.expenses_inserted, summary.expenses_skipped, summary.rules_upserted,
+        summary.cleanup_rules_upserted, summary.budgets_inserted, summary.budgets_skipped);
+    Ok(summary)
 }
 
 // ── Bulk Save ──
@@ -409,10 +442,11 @@ fn bulk_save_expenses(
     expenses: Vec<BulkSaveExpense>,
     filename: Option<String>,
 ) -> Result<usize, String> {
+    info!("bulk_save_expenses: count={} filename={:?}", expenses.len(), filename);
     // Collect titles and compute display_title suggestions from cleanup rules
     let titles: Vec<String> = expenses.iter().map(|e| e.title.clone()).collect();
     let suggestions = {
-        let db = state.db.lock().map_err(|e| e.to_string())?;
+        let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
         db.suggest_title_cleanups(&titles).map_err(|e| e.to_string())?
     };
 
@@ -450,11 +484,12 @@ fn bulk_save_expenses(
     }
 
     // Acquire lock for the DB insert
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let saved = db
         .insert_expenses_bulk(&to_insert, filename.as_deref(), &rules)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| { warn!("bulk_save_expenses failed: {e}"); e.to_string() })?;
 
+    info!("bulk_save_expenses: saved {saved} expenses");
     Ok(saved)
 }
 
@@ -462,60 +497,67 @@ fn bulk_save_expenses(
 
 #[tauri::command]
 fn get_upload_batches(state: State<AppState>) -> Result<Vec<UploadBatch>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_upload_batches().map_err(|e| e.to_string())
+    debug!("get_upload_batches called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_upload_batches().map_err(|e| { warn!("get_upload_batches failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn delete_batch(state: State<AppState>, batch_id: i64) -> Result<usize, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_batch(batch_id).map_err(|e| e.to_string())
+    info!("delete_batch: batch_id={batch_id}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.delete_batch(batch_id).map_err(|e| { warn!("delete_batch failed: {e}"); e.to_string() })
 }
 
 // ── Category Management ──
 
 #[tauri::command]
 fn get_category_stats(state: State<AppState>) -> Result<Vec<CategoryStats>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_category_stats().map_err(|e| e.to_string())
+    debug!("get_category_stats called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_category_stats().map_err(|e| { warn!("get_category_stats failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn create_category(state: State<AppState>, name: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    info!("create_category: name='{name}'");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     if db.category_exists(&name).map_err(|e| e.to_string())? {
         return Err(format!("Category '{}' already exists", name));
     }
-    db.create_category(&name).map_err(|e| e.to_string())
+    db.create_category(&name).map_err(|e| { warn!("create_category failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn rename_category(state: State<AppState>, old_name: String, new_name: String) -> Result<(), String> {
+    info!("rename_category: '{old_name}' -> '{new_name}'");
     if old_name == new_name {
         return Ok(());
     }
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     if old_name.to_lowercase() != new_name.to_lowercase()
         && db.category_exists(&new_name).map_err(|e| e.to_string())?
     {
         return Err(format!("Category '{}' already exists", new_name));
     }
-    db.rename_category(&old_name, &new_name).map_err(|e| e.to_string())
+    db.rename_category(&old_name, &new_name).map_err(|e| { warn!("rename_category failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn delete_category(state: State<AppState>, category: String, replacement: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_category(&category, &replacement).map_err(|e| e.to_string())
+    info!("delete_category: '{category}' -> replacement='{replacement}'");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.delete_category(&category, &replacement).map_err(|e| { warn!("delete_category failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn merge_categories(state: State<AppState>, sources: Vec<String>, target: String) -> Result<(), String> {
+    info!("merge_categories: {} sources -> '{target}'", sources.len());
     if sources.is_empty() || target.is_empty() {
         return Err("Sources and target must not be empty".to_string());
     }
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.merge_categories(&sources, &target).map_err(|e| e.to_string())
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.merge_categories(&sources, &target).map_err(|e| { warn!("merge_categories failed: {e}"); e.to_string() })
 }
 
 // ── Title Cleanup ──
@@ -529,31 +571,35 @@ pub struct TitleCleanupPreview {
 
 #[tauri::command]
 fn get_title_cleanup_rules(state: State<AppState>) -> Result<Vec<TitleCleanupRule>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_all_title_cleanup_rules().map_err(|e| e.to_string())
+    debug!("get_title_cleanup_rules called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_all_title_cleanup_rules().map_err(|e| { warn!("get_title_cleanup_rules failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn save_title_cleanup_rule(state: State<AppState>, rule: TitleCleanupRule) -> Result<i64, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    info!("save_title_cleanup_rule: pattern='{}' id={:?}", rule.pattern, rule.id);
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     if let Some(id) = rule.id {
-        db.update_title_cleanup_rule(&rule).map_err(|e| e.to_string())?;
+        db.update_title_cleanup_rule(&rule).map_err(|e| { warn!("save_title_cleanup_rule failed: {e}"); e.to_string() })?;
         Ok(id)
     } else {
-        db.insert_title_cleanup_rule(&rule).map_err(|e| e.to_string())
+        db.insert_title_cleanup_rule(&rule).map_err(|e| { warn!("save_title_cleanup_rule failed: {e}"); e.to_string() })
     }
 }
 
 #[tauri::command]
 fn delete_title_cleanup_rule(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_title_cleanup_rule(id).map_err(|e| e.to_string())
+    info!("delete_title_cleanup_rule: id={id}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.delete_title_cleanup_rule(id).map_err(|e| { warn!("delete_title_cleanup_rule failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn preview_title_cleanup(state: State<AppState>, rule: TitleCleanupRule) -> Result<Vec<TitleCleanupPreview>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let results = db.preview_title_cleanup(&rule).map_err(|e| e.to_string())?;
+    debug!("preview_title_cleanup: pattern='{}'", rule.pattern);
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    let results = db.preview_title_cleanup(&rule).map_err(|e| { warn!("preview_title_cleanup failed: {e}"); e.to_string() })?;
     Ok(results
         .into_iter()
         .map(|(expense_id, original, cleaned)| TitleCleanupPreview {
@@ -566,9 +612,10 @@ fn preview_title_cleanup(state: State<AppState>, rule: TitleCleanupRule) -> Resu
 
 #[tauri::command]
 fn apply_title_cleanup(state: State<AppState>, rule_id: i64, expense_ids: Vec<i64>) -> Result<usize, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let rule = db.get_title_cleanup_rule(rule_id).map_err(|e| e.to_string())?;
-    db.apply_title_cleanup(&rule, &expense_ids).map_err(|e| e.to_string())
+    info!("apply_title_cleanup: rule_id={rule_id} expense_count={}", expense_ids.len());
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    let rule = db.get_title_cleanup_rule(rule_id).map_err(|e| { warn!("apply_title_cleanup failed: {e}"); e.to_string() })?;
+    db.apply_title_cleanup(&rule, &expense_ids).map_err(|e| { warn!("apply_title_cleanup failed: {e}"); e.to_string() })
 }
 
 // ── Budget Planning ──
@@ -649,7 +696,8 @@ fn get_budget_summary(
     state: State<AppState>,
     budget_id: i64,
 ) -> Result<BudgetSummaryOutput, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    debug!("get_budget_summary: budget_id={budget_id}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let budget = db
         .get_budget_by_id(budget_id)
         .map_err(|e| e.to_string())?
@@ -661,7 +709,8 @@ fn get_budget_summary(
 fn get_active_budget_summary(
     state: State<AppState>,
 ) -> Result<Option<BudgetSummaryOutput>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    debug!("get_active_budget_summary called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     match db.get_active_budget().map_err(|e| e.to_string())? {
         Some(budget) => Ok(Some(build_budget_summary(&db, &budget)?)),
         None => Ok(None),
@@ -670,8 +719,9 @@ fn get_active_budget_summary(
 
 #[tauri::command]
 fn list_budgets(state: State<AppState>) -> Result<Vec<Budget>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_all_budgets().map_err(|e| e.to_string())
+    debug!("list_budgets called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_all_budgets().map_err(|e| { warn!("list_budgets failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
@@ -681,9 +731,10 @@ fn create_budget(
     end_date: String,
     categories: Vec<BudgetCategoryInput>,
 ) -> Result<i64, String> {
+    info!("create_budget: {start_date} to {end_date}, {} categories", categories.len());
     let start = parse_date(&start_date)?;
     let end = parse_date(&end_date)?;
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
 
     // budget_id is not known upfront, so use 0 as placeholder — create_budget_with_categories
     // assigns the real budget_id internally
@@ -698,7 +749,7 @@ fn create_budget(
         .collect();
 
     db.create_budget_with_categories(start, end, &cats)
-        .map_err(|e| e.to_string())
+        .map_err(|e| { warn!("create_budget failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
@@ -707,7 +758,8 @@ fn save_budget_categories(
     budget_id: i64,
     categories: Vec<BudgetCategoryInput>,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    info!("save_budget_categories: budget_id={budget_id} categories={}", categories.len());
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
 
     let cats: Vec<BudgetCategory> = categories
         .into_iter()
@@ -720,13 +772,14 @@ fn save_budget_categories(
         .collect();
 
     db.save_budget_categories(budget_id, &cats)
-        .map_err(|e| e.to_string())
+        .map_err(|e| { warn!("save_budget_categories failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn delete_budget(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.delete_budget(id).map_err(|e| e.to_string())
+    info!("delete_budget: id={id}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.delete_budget(id).map_err(|e| { warn!("delete_budget failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
@@ -735,13 +788,16 @@ fn parse_calendar_events(
     start_date: String,
     end_date: String,
 ) -> Result<Vec<ParsedCalendarEvent>, String> {
+    debug!("parse_calendar_events: range {start_date} to {end_date}");
     let start = parse_date(&start_date)?;
     let end = parse_date(&end_date)?;
     let all_events =
-        accountant_core::ical::parse_ics(&ics_content).map_err(|e| e.to_string())?;
-    Ok(accountant_core::ical::filter_events_by_date_range(
+        accountant_core::ical::parse_ics(&ics_content).map_err(|e| { warn!("parse_calendar_events failed: {e}"); e.to_string() })?;
+    let filtered = accountant_core::ical::filter_events_by_date_range(
         &all_events, start, end,
-    ))
+    );
+    debug!("parse_calendar_events: {} total events, {} in range", all_events.len(), filtered.len());
+    Ok(filtered)
 }
 
 #[tauri::command]
@@ -750,24 +806,27 @@ fn check_budget_overlap(
     start_date: String,
     end_date: String,
 ) -> Result<bool, String> {
+    debug!("check_budget_overlap: {start_date} to {end_date}");
     let start = parse_date(&start_date)?;
     let end = parse_date(&end_date)?;
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     db.check_budget_overlap(start, end)
-        .map_err(|e| e.to_string())
+        .map_err(|e| { warn!("check_budget_overlap failed: {e}"); e.to_string() })
 }
 
 #[tauri::command]
 fn get_category_averages(state: State<AppState>) -> Result<Vec<CategoryAverage>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.get_category_averages(3).map_err(|e| e.to_string())
+    debug!("get_category_averages called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_category_averages(3).map_err(|e| { warn!("get_category_averages failed: {e}"); e.to_string() })
 }
 
 // ── Dashboard Widget Config ──
 
 #[tauri::command]
 fn get_active_widgets(state: State<AppState>) -> Result<Option<Vec<String>>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    debug!("get_active_widgets called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let val = db.get_config("active_widgets").map_err(|e| e.to_string())?;
     match val {
         Some(json) if !json.is_empty() => {
@@ -780,9 +839,10 @@ fn get_active_widgets(state: State<AppState>) -> Result<Option<Vec<String>>, Str
 
 #[tauri::command]
 fn save_active_widgets(state: State<AppState>, widget_ids: Vec<String>) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    info!("save_active_widgets: {} widgets", widget_ids.len());
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let json = serde_json::to_string(&widget_ids).map_err(|e| e.to_string())?;
-    db.set_config("active_widgets", &json).map_err(|e| e.to_string())
+    db.set_config("active_widgets", &json).map_err(|e| { warn!("save_active_widgets failed: {e}"); e.to_string() })
 }
 
 // ── Tests ──
@@ -1366,46 +1426,6 @@ mod tests {
 
     // ── Export ──
 
-    #[test]
-    fn export_expenses_to_file() {
-        let app = app();
-        let state: State<AppState> = app.state();
-        add_expense(
-            state,
-            ExpenseInput {
-                title: "Test".into(),
-                display_title: None,
-                amount: 42.0,
-                date: "2024-01-01".into(),
-                category: Some("Misc".into()),
-                rule_pattern: None,
-            },
-        )
-        .unwrap();
-
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("export.csv");
-
-        let state: State<AppState> = app.state();
-        export_expenses(
-            state,
-            ExportColumnsInput {
-                date: true,
-                title: true,
-                display_title: false,
-                amount: true,
-                category: true,
-                classification_source: false,
-            },
-            path.to_str().unwrap().into(),
-        )
-        .unwrap();
-
-        let content = std::fs::read_to_string(&path).unwrap();
-        assert!(content.contains("Test"));
-        assert!(content.contains("42"));
-    }
-
     // ── Title Cleanup ──
 
     #[test]
@@ -1800,16 +1820,34 @@ mod tests {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy, RotationStrategy};
+
     let db = Database::open_default().unwrap_or_else(|e| {
         eprintln!("Fatal: failed to open database: {e}");
         std::process::exit(1);
     });
 
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                ])
+                .timezone_strategy(TimezoneStrategy::UseLocal)
+                .max_file_size(5_000_000) // 5 MB
+                .rotation_strategy(RotationStrategy::KeepAll)
+                .level(log::LevelFilter::Debug)
+                .build(),
+        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             db: Mutex::new(db),
+        })
+        .setup(|_app| {
+            info!("4ccountant started — log plugin loaded");
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_expenses,
@@ -1826,7 +1864,8 @@ pub fn run() {
             clear_llm_config,
             preview_csv,
             parse_and_classify,
-            export_expenses,
+            backup_database,
+            restore_database,
             bulk_save_expenses,
             get_upload_batches,
             delete_batch,

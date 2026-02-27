@@ -2,6 +2,7 @@ use crate::models::{
     Budget, BudgetCategory, CategoryAverage, CategoryStats, ClassificationRule,
     ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, TitleCleanupRule, UploadBatch,
 };
+use log::{error, info};
 use rusqlite::{params, Connection, Result as SqlResult};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -38,9 +39,11 @@ impl Database {
 
     /// Open (or create) the database at a specific path.
     pub fn open(path: &std::path::Path) -> Result<Self, DbError> {
+        info!("Opening database at {}", path.display());
         let conn = Connection::open(path)?;
         let db = Self { conn };
-        db.migrate()?;
+        db.migrate().map_err(|e| { error!("Database migration failed: {e}"); e })?;
+        info!("Database migration complete");
         Ok(db)
     }
 
@@ -246,6 +249,7 @@ impl Database {
         batch_filename: Option<&str>,
         rules: &[ClassificationRule],
     ) -> Result<usize, DbError> {
+        info!("insert_expenses_bulk: {} expenses, filename={:?}", expenses.len(), batch_filename);
         let tx = self.conn.unchecked_transaction()?;
 
         // Create batch record if filename provided
@@ -1204,6 +1208,108 @@ impl Database {
             })
         })?;
         rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
+    }
+
+    // ── Backup Restore ──
+
+    pub fn restore_backup_data(
+        &self,
+        data: &crate::backup::BackupData,
+    ) -> Result<crate::backup::RestoreSummary, DbError> {
+        use crate::backup::RestoreSummary;
+
+        let tx = self.conn.unchecked_transaction()?;
+        let mut summary = RestoreSummary::default();
+
+        // 1. Expenses — skip duplicates
+        let dup_inputs: Vec<(&str, f64, chrono::NaiveDate)> = data
+            .expenses
+            .iter()
+            .map(|e| {
+                let date = chrono::NaiveDate::parse_from_str(&e.date, "%Y-%m-%d")
+                    .expect("date already validated");
+                (e.title.as_str(), e.amount, date)
+            })
+            .collect();
+        let dup_refs: Vec<(&str, f64, &chrono::NaiveDate)> = dup_inputs
+            .iter()
+            .map(|(t, a, d)| (*t, *a, d))
+            .collect();
+        let dup_flags = self.check_duplicates_batch(&dup_refs)?;
+
+        for (expense, &is_dup) in data.expenses.iter().zip(dup_flags.iter()) {
+            if is_dup {
+                summary.expenses_skipped += 1;
+                continue;
+            }
+            let date = chrono::NaiveDate::parse_from_str(&expense.date, "%Y-%m-%d")
+                .expect("date already validated");
+            let source = expense
+                .classification_source
+                .as_deref()
+                .and_then(ClassificationSource::from_str_opt);
+            tx.execute(
+                "INSERT INTO expenses (title, display_title, amount, date, category, classification_source)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    expense.title,
+                    expense.display_title,
+                    expense.amount,
+                    date.to_string(),
+                    expense.category,
+                    source.as_ref().map(|s| s.as_db_str()),
+                ],
+            )?;
+            summary.expenses_inserted += 1;
+        }
+
+        // 2. Classification rules — upsert
+        for rule in &data.classification_rules {
+            tx.execute(
+                "INSERT OR REPLACE INTO classification_rules (pattern, category) VALUES (?1, ?2)",
+                params![rule.pattern, rule.category],
+            )?;
+            summary.rules_upserted += 1;
+        }
+
+        // 3. Title cleanup rules — upsert
+        for rule in &data.title_cleanup_rules {
+            tx.execute(
+                "INSERT OR REPLACE INTO title_cleanup_rules (pattern, replacement, is_regex) VALUES (?1, ?2, ?3)",
+                params![rule.pattern, rule.replacement, rule.is_regex as i32],
+            )?;
+            summary.cleanup_rules_upserted += 1;
+        }
+
+        // 4. Budgets — skip overlapping
+        for budget in &data.budgets {
+            let start = chrono::NaiveDate::parse_from_str(&budget.start_date, "%Y-%m-%d")
+                .expect("date already validated");
+            let end = chrono::NaiveDate::parse_from_str(&budget.end_date, "%Y-%m-%d")
+                .expect("date already validated");
+
+            if self.check_budget_overlap(start, end)? {
+                summary.budgets_skipped += 1;
+                continue;
+            }
+
+            tx.execute(
+                "INSERT INTO budgets (start_date, end_date) VALUES (?1, ?2)",
+                params![start.to_string(), end.to_string()],
+            )?;
+            let budget_id = self.conn.last_insert_rowid();
+
+            for cat in &budget.categories {
+                tx.execute(
+                    "INSERT INTO budget_categories (budget_id, category, amount) VALUES (?1, ?2, ?3)",
+                    params![budget_id, cat.category, cat.amount],
+                )?;
+            }
+            summary.budgets_inserted += 1;
+        }
+
+        tx.commit()?;
+        Ok(summary)
     }
 }
 
