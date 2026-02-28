@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import { onDestroy } from "svelte";
+  import ConfirmModal from "../ConfirmModal.svelte";
 
   let {
     budgetId,
@@ -18,9 +19,6 @@
   let overBudgetCount = $derived(
     categories.filter((c) => c.status === "over").length,
   );
-
-  // Error states
-  let deleteBudgetError = $state("");
 
   // Budget category editing
   let editAmounts = $state({});
@@ -67,20 +65,7 @@
 
   onDestroy(() => clearTimeout(saveMsgTimer));
 
-  let deleting = $state(false);
   let showDeleteBudgetModal = $state(false);
-  async function deleteBudget() {
-    deleting = true;
-    deleteBudgetError = "";
-    try {
-      await invoke("delete_budget", { id: budgetId });
-      showDeleteBudgetModal = false;
-      onrefresh();
-    } catch (err) {
-      deleteBudgetError = `Failed to delete budget: ${err}`;
-    }
-    deleting = false;
-  }
 
 </script>
 
@@ -94,7 +79,6 @@
     </div>
     <button
       onclick={() => showDeleteBudgetModal = true}
-      disabled={deleting}
       class="text-xs text-gray-600 hover:text-red-400 transition-colors"
     >
       Delete Budget
@@ -192,7 +176,7 @@
                       bind:value={editAmounts[cat]}
                       class="w-28 bg-gray-800 border border-gray-700 rounded px-2 py-1
                              text-right text-gray-100 font-mono focus:outline-none
-                             focus:border-emerald-500"
+                             focus:border-amber-500"
                     />
                   </td>
                 </tr>
@@ -203,8 +187,8 @@
             <button
               onclick={saveBudgetCategories}
               disabled={saving}
-              class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50
-                     text-white text-sm font-medium rounded-lg transition-colors"
+              class="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50
+                     text-gray-950 text-sm font-medium rounded-lg transition-colors"
             >
               {saving ? "Saving..." : "Save Changes"}
             </button>
@@ -232,38 +216,16 @@
 
 <!-- Delete budget confirmation modal -->
 {#if showDeleteBudgetModal}
-  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-       role="presentation"
-       onclick={(e) => { if (e.target === e.currentTarget && !deleting) { showDeleteBudgetModal = false; deleteBudgetError = ""; } }}
-       onkeydown={(e) => { if (e.key === "Escape" && !deleting) { showDeleteBudgetModal = false; deleteBudgetError = ""; } }}>
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="delete-budget-modal-title">
-      <h3 id="delete-budget-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete budget?</h3>
-      <p class="text-sm text-gray-400 mb-1">This will delete this budget and all its data.</p>
-      <p class="text-sm text-gray-300 mb-5 font-mono">{startDate} — {endDate}</p>
-      {#if deleteBudgetError}
-        <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deleteBudgetError}</div>
-      {/if}
-      <div class="flex gap-3 justify-end">
-        <button
-          onclick={() => { showDeleteBudgetModal = false; deleteBudgetError = ""; }}
-          disabled={deleting}
-          class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
-                 text-sm transition-colors disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          onclick={deleteBudget}
-          disabled={deleting}
-          class="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-4 py-2
-                 rounded-lg text-sm font-medium transition-colors"
-        >
-          {deleting ? "Deleting..." : "Delete"}
-        </button>
-      </div>
-    </div>
-  </div>
+  <ConfirmModal
+    title="Delete budget?"
+    onconfirm={async () => {
+      await invoke("delete_budget", { id: budgetId });
+      showDeleteBudgetModal = false;
+      onrefresh();
+    }}
+    onclose={() => { showDeleteBudgetModal = false; }}
+  >
+    <p class="text-sm text-gray-400 mb-1">This will delete this budget and all its data.</p>
+    <p class="text-sm text-gray-300 font-mono">{startDate} — {endDate}</p>
+  </ConfirmModal>
 {/if}

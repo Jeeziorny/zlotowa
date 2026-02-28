@@ -106,7 +106,7 @@
   async function handleSave(nonDuplicateRows) {
     const toSave = nonDuplicateRows.map((r) => ({
       title: r.title,
-      amount: r.amount,
+      amount: Math.abs(r.amount),
       date: r.date,
       category: r.category,
       source: r.source,
@@ -139,11 +139,11 @@
 {#if classifying}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
     <div class="bg-gray-900 border border-gray-800 rounded-2xl p-10 flex flex-col items-center gap-4 shadow-2xl max-w-sm w-full mx-4">
-      <div class="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+      <div class="w-10 h-10 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div>
       <p class="text-lg font-semibold text-gray-100">Classifying expenses...</p>
       <p class="text-sm text-gray-400">{parsedRows.length} expenses — matching rules, then calling AI for the rest</p>
       <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-        <div class="h-full bg-emerald-500 rounded-full animate-progress"></div>
+        <div class="h-full bg-amber-500 rounded-full animate-progress"></div>
       </div>
     </div>
   </div>
@@ -165,14 +165,14 @@
       {@const currentIdx = stepOrder.indexOf(step)}
       {@const thisIdx = stepOrder.indexOf(s.id)}
       {#if i > 0}
-        <div class="h-px flex-1 max-w-8 {thisIdx <= currentIdx ? 'bg-emerald-500' : 'bg-gray-700'}"></div>
+        <div class="h-px flex-1 max-w-8 {thisIdx <= currentIdx ? 'bg-amber-500' : 'bg-gray-700'}"></div>
       {/if}
       <span
         class="px-3 py-1 rounded-full text-xs font-medium
           {step === s.id
-          ? 'bg-emerald-600 text-white'
+          ? 'bg-amber-500 text-gray-950'
           : thisIdx < currentIdx
-            ? 'bg-emerald-900/50 text-emerald-400'
+            ? 'bg-amber-900/50 text-amber-400'
             : 'bg-gray-800 text-gray-500'}"
       >
         {s.label}

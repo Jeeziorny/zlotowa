@@ -38,8 +38,8 @@
 
   async function saveEdit() {
     const amount = parseFloat(editAmount);
-    if (isNaN(amount)) {
-      editError = "Amount must be a valid number";
+    if (isNaN(amount) || amount <= 0) {
+      editError = "Amount must be greater than zero";
       return;
     }
     if (!editTitle.trim()) {
@@ -82,7 +82,7 @@
             checked={allSelected}
             onchange={onselectall}
             aria-label="Select all expenses"
-            class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500"
+            class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
           />
         </th>
         <th class="text-left px-4 py-3">Date</th>
@@ -103,7 +103,7 @@
                 type="date"
                 bind:value={editDate}
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
-                       text-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                       text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
               />
             </td>
             <td class="px-4 py-2">
@@ -111,16 +111,17 @@
                 type="text"
                 bind:value={editTitle}
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
-                       text-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                       text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
               />
             </td>
             <td class="px-4 py-2">
               <input
                 type="number"
                 step="0.01"
+                min="0.01"
                 bind:value={editAmount}
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-right
-                       font-mono text-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                       font-mono text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
               />
             </td>
             <td class="px-4 py-2">
@@ -129,7 +130,7 @@
                 bind:value={editCategory}
                 list="edit-categories"
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
-                       text-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                       text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
               />
               <datalist id="edit-categories">
                 {#each categories as cat}
@@ -142,7 +143,7 @@
                 <button
                   onclick={saveEdit}
                   disabled={saving}
-                  class="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 p-1 transition-colors"
+                  class="text-amber-400 hover:text-amber-300 disabled:opacity-50 p-1 transition-colors"
                   title="Save"
                   aria-label="Save edit"
                 >
@@ -174,7 +175,7 @@
                 type="checkbox"
                 checked={selected.has(expense.id)}
                 onchange={() => onselect(expense.id)}
-                class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500"
+                class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
               />
             </td>
             <td class="px-4 py-3 text-sm text-gray-400">{expense.date}</td>
@@ -182,7 +183,7 @@
             <td class="px-4 py-3 text-right font-mono">{expense.amount.toFixed(2)}</td>
             <td class="px-4 py-3">
               {#if expense.category}
-                <span class="bg-emerald-900/30 text-emerald-400 px-2 py-0.5 rounded text-sm">
+                <span class="bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded text-sm">
                   {expense.category}
                 </span>
               {:else}
@@ -193,7 +194,7 @@
               <div class="flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                 <button
                   onclick={() => startEdit(expense)}
-                  class="text-gray-400 hover:text-emerald-400 p-1 transition-colors"
+                  class="text-gray-400 hover:text-amber-400 p-1 transition-colors"
                   title="Edit"
                   aria-label="Edit expense"
                 >

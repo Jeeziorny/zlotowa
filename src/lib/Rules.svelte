@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import RulesFilterBar from "./rules/RulesFilterBar.svelte";
   import RulesTable from "./rules/RulesTable.svelte";
-  import RuleDeleteModal from "./rules/RuleDeleteModal.svelte";
+  import ConfirmModal from "./ConfirmModal.svelte";
   import PaginationBar from "./expense-list/PaginationBar.svelte";
 
   let rules = $state([]);
@@ -148,7 +148,7 @@
     <h2 class="text-2xl font-bold">Classification Rules</h2>
     <button
       onclick={() => { showAddForm = !showAddForm; addError = ""; }}
-      class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg
+      class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg
              text-sm font-medium transition-colors"
     >
       {showAddForm ? "Cancel" : "+ Add Rule"}
@@ -166,8 +166,8 @@
             bind:value={newPattern}
             placeholder="(?i)coffee"
             class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono
-                   text-gray-200 placeholder-gray-500 focus:border-emerald-500 focus:ring-1
-                   focus:ring-emerald-500 focus:outline-none"
+                   text-gray-200 placeholder-gray-500 focus:border-amber-500 focus:ring-1
+                   focus:ring-amber-500 focus:outline-none"
           />
         </div>
         <div class="min-w-40">
@@ -179,8 +179,8 @@
             list="add-rule-categories"
             placeholder="Food"
             class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm
-                   text-gray-200 placeholder-gray-500 focus:border-emerald-500 focus:ring-1
-                   focus:ring-emerald-500 focus:outline-none"
+                   text-gray-200 placeholder-gray-500 focus:border-amber-500 focus:ring-1
+                   focus:ring-amber-500 focus:outline-none"
           />
           <datalist id="add-rule-categories">
             {#each categories as cat}
@@ -191,7 +191,7 @@
         <button
           onclick={handleAdd}
           disabled={adding}
-          class="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-2
+          class="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950 px-4 py-2
                  rounded-lg text-sm font-medium transition-colors"
         >
           {adding ? "Adding..." : "Add"}
@@ -251,10 +251,19 @@
   {/if}
 
   {#if deleteModalRule}
-    <RuleDeleteModal
-      rule={deleteModalRule}
-      ondelete={handleDeleted}
+    <ConfirmModal
+      title="Delete rule?"
+      onconfirm={async () => {
+        await invoke("delete_rule", { id: deleteModalRule.id });
+        handleDeleted();
+      }}
       onclose={() => { deleteModalRule = null; }}
-    />
+    >
+      <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
+      <div class="text-sm text-gray-300 space-y-1">
+        <p class="break-all"><span class="text-gray-500">Pattern:</span> <code class="font-mono">{deleteModalRule.pattern}</code></p>
+        <p><span class="text-gray-500">Category:</span> {deleteModalRule.category}</p>
+      </div>
+    </ConfirmModal>
   {/if}
 </div>

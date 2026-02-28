@@ -8,7 +8,7 @@
   import Categories from "./lib/Categories.svelte";
   import BudgetPlanning from "./lib/BudgetPlanning.svelte";
   import Rules from "./lib/Rules.svelte";
-  import ConfirmLeaveModal from "./lib/ConfirmLeaveModal.svelte";
+  import ConfirmModal from "./lib/ConfirmModal.svelte";
 
   let currentPage = $state("dashboard");
   let expensesBulkDirty = $state(false);
@@ -65,9 +65,13 @@
   </main>
 
   {#if pendingNav}
-    <ConfirmLeaveModal
-      onconfirm={confirmNavigation}
-      oncancel={() => { pendingNav = null; }}
-    />
+    <ConfirmModal
+      title="Leave bulk upload?"
+      confirmLabel="Leave"
+      onconfirm={async () => { confirmNavigation(); }}
+      onclose={() => { pendingNav = null; }}
+    >
+      <p class="text-sm text-gray-400">You'll lose your upload progress.</p>
+    </ConfirmModal>
   {/if}
 </div>

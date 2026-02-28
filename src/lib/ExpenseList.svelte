@@ -4,11 +4,9 @@
   import SearchFilterBar from "./expense-list/SearchFilterBar.svelte";
   import ExpenseTable from "./expense-list/ExpenseTable.svelte";
   import PaginationBar from "./expense-list/PaginationBar.svelte";
-  import DeleteConfirmModal from "./expense-list/DeleteConfirmModal.svelte";
-  import BatchDeleteModal from "./expense-list/BatchDeleteModal.svelte";
   import AddExpense from "./AddExpense.svelte";
   import BulkUpload from "./BulkUpload.svelte";
-  import ConfirmLeaveModal from "./ConfirmLeaveModal.svelte";
+  import ConfirmModal from "./ConfirmModal.svelte";
 
   let { onbulkdirtychange = () => {} } = $props();
 
@@ -180,7 +178,7 @@
   {#if subView !== "list"}
     <button
       onclick={handleBackToExpenses}
-      class="text-gray-400 hover:text-emerald-400 text-sm mb-4 inline-flex items-center gap-1 transition-colors"
+      class="text-gray-400 hover:text-amber-400 text-sm mb-4 inline-flex items-center gap-1 transition-colors"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -194,10 +192,14 @@
     {/if}
 
     {#if showLeaveConfirm}
-      <ConfirmLeaveModal
-        onconfirm={confirmLeave}
-        oncancel={() => { showLeaveConfirm = false; }}
-      />
+      <ConfirmModal
+        title="Leave bulk upload?"
+        confirmLabel="Leave"
+        onconfirm={async () => { confirmLeave(); }}
+        onclose={() => { showLeaveConfirm = false; }}
+      >
+        <p class="text-sm text-gray-400">You'll lose your upload progress.</p>
+      </ConfirmModal>
     {/if}
   {:else}
   <div class="flex items-center justify-between mb-4">
@@ -214,7 +216,7 @@
       {/if}
       <button
         onclick={() => subView = "add"}
-        class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg
+        class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg
                text-sm font-medium transition-colors"
       >
         + Add
@@ -284,19 +286,36 @@
   {/if}
 
   {#if deleteModalExpense}
-    <DeleteConfirmModal
-      expense={deleteModalExpense}
-      ondelete={() => { deleteModalExpense = null; fetchExpenses(); }}
+    <ConfirmModal
+      title="Delete expense?"
+      onconfirm={async () => {
+        await invoke("delete_expense", { id: deleteModalExpense.id });
+        deleteModalExpense = null;
+        fetchExpenses();
+      }}
       onclose={() => { deleteModalExpense = null; }}
-    />
+    >
+      <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
+      <p class="text-sm text-gray-300 break-words">
+        "{deleteModalExpense.title}" &mdash; {deleteModalExpense.amount.toFixed(2)}
+      </p>
+    </ConfirmModal>
   {/if}
 
   {#if confirmBatchDelete}
-    <BatchDeleteModal
-      selectedIds={selected}
-      ondelete={() => { confirmBatchDelete = false; fetchExpenses(); }}
+    <ConfirmModal
+      title="Delete {selected.size} expense{selected.size > 1 ? 's' : ''}?"
+      confirmLabel="Delete All"
+      onconfirm={async () => {
+        const ids = [...selected];
+        await invoke("delete_expenses", { ids });
+        confirmBatchDelete = false;
+        fetchExpenses();
+      }}
       onclose={() => { confirmBatchDelete = false; }}
-    />
+    >
+      <p class="text-sm text-gray-400">This cannot be undone.</p>
+    </ConfirmModal>
   {/if}
   {/if}
 </div>

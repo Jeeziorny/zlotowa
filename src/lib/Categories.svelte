@@ -1,6 +1,8 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import ConfirmModal from "./ConfirmModal.svelte";
+  import { focusTrap } from "./actions/focusTrap.js";
 
   let categories = $state([]);
   let loaded = $state(false);
@@ -21,7 +23,6 @@
   // Delete modal
   let deleteTarget = $state(null);
   let deleteReplacement = $state("");
-  let deleteError = $state("");
 
   // Merge
   let selected = $state(new Set());
@@ -103,20 +104,6 @@
     editingIndex = null;
   }
 
-  // Delete
-  async function confirmDelete() {
-    deleteError = "";
-    if (!deleteReplacement) { deleteError = "Select a replacement category"; return; }
-    try {
-      await invoke("delete_category", { category: deleteTarget.name, replacement: deleteReplacement });
-      deleteTarget = null;
-      deleteReplacement = "";
-      selected = new Set();
-      await loadCategories();
-    } catch (err) {
-      deleteError = `${err}`;
-    }
-  }
 
   // Merge
   function toggleSelect(name) {
@@ -151,7 +138,7 @@
     <h2 class="text-2xl font-bold">Categories</h2>
     <button
       onclick={() => { showCreate = !showCreate; createError = ""; newName = ""; }}
-      class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg
+      class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg
              text-sm font-medium transition-colors"
     >
       + New
@@ -168,10 +155,10 @@
           aria-label="New category name"
           onkeydown={(e) => e.key === "Enter" && handleCreate()}
           class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
-                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500 text-sm"
         />
         <button onclick={handleCreate}
-          class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+          class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg text-sm transition-colors">
           Create
         </button>
         <button onclick={() => showCreate = false}
@@ -197,7 +184,7 @@
       placeholder="Search categories..."
       aria-label="Search categories"
       class="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2
-             text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+             text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500 text-sm"
     />
     {#if selected.size >= 2}
       <button
@@ -211,7 +198,7 @@
 
   {#if !loaded}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <div class="w-8 h-8 border-4 border-gray-700 border-t-emerald-500 rounded-full animate-spin mx-auto mb-3"></div>
+      <div class="w-8 h-8 border-4 border-gray-700 border-t-amber-500 rounded-full animate-spin mx-auto mb-3"></div>
       <p class="text-sm">Loading categories...</p>
     </div>
   {:else if categories.length === 0}
@@ -257,7 +244,7 @@
                   type="checkbox"
                   checked={selected.has(cat.name)}
                   onchange={() => toggleSelect(cat.name)}
-                  class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500"
+                  class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
                 />
               </td>
               <td class="px-4 py-3">
@@ -270,13 +257,13 @@
                       if (e.key === "Escape") cancelEdit();
                     }}
                     onblur={() => saveEdit(cat.name)}
-                    class="bg-gray-800 border border-emerald-500 rounded px-2 py-1
+                    class="bg-gray-800 border border-amber-500 rounded px-2 py-1
                            text-gray-100 focus:outline-none w-full max-w-64"
                   />
                 {:else}
                   <button
                     onclick={() => startEdit(i, cat.name)}
-                    class="text-left hover:text-emerald-400 transition-colors"
+                    class="text-left hover:text-amber-400 transition-colors"
                     title="Click to rename"
                   >
                     {cat.name}
@@ -305,42 +292,32 @@
 
 <!-- Delete modal -->
 {#if deleteTarget}
-  <div
-    class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-    role="presentation"
-    onclick={(e) => { if (e.target === e.currentTarget) deleteTarget = null; }}
-    onkeydown={(e) => { if (e.key === "Escape") deleteTarget = null; }}
+  <ConfirmModal
+    title='Delete "{deleteTarget.name}"'
+    onconfirm={async () => {
+      if (!deleteReplacement) { throw new Error("Select a replacement category"); }
+      await invoke("delete_category", { category: deleteTarget.name, replacement: deleteReplacement });
+      deleteTarget = null;
+      deleteReplacement = "";
+      selected = new Set();
+      await loadCategories();
+    }}
+    onclose={() => { deleteTarget = null; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog" aria-modal="true" aria-labelledby="delete-category-modal-title">
-      <h3 id="delete-category-modal-title" class="text-lg font-semibold mb-2">Delete "{deleteTarget.name}"</h3>
-      <p class="text-sm text-gray-400 mb-4">
-        Reassign {deleteTarget.expense_count} expenses and {deleteTarget.rule_count} rules to:
-      </p>
-      <select
-        bind:value={deleteReplacement}
-        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
-               text-gray-100 text-sm focus:outline-none focus:border-emerald-500 mb-4"
-      >
-        <option value="">Select replacement...</option>
-        {#each categories.filter(c => c.name !== deleteTarget.name) as cat}
-          <option value={cat.name}>{cat.name}</option>
-        {/each}
-      </select>
-      {#if deleteError}
-        <p class="text-sm text-red-400 mb-3">{deleteError}</p>
-      {/if}
-      <div class="flex gap-3">
-        <button onclick={confirmDelete}
-          class="flex-1 bg-red-600 hover:bg-red-500 text-white py-2 rounded-lg text-sm font-medium transition-colors">
-          Delete
-        </button>
-        <button onclick={() => deleteTarget = null}
-          class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg text-sm transition-colors">
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
+    <p class="text-sm text-gray-400 mb-4">
+      Reassign {deleteTarget.expense_count} expenses and {deleteTarget.rule_count} rules to:
+    </p>
+    <select
+      bind:value={deleteReplacement}
+      class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
+             text-gray-100 text-sm focus:outline-none focus:border-amber-500"
+    >
+      <option value="">Select replacement...</option>
+      {#each categories.filter(c => c.name !== deleteTarget.name) as cat}
+        <option value={cat.name}>{cat.name}</option>
+      {/each}
+    </select>
+  </ConfirmModal>
 {/if}
 
 <!-- Merge modal -->
@@ -351,7 +328,11 @@
     onclick={(e) => { if (e.target === e.currentTarget) showMerge = false; }}
     onkeydown={(e) => { if (e.key === "Escape") showMerge = false; }}
   >
-    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96" role="dialog" aria-modal="true" aria-labelledby="merge-modal-title">
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-96"
+         role="dialog" aria-modal="true" aria-labelledby="merge-modal-title"
+         tabindex="-1"
+         use:focusTrap
+         onclick={(e) => e.stopPropagation()}>
       <h3 id="merge-modal-title" class="text-lg font-semibold mb-2">Merge {selected.size} categories</h3>
       <p class="text-sm text-gray-400 mb-1">Merging:</p>
       <div class="flex flex-wrap gap-1 mb-4">
@@ -366,7 +347,7 @@
         bind:value={mergeTarget}
         onkeydown={(e) => e.key === "Enter" && confirmMerge()}
         class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
-               text-gray-100 text-sm focus:outline-none focus:border-emerald-500 mb-4"
+               text-gray-100 text-sm focus:outline-none focus:border-amber-500 mb-4"
       />
       {#if mergeError}
         <p class="text-sm text-red-400 mb-3">{mergeError}</p>

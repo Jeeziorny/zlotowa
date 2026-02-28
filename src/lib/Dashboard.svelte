@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { widgets, defaultWidgetInstances } from "./widgets/registry.js";
+  import { focusTrap } from "./actions/focusTrap.js";
 
   let { onnavigate = () => {} } = $props();
 
@@ -177,7 +178,7 @@
       <button
         onclick={() => { editing = !editing; if (!editing) showPicker = false; }}
         class="px-4 py-2 text-sm rounded-lg transition-colors {editing
-          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+          ? 'bg-amber-500 hover:bg-amber-400 text-gray-950'
           : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}"
       >
         {editing ? "Done" : "Edit dashboard"}
@@ -197,7 +198,7 @@
             <button
               onclick={() => addWidget(widget)}
               class="text-left p-4 bg-gray-800 hover:bg-gray-700 rounded-lg
-                     transition-colors border border-gray-700 hover:border-emerald-500/50"
+                     transition-colors border border-gray-700 hover:border-amber-500/50"
             >
               <div class="font-medium text-gray-200">
                 {widget.name}
@@ -215,12 +216,16 @@
 
   <!-- Config dialog -->
   {#if configDialog}
-    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+         role="presentation"
+         onclick={(e) => { if (e.target === e.currentTarget) configDialog = null; }}
+         onkeydown={(e) => { if (e.key === "Escape") configDialog = null; }}>
       <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm mx-4"
+           role="dialog" aria-modal="true" aria-labelledby="config-dialog-title"
+           tabindex="-1"
+           use:focusTrap
            onclick={(e) => e.stopPropagation()}>
-        <h3 class="text-lg font-semibold mb-4">
+        <h3 id="config-dialog-title" class="text-lg font-semibold mb-4">
           {configDialog.instanceId ? "Edit" : "Add"} Keyword Tracker
         </h3>
         <label for="keyword-config-input" class="block text-sm text-gray-400 mb-2">Keywords</label>
@@ -228,15 +233,15 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="flex flex-wrap items-center gap-1.5 w-full px-2 py-1.5 bg-gray-800 border border-gray-700
-                 rounded-lg focus-within:border-emerald-500 min-h-[38px] cursor-text"
+                 rounded-lg focus-within:border-amber-500 min-h-[38px] cursor-text"
           onclick={() => document.getElementById("keyword-config-input")?.focus()}
         >
           {#each configDialog.chips as chip}
-            <span class="flex items-center gap-1 text-sm text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">
+            <span class="flex items-center gap-1 text-sm text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">
               {chip}
               <button
                 onclick={(e) => { e.stopPropagation(); removeChip(chip); }}
-                class="text-emerald-400/60 hover:text-emerald-300 text-xs leading-none"
+                class="text-amber-400/60 hover:text-amber-300 text-xs leading-none"
                 aria-label="Remove {chip}"
               >&times;</button>
             </span>
@@ -264,8 +269,8 @@
           <button
             onclick={confirmConfig}
             disabled={configDialog.chips.length === 0 && !configDialog.input.trim()}
-            class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white
-                   rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-emerald-600"
+            class="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-400 text-gray-950
+                   rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-amber-500"
           >
             {configDialog.instanceId ? "Save" : "Add"}
           </button>
@@ -277,7 +282,7 @@
   <!-- Widgets -->
   {#if !loaded}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <div class="w-8 h-8 border-4 border-gray-700 border-t-emerald-500 rounded-full animate-spin mx-auto mb-3"></div>
+      <div class="w-8 h-8 border-4 border-gray-700 border-t-amber-500 rounded-full animate-spin mx-auto mb-3"></div>
       <p class="text-sm">Loading dashboard...</p>
     </div>
   {:else if loaded && expenses.length === 0 && activeWidgets.length > 0}
@@ -295,7 +300,7 @@
               {#if widget.configurable}
                 <button
                   onclick={() => editWidgetConfig(widget.instanceId)}
-                  class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-emerald-400"
+                  class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-amber-400"
                   title="Edit config"
                   aria-label="Edit {widget.name} config"
                 >

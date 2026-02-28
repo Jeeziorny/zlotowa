@@ -63,13 +63,18 @@
       showMessage("Please fill in all required fields.", "error");
       return;
     }
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      showMessage("Amount must be greater than zero.", "error");
+      return;
+    }
 
     saving = true;
     try {
       await invoke("add_expense", {
         input: {
           title,
-          amount: parseFloat(amount),
+          amount: parsedAmount,
           date,
           category: category || null,
           rule_pattern: (showRulePattern && rulePattern.trim()) ? rulePattern.trim() : null,
@@ -120,7 +125,7 @@
           oninput={onTitleInput}
           placeholder="e.g. Grocery store"
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"
         />
       </div>
 
@@ -141,7 +146,7 @@
             bind:value={rulePattern}
             placeholder="e.g. LIDL"
             class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
+                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500 text-sm"
           />
           <p class="text-xs text-gray-600 mt-1">
             Future expenses matching this keyword will be auto-categorized.
@@ -155,10 +160,11 @@
           id="amount"
           type="number"
           step="0.01"
+          min="0.01"
           bind:value={amount}
           placeholder="0.00"
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"
         />
       </div>
 
@@ -174,7 +180,7 @@
             onblur={() => setTimeout(() => showCategorySuggestions = false, 150)}
             placeholder="e.g. Groceries"
             class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"
           />
           {#if showCategorySuggestions && filteredCategories.length > 0}
             <div class="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700
@@ -196,7 +202,7 @@
           <button
             type="button"
             onclick={() => category = suggestedCategory}
-            class="mt-1 text-xs text-emerald-500 hover:text-emerald-400"
+            class="mt-1 text-xs text-amber-500 hover:text-amber-400"
           >
             Suggested: {suggestedCategory} (click to apply)
           </button>
@@ -206,8 +212,8 @@
       <button
         onclick={submit}
         disabled={saving}
-        class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700
-               disabled:text-gray-500 text-white font-medium
+        class="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
+               disabled:text-gray-500 text-gray-950 font-medium
                py-2.5 rounded-lg transition-colors"
       >
         {saving ? "Saving..." : "Add Expense"}
