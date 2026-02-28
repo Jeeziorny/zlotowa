@@ -6,6 +6,11 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
+| 59 | Bulk Upload Error Handling | Add try/catch + user-visible errors to BulkUpload wizard (preview, classify, save steps). |
+| 60 | Security Hardening | Replace `.expect()` panics in restore path, fix silent migration errors, LLM data leakage notice, evaluate encrypted key storage. |
+| 61 | UX Feedback States | Loading indicators (Dashboard, Categories, TitleCleanup), double-submit prevention, auto-clear messages, timer cleanup, stale date fix. |
+| 62 | Accessibility Round 3 | Focus-visible on hover-only buttons, aria-labels on icon buttons/checkboxes/inputs, decorative SVG hiding. |
+| 63 | Docs Sync Round 3 | Remove phantom Exporter references, verify CLI crate, update IPC command count, BudgetStatus widget docs. |
 ## DONE
 
 | # | Task | Summary |
