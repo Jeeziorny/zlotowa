@@ -42,7 +42,7 @@
           type="checkbox"
           checked={showRulesTab}
           onchange={toggleRulesTab}
-          class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500"
+          class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
         />
         <div>
           <span class="text-sm text-gray-200">Show Rules tab in sidebar</span>

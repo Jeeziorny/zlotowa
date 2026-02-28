@@ -147,7 +147,7 @@
           bind:value={findText}
           placeholder="Text to find..."
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
-                 text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                 text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
           onkeydown={(e) => e.key === "Enter" && handleApply()}
         />
       </div>
@@ -159,20 +159,20 @@
           bind:value={replaceText}
           placeholder="Leave empty to remove"
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
-                 text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                 text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
           onkeydown={(e) => e.key === "Enter" && handleApply()}
         />
       </div>
       <label class="flex items-center gap-1.5 text-sm text-gray-400 cursor-pointer pb-2">
         <input type="checkbox" bind:checked={isRegex}
-          class="accent-emerald-500" />
+          class="accent-amber-500" />
         Regex
       </label>
       <button
         onclick={handleApply}
         disabled={!findText}
-        class="bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500
-               text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        class="bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500
+               text-gray-950 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
       >
         Apply
       </button>
@@ -217,7 +217,7 @@
           <div class="px-4 py-2">
             <button
               onclick={handleReapplyAll}
-              class="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+              class="text-sm text-amber-400 hover:text-amber-300 transition-colors"
             >
               Re-apply all
             </button>
@@ -263,7 +263,7 @@
   <div class="flex items-center justify-between">
     <button
       onclick={onback}
-      class="text-gray-400 hover:text-emerald-400 text-sm inline-flex items-center gap-1 transition-colors"
+      class="text-gray-400 hover:text-amber-400 text-sm inline-flex items-center gap-1 transition-colors"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -283,7 +283,7 @@
       {/if}
       <button
         onclick={handleNext}
-        class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg
+        class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-5 py-2 rounded-lg
                text-sm font-medium transition-colors"
       >
         {appliedOps.length > 0 ? "Next" : "Skip"}

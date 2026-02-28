@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/main/nicegui/static/tauri-v2.schema.json",
-  "productName": "4ccountant",
+  "productName": "złotówa",
   "version": "0.1.0",
-  "identifier": "com.4ccountant.app",
+  "identifier": "com.zlotowa.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "4ccountant",
+        "title": "złotówa",
         "width": 1200,
         "height": 800,
         "resizable": true,

@@ -1,6 +1,6 @@
-# 4ccountant
+# złotówa
 
-4ccountant is a desktop application for tracking and categorizing personal expenses. It runs locally on your machine — your financial data never leaves your computer.
+złotówa is a desktop application for tracking and categorizing personal expenses. It runs locally on your machine — your financial data never leaves your computer.
 
 ## What it does
 
@@ -12,7 +12,7 @@
 - **Title cleanup** — find/replace rules to normalize noisy transaction titles
 - **Budget planning** — set monthly spending limits per category, track planned expenses, import calendar events
 - **Dashboard** — configurable widgets showing spending breakdowns, trends, and budget status
-- **CLI** — terminal interface for all core features (`4ccountant` binary)
+- **CLI** — terminal interface for all core features (`zlotowa` binary)
 
 ## How classification works
 

@@ -167,13 +167,13 @@
                 <button
                   onclick={(e) => { e.stopPropagation(); activePopover = activePopover === i ? null : i; }}
                   class="flex items-center gap-1.5 hover:text-gray-200 transition-colors
-                    {columnRoles[i] === 'title' ? 'text-emerald-400' :
+                    {columnRoles[i] === 'title' ? 'text-amber-400' :
                      columnRoles[i] === 'amount' ? 'text-blue-400' :
                      columnRoles[i] === 'date' ? 'text-purple-400' : 'text-gray-400'}"
                 >
                   Column {i + 1}
                   {#if columnRoles[i] === "title"}
-                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-900/50 text-emerald-400">Title</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-900/50 text-amber-400">Title</span>
                   {:else if columnRoles[i] === "amount"}
                     <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-900/50 text-blue-400">Amount</span>
                   {:else if columnRoles[i] === "date"}
@@ -183,7 +183,7 @@
                 {#if activePopover === i}
                   <div class="absolute z-20 mt-1 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-1 flex gap-1" data-popover>
                     <button onclick={(e) => { e.stopPropagation(); assignRole(i, "title"); }}
-                      class="px-2 py-1 rounded text-xs hover:bg-emerald-900/50 text-emerald-400 whitespace-nowrap">
+                      class="px-2 py-1 rounded text-xs hover:bg-amber-900/50 text-amber-400 whitespace-nowrap">
                       Title
                     </button>
                     <button onclick={(e) => { e.stopPropagation(); assignRole(i, "amount"); }}
@@ -217,7 +217,7 @@
               {#each row as cell, i}
                 <td class="px-3 py-2">
                   {#if columnRoles[i] === "title"}
-                    <span class="text-emerald-300">{cell}</span>
+                    <span class="text-amber-300">{cell}</span>
                   {:else if columnRoles[i] === "amount"}
                     {@const parsed = tryParseAmount(cell)}
                     <span class="text-blue-300">{cell}</span>
@@ -256,7 +256,7 @@
       <select
         bind:value={dateFormat}
         class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5
-               text-gray-100 text-sm focus:outline-none focus:border-emerald-500"
+               text-gray-100 text-sm focus:outline-none focus:border-amber-500"
       >
         {#each dateFormats as fmt}
           <option value={fmt.value}>{fmt.label}</option>
@@ -289,7 +289,7 @@
     <button
       onclick={submit}
       disabled={!mappingComplete}
-      class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium
+      class="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950 font-medium
              py-3 rounded-xl transition-colors"
     >
       Next

@@ -15,7 +15,7 @@
     backupMessage = "";
     try {
       const path = await save({
-        defaultPath: `4ccountant-backup-${new Date().toISOString().slice(0, 19).replace("T", "_").replaceAll(":", "-")}.json`,
+        defaultPath: `zlotowa-backup-${new Date().toISOString().slice(0, 19).replace("T", "_").replaceAll(":", "-")}.json`,
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
       if (!path) {
@@ -82,7 +82,7 @@
       <button
         onclick={doBackup}
         disabled={backingUp || restoring}
-        class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white
+        class="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950
                font-medium py-2.5 rounded-lg transition-colors"
       >
         {#if backingUp}

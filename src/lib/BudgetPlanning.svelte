@@ -101,7 +101,7 @@
         onclick={() => (activeTab = tab.id)}
         class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
           {activeTab === tab.id
-            ? 'bg-gray-800 text-emerald-400'
+            ? 'bg-gray-800 text-amber-400'
             : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}"
       >
         {tab.label}
@@ -166,7 +166,7 @@
           Go to the
           <button
             onclick={() => (activeTab = "create")}
-            class="text-emerald-400 hover:text-emerald-300 underline"
+            class="text-amber-400 hover:text-amber-300 underline"
             >Create +</button
           >
           tab to set up a budget.

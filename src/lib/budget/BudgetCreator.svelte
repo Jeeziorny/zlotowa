@@ -179,14 +179,14 @@
   <div class="flex items-center gap-2 mb-2">
     {#each [1, 2, 3] as s}
       <div
-        class="flex items-center gap-2 {s <= step ? 'text-emerald-400' : 'text-gray-600'}"
+        class="flex items-center gap-2 {s <= step ? 'text-amber-400' : 'text-gray-600'}"
       >
         <div
           class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border
           {s === step
-            ? 'border-emerald-400 bg-emerald-400/10'
+            ? 'border-amber-400 bg-amber-400/10'
             : s < step
-              ? 'border-emerald-600 bg-emerald-600/20'
+              ? 'border-amber-600 bg-amber-600/20'
               : 'border-gray-700'}"
         >
           {s}
@@ -196,7 +196,7 @@
         </span>
       </div>
       {#if s < 3}
-        <div class="flex-1 h-px {s < step ? 'bg-emerald-600' : 'bg-gray-800'}">
+        <div class="flex-1 h-px {s < step ? 'bg-amber-500' : 'bg-gray-800'}">
         </div>
       {/if}
     {/each}
@@ -209,8 +209,8 @@
         <button
           onclick={setNextMonth}
           class="px-2.5 py-0.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400
-                 hover:text-emerald-400 rounded-full border border-gray-700
-                 hover:border-emerald-500/50 transition-colors"
+                 hover:text-amber-400 rounded-full border border-gray-700
+                 hover:border-amber-500/50 transition-colors"
         >
           {nextMonthLabel()}
         </button>
@@ -239,8 +239,8 @@
         <button
           onclick={validateDates}
           disabled={checking}
-          class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50
-                 text-white text-sm font-medium rounded-lg transition-colors"
+          class="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50
+                 text-gray-950 text-sm font-medium rounded-lg transition-colors"
         >
           {checking ? "Checking..." : "Next"}
         </button>
@@ -267,15 +267,15 @@
           tabindex="0"
           aria-label="Upload iCal file"
           class="border border-dashed border-gray-700 rounded-lg p-4 text-center
-                 hover:border-emerald-500/50 transition-colors cursor-pointer"
+                 hover:border-amber-500/50 transition-colors cursor-pointer"
         >
           {#if icsLoading}
             <p class="text-gray-400 text-sm">Parsing...</p>
           {:else if icsFile}
-            <p class="text-emerald-400 text-sm">{icsFile.name}</p>
+            <p class="text-amber-400 text-sm">{icsFile.name}</p>
           {:else}
             <p class="text-gray-500 text-sm">Drag & drop .ics file or
-              <label class="text-emerald-400 hover:text-emerald-300 cursor-pointer underline">
+              <label class="text-amber-400 hover:text-amber-300 cursor-pointer underline">
                 browse
                 <input
                   type="file"
@@ -359,7 +359,7 @@
                     bind:value={categoryBudgets[i].amount}
                     class="w-28 bg-gray-800 border border-gray-700 rounded px-2 py-1
                            text-right text-gray-100 font-mono focus:outline-none
-                           focus:border-emerald-500"
+                           focus:border-amber-500"
                   />
                 </td>
                 <td class="px-1 py-2 text-center">
@@ -385,7 +385,7 @@
         <div class="mb-4">
           <button
             onclick={() => (showAddCategories = !showAddCategories)}
-            class="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+            class="text-sm text-amber-400 hover:text-amber-300 transition-colors"
           >
             {showAddCategories ? "Hide" : "+ Add more categories"}
           </button>
@@ -416,8 +416,8 @@
           onclick={() => {
             if (validateCategories()) step = 3;
           }}
-          class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500
-                 text-white text-sm font-medium rounded-lg transition-colors"
+          class="px-5 py-2 bg-amber-500 hover:bg-amber-400
+                 text-gray-950 text-sm font-medium rounded-lg transition-colors"
         >
           Next
         </button>
@@ -479,8 +479,8 @@
         <button
           onclick={createBudget}
           disabled={creating}
-          class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50
-                 text-white text-sm font-medium rounded-lg transition-colors"
+          class="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50
+                 text-gray-950 text-sm font-medium rounded-lg transition-colors"
         >
           {creating ? "Creating..." : "Create Budget"}
         </button>

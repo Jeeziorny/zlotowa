@@ -99,11 +99,11 @@
         <div class="relative">
           <span class="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Category</span>
           {#if row.category}
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50 text-sm">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-900/40 text-amber-400 border border-amber-800/50 text-sm">
               {row.category}
               <button
                 onclick={() => removeCategory(origIndex)}
-                class="text-emerald-400 hover:text-emerald-300 text-base leading-none"
+                class="text-amber-400 hover:text-amber-300 text-base leading-none"
                 aria-label="Remove category {row.category}"
               >&times;</button>
             </span>
@@ -118,7 +118,7 @@
               placeholder="Type category..."
               class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5
                      text-gray-100 placeholder-gray-600 focus:outline-none
-                     focus:border-emerald-500 w-full text-sm"
+                     focus:border-amber-500 w-full text-sm"
             />
             {#if activeCategoryDropdown === origIndex}
               {@const suggestions = getCategoryFilteredSuggestions(origIndex)}
@@ -275,8 +275,8 @@
     <button
       onclick={doSave}
       disabled={nonDuplicateRows.length === 0}
-      class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700
-             disabled:text-gray-500 text-white font-medium py-3 rounded-xl
+      class="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
+             disabled:text-gray-500 text-gray-950 font-medium py-3 rounded-xl
              transition-colors"
     >
       Save {nonDuplicateRows.length} Expenses

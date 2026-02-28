@@ -40,8 +40,8 @@
     placeholder="Search by title..."
     aria-label="Search expenses by title"
     class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm
-           text-gray-200 placeholder-gray-500 focus:border-emerald-500 focus:ring-1
-           focus:ring-emerald-500 focus:outline-none"
+           text-gray-200 placeholder-gray-500 focus:border-amber-500 focus:ring-1
+           focus:ring-amber-500 focus:outline-none"
   />
 </div>
 
@@ -54,7 +54,7 @@
       value={filterCategory}
       onchange={(e) => onfilterchange("filterCategory", e.target.value)}
       class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
-             focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+             focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
     >
       <option value="">All categories</option>
       {#each categories as cat}
@@ -71,7 +71,7 @@
       value={filterDateFrom}
       onchange={(e) => onfilterchange("filterDateFrom", e.target.value)}
       class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
-             focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+             focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
     />
   </div>
   <div class="flex flex-col gap-1">
@@ -82,7 +82,7 @@
       value={filterDateTo}
       onchange={(e) => onfilterchange("filterDateTo", e.target.value)}
       class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
-             focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+             focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
     />
   </div>
   <div class="flex flex-col gap-1">
@@ -95,7 +95,7 @@
       onchange={(e) => onfilterchange("filterAmountMin", e.target.value)}
       placeholder="0.00"
       class="w-28 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
-             focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+             focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
     />
   </div>
   <div class="flex flex-col gap-1">
@@ -108,7 +108,7 @@
       onchange={(e) => onfilterchange("filterAmountMax", e.target.value)}
       placeholder="0.00"
       class="w-28 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200
-             focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+             focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
     />
   </div>
   {#if hasActiveFilters}

@@ -14,10 +14,10 @@
   <button
     onclick={() => onnavigate("expenses")}
     class="bg-gray-900 rounded-xl p-6 border border-gray-800 text-left
-           cursor-pointer hover:border-emerald-500/50 hover:bg-gray-900/80 transition-all"
+           cursor-pointer hover:border-amber-500/50 hover:bg-gray-900/80 transition-all"
   >
     <div class="text-sm text-gray-400 mb-1">Total Expenses</div>
-    <div class="text-3xl font-bold text-emerald-400">
+    <div class="text-3xl font-bold text-amber-400">
       {totalExpenses.toFixed(2)}
     </div>
   </button>
@@ -25,10 +25,10 @@
   <button
     onclick={() => onnavigate("expenses")}
     class="bg-gray-900 rounded-xl p-6 border border-gray-800 text-left
-           cursor-pointer hover:border-emerald-500/50 hover:bg-gray-900/80 transition-all"
+           cursor-pointer hover:border-amber-500/50 hover:bg-gray-900/80 transition-all"
   >
     <div class="text-sm text-gray-400 mb-1">Transactions</div>
-    <div class="text-3xl font-bold text-emerald-400">
+    <div class="text-3xl font-bold text-amber-400">
       {expenses.length}
     </div>
   </button>
@@ -36,10 +36,10 @@
   <button
     onclick={() => onnavigate("categories")}
     class="bg-gray-900 rounded-xl p-6 border border-gray-800 text-left
-           cursor-pointer hover:border-emerald-500/50 hover:bg-gray-900/80 transition-all"
+           cursor-pointer hover:border-amber-500/50 hover:bg-gray-900/80 transition-all"
   >
     <div class="text-sm text-gray-400 mb-1">Categories</div>
-    <div class="text-3xl font-bold text-emerald-400">
+    <div class="text-3xl font-bold text-amber-400">
       {categoryCount}
     </div>
   </button>

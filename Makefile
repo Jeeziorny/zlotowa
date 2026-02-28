@@ -1,4 +1,4 @@
-DB_PATH := $(HOME)/Library/Application Support/4ccountant/4ccountant.db
+DB_PATH := $(HOME)/Library/Application Support/zlotowa/zlotowa.db
 
 ## Wipe all rows from every table, keeping schema intact
 purge-data:

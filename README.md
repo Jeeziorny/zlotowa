@@ -1,4 +1,4 @@
-# 4ccountant
+# złotówa
 
 Desktop expense tracking and classification app built with Rust, Tauri v2, Svelte 5, and SQLite.
 
@@ -12,7 +12,7 @@ Desktop expense tracking and classification app built with Rust, Tauri v2, Svelt
 
 ```bash
 git clone <repo-url>
-cd 4ccountant
+cd zlotowa
 npm install
 ```
 
@@ -37,7 +37,7 @@ The release binary will be in `src-tauri/target/release/`.
 Your data (expenses, categories, budgets, rules) is stored in a SQLite database at:
 
 ```
-~/Library/Application Support/4ccountant/4ccountant.db
+~/Library/Application Support/zlotowa/zlotowa.db
 ```
 
 This is separate from the application binary, so **updates never touch your data**.

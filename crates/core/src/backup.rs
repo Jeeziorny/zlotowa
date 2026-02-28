@@ -102,7 +102,7 @@ pub fn create_backup(db: &Database) -> Result<BackupData, BackupError> {
 
     let backup = BackupData {
         version: CURRENT_VERSION,
-        app: "4ccountant".to_string(),
+        app: "zlotowa".to_string(),
         exported_at: chrono::Utc::now().to_rfc3339(),
         expenses: expenses
             .into_iter()
@@ -200,7 +200,7 @@ mod tests {
     fn sample_backup() -> BackupData {
         BackupData {
             version: 2,
-            app: "4ccountant".to_string(),
+            app: "zlotowa".to_string(),
             exported_at: "2026-02-27T12:00:00Z".to_string(),
             expenses: vec![
                 BackupExpense {
@@ -371,7 +371,7 @@ mod tests {
         let backup = create_backup(&db).unwrap();
 
         assert_eq!(backup.version, 2);
-        assert_eq!(backup.app, "4ccountant");
+        assert_eq!(backup.app, "zlotowa");
         assert!(backup.expenses.is_empty());
         assert!(backup.classification_rules.is_empty());
         assert!(backup.budgets.is_empty());

@@ -54,7 +54,7 @@
       <span class="text-gray-500">—</span>
     {:else}
       {#each keywords as kw}
-        <span class="text-sm font-medium text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">{kw}</span>
+        <span class="text-sm font-medium text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">{kw}</span>
       {/each}
     {/if}
   </h3>
@@ -69,7 +69,7 @@
         <div class="flex-1 flex flex-col items-center gap-1">
           <span class="text-xs text-gray-400">{amount.toFixed(0)}</span>
           <div
-            class="w-full bg-emerald-500 rounded-t transition-all min-h-1"
+            class="w-full bg-amber-500 rounded-t transition-all min-h-1"
             style="height: {(amount / maxAmount) * 100}%"
           ></div>
           <span class="text-xs text-gray-500">{formatMonth(month)}</span>

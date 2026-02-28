@@ -1947,7 +1947,7 @@ pub fn run() {
             db: Mutex::new(db),
         })
         .setup(|_app| {
-            info!("4ccountant started — log plugin loaded");
+            info!("złotówa started — log plugin loaded");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

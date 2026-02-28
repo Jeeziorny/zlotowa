@@ -10,8 +10,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/kamiljeziorny/4ccountant.git
-cd 4ccountant
+git clone https://github.com/kamiljeziorny/zlotowa.git
+cd zlotowa
 
 # Install frontend dependencies
 npm install
@@ -31,8 +31,8 @@ Your database is stored at:
 
 | OS | Path |
 |---|---|
-| Linux | `~/.local/share/4ccountant/4ccountant.db` |
-| macOS | `~/Library/Application Support/4ccountant/4ccountant.db` |
-| Windows | `C:\Users\<you>\AppData\Roaming\4ccountant\4ccountant.db` |
+| Linux | `~/.local/share/zlotowa/zlotowa.db` |
+| macOS | `~/Library/Application Support/zlotowa/zlotowa.db` |
+| Windows | `C:\Users\<you>\AppData\Roaming\zlotowa\zlotowa.db` |
 
 The database is created automatically on first launch. To start fresh, delete the file.

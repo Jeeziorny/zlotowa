@@ -104,7 +104,7 @@
         id="provider"
         bind:value={provider}
         class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-               text-gray-100 focus:outline-none focus:border-emerald-500"
+               text-gray-100 focus:outline-none focus:border-amber-500"
       >
         <option value="openai">OpenAI</option>
         <option value="anthropic">Anthropic</option>
@@ -125,7 +125,7 @@
             ? "http://localhost:11434"
             : "sk-..."}
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 pr-16
-                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"
         />
         <button
           type="button"
@@ -142,7 +142,7 @@
       <button
         onclick={save}
         disabled={saving || testing}
-        class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white
+        class="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950
                font-medium py-2.5 rounded-lg transition-colors"
       >
         {#if saving}

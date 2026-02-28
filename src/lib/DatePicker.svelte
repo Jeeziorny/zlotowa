@@ -84,7 +84,7 @@
     onfocus={() => open = true}
     placeholder="YYYY-MM-DD"
     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-           text-gray-100 focus:outline-none focus:border-emerald-500 font-mono"
+           text-gray-100 focus:outline-none focus:border-amber-500 font-mono"
   />
 
   {#if open}
@@ -133,9 +133,9 @@
             onclick={() => selectDay(day)}
             class="py-1.5 rounded transition-colors
               {isSelected
-                ? 'bg-emerald-600 text-white font-medium'
+                ? 'bg-amber-500 text-gray-950 font-medium'
                 : isToday
-                  ? 'bg-gray-800 text-emerald-400 font-medium'
+                  ? 'bg-gray-800 text-amber-400 font-medium'
                   : 'text-gray-300 hover:bg-gray-800'}"
           >
             {day}
@@ -148,7 +148,7 @@
         <button
           type="button"
           onclick={() => { const now = getToday(); onchange(fmt(now)); open = false; viewDate = new Date(now.getFullYear(), now.getMonth(), 1); }}
-          class="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
+          class="text-xs text-amber-500 hover:text-amber-400 transition-colors"
         >
           Today
         </button>

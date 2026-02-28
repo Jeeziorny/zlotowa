@@ -10,7 +10,7 @@ use accountant_core::models::{ClassificationRule, ClassificationSource, Expense}
 use accountant_core::parsers::{self, ColumnMapping};
 
 #[derive(Parser)]
-#[command(name = "4ccountant", about = "Expense classifier and budget planner")]
+#[command(name = "zlotowa", about = "Expense classifier and budget planner")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -29,7 +29,7 @@ enum Commands {
 
     /// Backup all data to a JSON file
     Backup {
-        /// Output file path (default: 4ccountant-backup-YYYY-MM-DD_HH-MM-SS.json)
+        /// Output file path (default: zlotowa-backup-YYYY-MM-DD_HH-MM-SS.json)
         path: Option<PathBuf>,
     },
 
@@ -316,7 +316,7 @@ fn cmd_bulk_insert(path: PathBuf) {
         let unclassified_count = results.iter().filter(|r| r.3.is_none() && !r.5).count();
         if unclassified_count > 0 {
             println!(
-                "{} {} expenses unclassified. Configure LLM with '4ccountant llm-conf' for AI classification.",
+                "{} {} expenses unclassified. Configure LLM with 'zlotowa llm-conf' for AI classification.",
                 "Note:".yellow(),
                 unclassified_count
             );
@@ -411,7 +411,7 @@ fn cmd_backup(path: Option<PathBuf>) {
 
     let path = path.unwrap_or_else(|| {
         let ts = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-        PathBuf::from(format!("4ccountant-backup-{}.json", ts))
+        PathBuf::from(format!("zlotowa-backup-{}.json", ts))
     });
 
     let backup = create_backup(&db).unwrap_or_else(|e| {

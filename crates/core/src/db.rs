@@ -58,7 +58,26 @@ impl Database {
 
     fn default_path() -> Result<PathBuf, DbError> {
         let data_dir = dirs::data_dir().ok_or(DbError::NoDataDir)?;
-        Ok(data_dir.join("4ccountant").join("4ccountant.db"))
+        let new_dir = data_dir.join("zlotowa");
+        let new_path = new_dir.join("zlotowa.db");
+
+        // Auto-migrate from old "4ccountant" location
+        if !new_path.exists() {
+            let old_dir = data_dir.join("4ccountant");
+            if old_dir.exists() {
+                info!(
+                    "Migrating data directory from {} to {}",
+                    old_dir.display(),
+                    new_dir.display()
+                );
+                if let Err(e) = std::fs::rename(&old_dir, &new_dir) {
+                    warn!("Could not migrate data directory: {e}");
+                    // Fall through — open_default will create the new dir
+                }
+            }
+        }
+
+        Ok(new_path)
     }
 
     fn migrate(&self) -> Result<(), DbError> {

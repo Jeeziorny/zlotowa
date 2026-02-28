@@ -24,7 +24,7 @@
         <button
           onclick={() => onpagesize(size)}
           class="px-2 py-0.5 rounded text-sm transition-colors
-                 {pageSize === size ? 'bg-emerald-900/40 text-emerald-400' : 'text-gray-400 hover:text-gray-200'}"
+                 {pageSize === size ? 'bg-amber-900/40 text-amber-400' : 'text-gray-400 hover:text-gray-200'}"
         >
           {size}
         </button>

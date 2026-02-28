@@ -59,7 +59,7 @@
       rows="10"
       placeholder="date,title,amount&#10;2024-01-15,Grocery Store,45.99&#10;2024-01-16,Gas Station,62.30"
       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3
-             text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500
+             text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500
              font-mono text-sm resize-y"
     ></textarea>
   </div>
@@ -79,10 +79,10 @@
       tabindex="0"
       aria-label="Upload CSV file"
       class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center
-             hover:border-emerald-500/50 transition-colors cursor-pointer"
+             hover:border-amber-500/50 transition-colors cursor-pointer"
     >
       {#if file}
-        <p class="text-emerald-400">{file.name}</p>
+        <p class="text-amber-400">{file.name}</p>
         <p class="text-xs text-gray-500 mt-1"
           >{(file.size / 1024).toFixed(1)} KB</p
         >
@@ -116,8 +116,8 @@
   <button
     onclick={submit}
     disabled={!inputText.trim()}
-    class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700
-           disabled:text-gray-500 text-white font-medium py-3 rounded-xl
+    class="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
+           disabled:text-gray-500 text-gray-950 font-medium py-3 rounded-xl
            transition-colors"
   >
     Next: Map Columns

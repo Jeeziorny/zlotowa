@@ -73,8 +73,8 @@
                 type="text"
                 bind:value={editPattern}
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
-                       font-mono text-gray-200 focus:border-emerald-500 focus:ring-1
-                       focus:ring-emerald-500 focus:outline-none"
+                       font-mono text-gray-200 focus:border-amber-500 focus:ring-1
+                       focus:ring-amber-500 focus:outline-none"
               />
             </td>
             <td class="px-4 py-2">
@@ -83,8 +83,8 @@
                 bind:value={editCategory}
                 list="edit-rule-categories"
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
-                       text-gray-200 focus:border-emerald-500 focus:ring-1
-                       focus:ring-emerald-500 focus:outline-none"
+                       text-gray-200 focus:border-amber-500 focus:ring-1
+                       focus:ring-amber-500 focus:outline-none"
               />
               <datalist id="edit-rule-categories">
                 {#each categories as cat}
@@ -98,7 +98,7 @@
                 <button
                   onclick={saveEdit}
                   disabled={saving}
-                  class="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 p-1 transition-colors"
+                  class="text-amber-400 hover:text-amber-300 disabled:opacity-50 p-1 transition-colors"
                   title="Save"
                   aria-label="Save edit"
                 >
@@ -126,7 +126,7 @@
           <tr class="border-b border-gray-800/50 hover:bg-gray-800/30 group">
             <td class="px-4 py-3 font-mono text-sm text-gray-300">{rule.pattern}</td>
             <td class="px-4 py-3">
-              <span class="bg-emerald-900/30 text-emerald-400 px-2 py-0.5 rounded text-sm">
+              <span class="bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded text-sm">
                 {rule.category}
               </span>
             </td>
@@ -135,7 +135,7 @@
               <div class="flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                 <button
                   onclick={() => startEdit(rule)}
-                  class="text-gray-400 hover:text-emerald-400 p-1 transition-colors"
+                  class="text-gray-400 hover:text-amber-400 p-1 transition-colors"
                   title="Edit"
                   aria-label="Edit rule"
                 >

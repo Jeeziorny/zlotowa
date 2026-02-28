@@ -25,14 +25,14 @@
   <h3 class="text-lg font-semibold mb-4">Biggest Expense This Month</h3>
 
   {#if biggest}
-    <div class="text-3xl font-bold text-emerald-400 mb-2">
+    <div class="text-3xl font-bold text-amber-400 mb-2">
       {Math.abs(biggest.amount).toFixed(2)}
     </div>
     <div class="text-gray-300">{biggest.title}</div>
     <div class="text-sm text-gray-500 mt-1">
       {biggest.date}
       {#if biggest.category}
-        <span class="ml-2 px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-400 text-xs">
+        <span class="ml-2 px-2 py-0.5 rounded bg-amber-900/30 text-amber-400 text-xs">
           {biggest.category}
         </span>
       {/if}

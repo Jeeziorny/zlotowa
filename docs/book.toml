@@ -1,5 +1,5 @@
 [book]
-title = "4ccountant"
+title = "złotówa"
 authors = ["Kamil Jeziorny"]
 language = "en"
 src = "src"
@@ -7,4 +7,4 @@ src = "src"
 [output.html]
 default-theme = "coal"
 preferred-dark-theme = "coal"
-git-repository-url = "https://github.com/kamiljeziorny/4ccountant"
+git-repository-url = "https://github.com/kamiljeziorny/zlotowa"

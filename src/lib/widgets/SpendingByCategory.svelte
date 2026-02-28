@@ -18,7 +18,7 @@
 <button
   onclick={() => onnavigate("categories")}
   class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-full text-left
-         cursor-pointer hover:border-emerald-500/50 hover:bg-gray-900/80 transition-all"
+         cursor-pointer hover:border-amber-500/50 hover:bg-gray-900/80 transition-all"
 >
   <h3 class="text-lg font-semibold mb-4">Spending by Category</h3>
 
@@ -34,7 +34,7 @@
           <div class="flex items-center gap-2">
             <div class="flex-1 bg-gray-800 rounded-full h-3">
               <div
-                class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-3 rounded-full transition-all duration-200"
+                class="bg-gradient-to-r from-amber-600 to-amber-400 h-3 rounded-full transition-all duration-200"
                 style="width: {pct}%"
               ></div>
             </div>

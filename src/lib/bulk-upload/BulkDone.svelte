@@ -3,7 +3,7 @@
 </script>
 
 <div class="max-w-lg bg-gray-900 rounded-xl p-12 border border-gray-800 text-center">
-  <div class="text-4xl mb-4 text-emerald-400">
+  <div class="text-4xl mb-4 text-amber-400">
     {savedCount}
   </div>
   <p class="text-lg font-semibold mb-2">Expenses saved</p>
@@ -12,7 +12,7 @@
   </p>
   <button
     onclick={onreset}
-    class="px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-medium
+    class="px-6 bg-amber-500 hover:bg-amber-400 text-gray-950 font-medium
            py-2.5 rounded-lg transition-colors"
   >
     Upload More

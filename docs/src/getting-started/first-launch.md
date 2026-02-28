@@ -1,6 +1,6 @@
 # First Launch
 
-When you open 4ccountant for the first time, you'll see an empty dashboard. Here's how to get started:
+When you open złotówa for the first time, you'll see an empty dashboard. Here's how to get started:
 
 ## Quick start
 

@@ -39,7 +39,7 @@
         <div class="flex-1 flex flex-col items-center gap-1">
           <span class="text-xs text-gray-400">{amount.toFixed(0)}</span>
           <div
-            class="w-full bg-emerald-500 rounded-t transition-all min-h-1"
+            class="w-full bg-amber-500 rounded-t transition-all min-h-1"
             style="height: {(amount / maxAmount) * 100}%"
           ></div>
           <span class="text-xs text-gray-500">{formatMonth(month)}</span>

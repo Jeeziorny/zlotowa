@@ -12,7 +12,7 @@ Export your expenses to CSV from the **Expenses** page.
    - **Amount**
    - **Category**
    - **Classification Source** (how each expense was classified: Database, Llm, or Manual)
-4. Click **Download CSV** — a native file save dialog opens with a default name of `4ccountant-export-YYYY-MM-DD.csv`. Choose where to save the file.
+4. Click **Download CSV** — a native file save dialog opens with a default name of `zlotowa-export-YYYY-MM-DD.csv`. Choose where to save the file.
 
 ## CLI export
 
@@ -20,14 +20,14 @@ You can also export from the terminal:
 
 ```bash
 # Interactive column selection
-4ccountant export
+zlotowa export
 
 # Using a grammar file (one column name per line)
-4ccountant export columns.txt
+zlotowa export columns.txt
 ```
 
 The CLI writes CSV to stdout, so you can pipe it:
 
 ```bash
-4ccountant export > expenses.csv
+zlotowa export > expenses.csv
 ```
