@@ -7,6 +7,7 @@
 
   // Steps: input -> column-mapping -> review -> done
   let step = $state("input");
+  let error = $state("");
 
   // Shared state across steps
   let inputText = $state("");
@@ -22,12 +23,18 @@
   let dataRows = $derived(previewRows.length > 1 ? previewRows.slice(1) : []);
 
   async function handleFileInput({ text, filename }) {
+    error = "";
     inputText = text;
     batchFilename = filename;
 
-    const result = await invoke("preview_csv", { input: text });
-    previewRows = result.rows;
-    parserName = result.parser_name;
+    try {
+      const result = await invoke("preview_csv", { input: text });
+      previewRows = result.rows;
+      parserName = result.parser_name;
+    } catch (err) {
+      error = `Failed to parse file: ${err}`;
+      return;
+    }
 
     // Check LLM config
     try {
@@ -43,6 +50,7 @@
   }
 
   async function handleMapping(mapping) {
+    error = "";
     classifying = true;
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
@@ -53,6 +61,8 @@
       classifiedRows = rows.map((r) => ({ ...r, _editing: false, rule_pattern: r.title, _autoApplied: 0, _originalSource: r.source }));
       await loadCategories();
       step = "review";
+    } catch (err) {
+      error = `Classification failed: ${err}`;
     } finally {
       classifying = false;
     }
@@ -77,15 +87,17 @@
       rule_pattern: r.rule_pattern !== r.title ? r.rule_pattern : null,
     }));
 
-    savedCount = await invoke("bulk_save_expenses", {
+    const count = await invoke("bulk_save_expenses", {
       expenses: toSave,
       filename: batchFilename,
     });
+    savedCount = count;
     step = "done";
   }
 
   function reset() {
     step = "input";
+    error = "";
     inputText = "";
     batchFilename = "Pasted data";
     previewRows = [];
@@ -134,6 +146,12 @@
       </span>
     {/each}
   </div>
+
+  {#if error}
+    <div class="mb-4 px-4 py-3 rounded-xl bg-red-900/50 border border-red-800/50 text-red-400 text-sm">
+      {error}
+    </div>
+  {/if}
 
   {#if step === "input"}
     <FileInput onnext={handleFileInput} />

@@ -6,8 +6,6 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 59 | Bulk Upload Error Handling | Add try/catch + user-visible errors to BulkUpload wizard (preview, classify, save steps). |
-| 60 | Security Hardening | Replace `.expect()` panics in restore path, fix silent migration errors, LLM data leakage notice, evaluate encrypted key storage. |
 | 61 | UX Feedback States | Loading indicators (Dashboard, Categories, TitleCleanup), double-submit prevention, auto-clear messages, timer cleanup, stale date fix. |
 | 62 | Accessibility Round 3 | Focus-visible on hover-only buttons, aria-labels on icon buttons/checkboxes/inputs, decorative SVG hiding. |
 | 63 | Docs Sync Round 3 | Remove phantom Exporter references, verify CLI crate, update IPC command count, BudgetStatus widget docs. |
@@ -15,6 +13,8 @@
 
 | # | Task | Summary |
 |---|------|---------|
+| 60 | Security Hardening | `.expect()` → `map_err` in restore, silent migration `let _ =` → logged warnings, LLM data leakage notice in Settings. |
+| 59 | Bulk Upload Error Handling | try/catch + user-visible error banner for all 3 BulkUpload wizard steps (preview, classify, save). |
 | 58 | Backup & Restore | Full app state backup to JSON (expenses, rules, title cleanup rules, budgets). Restore with dedup/upsert. CLI commands + Settings UI. |
 | 49 | Component Splitting | Split BulkUpload (4 steps), ExpenseList (SearchFilterBar, ExpenseTable, PaginationBar), Settings (LLM + uploads). |
 | 57 | Structured Logging | `log` + `tauri-plugin-log` for Rust backend. Stdout + LogDir targets, 5 MB rotation. Logging across IPC commands, DB, LLM, parsers, classifiers, exporters, iCal. |

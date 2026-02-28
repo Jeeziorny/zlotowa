@@ -2,7 +2,7 @@ use crate::models::{
     Budget, BudgetCategory, CategoryAverage, CategoryStats, ClassificationRule,
     ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, TitleCleanupRule, UploadBatch,
 };
-use log::{error, info};
+use log::{error, info, warn};
 use rusqlite::{params, Connection, Result as SqlResult};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -123,10 +123,15 @@ impl Database {
                 expense_count  INTEGER NOT NULL
             );",
         )?;
-        // ALTER TABLE is not idempotent in SQLite — ignore error if column already exists
-        let _ = self.conn.execute_batch(
+        // ALTER TABLE is not idempotent in SQLite — ignore "duplicate column" but log others
+        if let Err(e) = self.conn.execute_batch(
             "ALTER TABLE expenses ADD COLUMN batch_id INTEGER REFERENCES upload_batches(id);",
-        );
+        ) {
+            let msg = e.to_string();
+            if !msg.contains("duplicate column") {
+                warn!("batch_id migration failed: {}", msg);
+            }
+        }
         self.conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_expenses_batch_id ON expenses(batch_id);",
         )?;
@@ -170,10 +175,16 @@ impl Database {
             migration_result?;
         }
 
-        // display_title column for cleaned titles (idempotent ALTER, ignore error)
-        let _ = self
+        // display_title column for cleaned titles — ignore "duplicate column" but log others
+        if let Err(e) = self
             .conn
-            .execute_batch("ALTER TABLE expenses ADD COLUMN display_title TEXT;");
+            .execute_batch("ALTER TABLE expenses ADD COLUMN display_title TEXT;")
+        {
+            let msg = e.to_string();
+            if !msg.contains("duplicate column") {
+                warn!("display_title migration failed: {}", msg);
+            }
+        }
 
         // FK indices on budget child tables (idempotent)
         self.conn.execute_batch(
@@ -188,11 +199,12 @@ impl Database {
         self.conn
             .execute_batch("DROP TABLE IF EXISTS calendar_events;")?;
 
-        // UNIQUE constraint on title_cleanup_rules(pattern, replacement, is_regex)
-        // Ignoring error in case existing data has duplicates
-        let _ = self.conn.execute_batch(
+        // UNIQUE constraint on title_cleanup_rules — may fail if existing data has duplicates
+        if let Err(e) = self.conn.execute_batch(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_title_cleanup_rules_unique ON title_cleanup_rules(pattern, replacement, is_regex);",
-        );
+        ) {
+            warn!("title_cleanup_rules unique index failed (possible duplicate data): {}", e);
+        }
 
         Ok(())
     }
@@ -1227,10 +1239,10 @@ impl Database {
             .iter()
             .map(|e| {
                 let date = chrono::NaiveDate::parse_from_str(&e.date, "%Y-%m-%d")
-                    .expect("date already validated");
-                (e.title.as_str(), e.amount, date)
+                    .map_err(|_| DbError::InvalidData(format!("invalid expense date: {}", e.date)))?;
+                Ok((e.title.as_str(), e.amount, date))
             })
-            .collect();
+            .collect::<Result<Vec<_>, DbError>>()?;
         let dup_refs: Vec<(&str, f64, &chrono::NaiveDate)> = dup_inputs
             .iter()
             .map(|(t, a, d)| (*t, *a, d))
@@ -1243,7 +1255,7 @@ impl Database {
                 continue;
             }
             let date = chrono::NaiveDate::parse_from_str(&expense.date, "%Y-%m-%d")
-                .expect("date already validated");
+                .map_err(|_| DbError::InvalidData(format!("invalid expense date: {}", expense.date)))?;
             let source = expense
                 .classification_source
                 .as_deref()
@@ -1284,9 +1296,9 @@ impl Database {
         // 4. Budgets — skip overlapping
         for budget in &data.budgets {
             let start = chrono::NaiveDate::parse_from_str(&budget.start_date, "%Y-%m-%d")
-                .expect("date already validated");
+                .map_err(|_| DbError::InvalidData(format!("invalid budget start_date: {}", budget.start_date)))?;
             let end = chrono::NaiveDate::parse_from_str(&budget.end_date, "%Y-%m-%d")
-                .expect("date already validated");
+                .map_err(|_| DbError::InvalidData(format!("invalid budget end_date: {}", budget.end_date)))?;
 
             if self.check_budget_overlap(start, end)? {
                 summary.budgets_skipped += 1;

@@ -189,6 +189,15 @@
 </div>
 
 {#if isConfigured}
+  <div class="bg-yellow-900/30 rounded-xl p-4 border border-yellow-800/50 flex gap-3 items-start">
+    <span class="text-yellow-400 text-lg leading-none mt-0.5">!</span>
+    <p class="text-sm text-yellow-300/90">
+      When LLM classification is enabled, expense titles and amounts are sent to
+      <strong class="text-yellow-200">{provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "your Ollama instance"}</strong>
+      for categorization. No other financial data leaves this device.
+    </p>
+  </div>
+
   <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
     <h3 class="text-lg font-semibold mb-2">Current Configuration</h3>
     <div class="text-sm space-y-1">
