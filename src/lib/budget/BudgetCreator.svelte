@@ -230,7 +230,6 @@
         <p class="text-sm text-gray-400 mb-3">
           Optionally upload an .ics calendar file to see upcoming events while setting budgets.
         </p>
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           ondrop={handleFileDrop}
           ondragover={handleDragOver}

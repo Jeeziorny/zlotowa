@@ -38,6 +38,7 @@
     value={searchText}
     oninput={onSearchInput}
     placeholder="Search by title..."
+    aria-label="Search expenses by title"
     class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm
            text-gray-200 placeholder-gray-500 focus:border-emerald-500 focus:ring-1
            focus:ring-emerald-500 focus:outline-none"

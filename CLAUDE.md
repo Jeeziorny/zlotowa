@@ -30,7 +30,7 @@ Rust + Tauri v2 + Svelte 5 + Tailwind CSS v4 desktop app for expense tracking an
 
 **Cargo workspace:**
 - `crates/core` (`accountant-core`) — business logic: parsers, classifiers, DB, models
-- `crates/cli` (`accountant-cli`) — CLI binary (5 commands: llm-conf, insert, bulk-insert, export, dashboard)
+- `crates/cli` (`accountant-cli`) — CLI binary (4 commands: llm-conf, bulk-insert, backup, restore)
 - `src-tauri` (`accountant-app`) — Tauri IPC commands, app state
 
 **Data flow:**
@@ -44,21 +44,20 @@ CSV → Parser (auto-detect format) → ParsedExpense → Classification Pipelin
 
 **LLM** (`crates/core/src/llm.rs`): `LlmProvider` trait with `validate()` and `classify_batch()`. Implementations: `OpenAiProvider`, `AnthropicProvider`, `OllamaProvider`. Uses blocking `reqwest`.
 
-**Exporter** (`crates/core/src/exporters.rs`): `name()`, `extension()`, `export()` returning bytes. `CsvExporter` with configurable `ExportColumns`.
-
 **iCal** (`crates/core/src/ical.rs`): `parse_ics()` parses `.ics` content into `ParsedCalendarEvent` structs. `filter_events_by_date_range()` narrows to a budget's date range. Handles UTC, timezone-qualified, and all-day DTSTART formats.
 
 ### Tauri IPC Bridge
 
 All commands in `src-tauri/src/lib.rs`. State is `AppState { db: Mutex<Database> }`.
 
-39 commands grouped by domain:
-- **Expenses:** `get_expenses`, `query_expenses`, `add_expense`, `update_expense`, `delete_expense`, `delete_expenses`, `suggest_category`, `export_expenses`
+40 commands grouped by domain:
+- **Expenses:** `get_expenses`, `query_expenses`, `add_expense`, `update_expense`, `delete_expense`, `delete_expenses`, `suggest_category`
 - **Bulk upload:** `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_upload_batches`, `delete_batch`
 - **Categories:** `get_categories`, `get_category_stats`, `create_category`, `rename_category`, `delete_category`, `merge_categories`, `get_category_averages`
 - **LLM:** `get/save/validate/clear_llm_config`
 - **Title cleanup:** `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`
 - **Budgets:** `get_budget_summary`, `get_active_budget_summary`, `list_budgets`, `create_budget`, `save_budget_categories`, `delete_budget`, `check_budget_overlap`, `parse_calendar_events`
+- **Backup:** `backup_database`, `restore_database`
 - **Widgets:** `get/save_active_widgets`
 
 Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/core`.
@@ -77,7 +76,7 @@ Error handling: `DbError` enum via `thiserror`.
 
 SPA routing in `App.svelte` with string-based page state. Pages: Dashboard, AddExpense, BulkUpload, ExpenseList, Categories, TitleCleanup, BudgetPlanning, Settings.
 
-Dashboard widgets registered in `src/lib/widgets/registry.js`, widget visibility/order persisted to DB.
+Dashboard widgets registered in `src/lib/widgets/registry.js`, widget visibility/order persisted to DB. Most widgets receive data via props; `BudgetStatus` self-fetches via `invoke()` in `onMount`.
 
 ## Conventions
 
@@ -97,5 +96,4 @@ Dashboard widgets registered in `src/lib/widgets/registry.js`, widget visibility
 - **New classifier:** Implement `Classifier` trait, add to pipeline in caller
 - **New widget:** Create `.svelte` in `src/lib/widgets/`, register in `registry.js`
 - **New LLM provider:** Implement `LlmProvider` trait in `crates/core/src/llm.rs`, add to `create_provider()` factory
-- **New export format:** Implement `Exporter` trait in `crates/core/src/exporters.rs`
 - **New IPC command:** Add `#[tauri::command]` fn in `src-tauri/src/lib.rs`, register in `invoke_handler!`

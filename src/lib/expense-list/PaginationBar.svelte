@@ -34,6 +34,7 @@
         onclick={onprev}
         disabled={currentPage <= 1}
         title="Previous page"
+        aria-label="Previous page"
         class="px-2 py-1 rounded text-gray-400 hover:text-gray-200 disabled:opacity-30
                disabled:cursor-not-allowed transition-colors"
       >
@@ -46,6 +47,7 @@
         onclick={onnext}
         disabled={currentPage >= totalPages}
         title="Next page"
+        aria-label="Next page"
         class="px-2 py-1 rounded text-gray-400 hover:text-gray-200 disabled:opacity-30
                disabled:cursor-not-allowed transition-colors"
       >

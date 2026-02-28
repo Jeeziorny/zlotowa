@@ -83,6 +83,7 @@
             type="checkbox"
             checked={allSelected}
             onchange={onselectall}
+            aria-label="Select all expenses"
             class="rounded bg-gray-800 border-gray-700 text-emerald-500 focus:ring-emerald-500"
           />
         </th>
@@ -150,6 +151,7 @@
                   disabled={saving}
                   class="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 p-1 transition-colors"
                   title="Save"
+                  aria-label="Save edit"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -159,6 +161,7 @@
                   onclick={cancelEdit}
                   class="text-gray-400 hover:text-gray-300 p-1 transition-colors"
                   title="Cancel"
+                  aria-label="Cancel edit"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -194,11 +197,12 @@
               {/if}
             </td>
             <td class="px-4 py-3">
-              <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                 <button
                   onclick={() => startEdit(expense)}
                   class="text-gray-400 hover:text-emerald-400 p-1 transition-colors"
                   title="Edit"
+                  aria-label="Edit expense"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -209,6 +213,7 @@
                   onclick={() => ondelete(expense)}
                   class="text-gray-400 hover:text-red-400 p-1 transition-colors"
                   title="Delete"
+                  aria-label="Delete expense"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

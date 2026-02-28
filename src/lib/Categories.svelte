@@ -165,6 +165,7 @@
           type="text"
           bind:value={newName}
           placeholder="Category name"
+          aria-label="New category name"
           onkeydown={(e) => e.key === "Enter" && handleCreate()}
           class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
                  text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
@@ -194,6 +195,7 @@
       type="text"
       bind:value={search}
       placeholder="Search categories..."
+      aria-label="Search categories"
       class="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2
              text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 text-sm"
     />
