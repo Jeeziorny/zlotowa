@@ -47,6 +47,14 @@ pub struct PreviewResult {
     pub rows: Vec<Vec<String>>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ParsedExpenseRow {
+    pub title: String,
+    pub amount: f64,
+    pub date: String,
+    pub is_duplicate: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct ClassifiedExpenseRow {
     pub title: String,
@@ -273,6 +281,153 @@ fn preview_csv(input: String) -> Result<PreviewResult, String> {
         parser_name: parser.name().to_string(),
         rows,
     })
+}
+
+#[tauri::command]
+fn parse_csv_data(
+    state: State<AppState>,
+    input: String,
+    mapping: ColumnMapping,
+) -> Result<Vec<ParsedExpenseRow>, String> {
+    info!("parse_csv_data: input length={}", input.len());
+    let parsers = parsers::builtin_parsers();
+    let parser = parsers::detect_parser(&input, &parsers)
+        .ok_or("Could not detect input format.")?;
+    let parsed = parser.parse(&input, &mapping).map_err(|e| { warn!("parse_csv_data parse failed: {e}"); e.to_string() })?;
+    info!("parse_csv_data: parsed {} expenses", parsed.len());
+
+    let dup_flags = {
+        let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+        let dup_inputs: Vec<(&str, f64, &chrono::NaiveDate)> = parsed
+            .iter()
+            .map(|e| (e.title.as_str(), e.amount, &e.date))
+            .collect();
+        db.check_duplicates_batch(&dup_inputs).map_err(|e| e.to_string())?
+    };
+
+    let rows: Vec<ParsedExpenseRow> = parsed
+        .iter()
+        .zip(dup_flags.iter())
+        .map(|(e, &is_dup)| ParsedExpenseRow {
+            title: e.title.clone(),
+            amount: e.amount,
+            date: e.date.to_string(),
+            is_duplicate: is_dup,
+        })
+        .collect();
+
+    Ok(rows)
+}
+
+#[tauri::command]
+fn classify_expenses(
+    state: State<AppState>,
+    rows: Vec<ParsedExpenseRow>,
+) -> Result<Vec<ClassifiedExpenseRow>, String> {
+    info!("classify_expenses: {} rows", rows.len());
+
+    let parsed: Vec<ParsedExpense> = rows
+        .iter()
+        .filter_map(|r| {
+            chrono::NaiveDate::parse_from_str(&r.date, "%Y-%m-%d")
+                .ok()
+                .map(|date| ParsedExpense {
+                    title: r.title.clone(),
+                    amount: r.amount,
+                    date,
+                })
+        })
+        .collect();
+
+    let (rules, llm_provider_name, llm_api_key, categories) = {
+        let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+        let rules = db.get_all_rules().map_err(|e| e.to_string())?;
+        let llm_provider_name = db.get_config("llm_provider").map_err(|e| e.to_string())?;
+        let llm_api_key = db.get_config("llm_api_key").map_err(|e| e.to_string())?;
+        let categories = db.get_all_categories().unwrap_or_default();
+        (rules, llm_provider_name, llm_api_key, categories)
+    };
+
+    let regex_classifier = RegexClassifier::from_rules(&rules);
+    let classifiers: Vec<Box<dyn Classifier>> = vec![Box::new(regex_classifier)];
+    let classified = classify_pipeline(&parsed, &classifiers);
+
+    let mut result: Vec<ClassifiedExpenseRow> = Vec::new();
+    for ((expense, class_result), orig_row) in classified.iter().zip(rows.iter()) {
+        let (category, source, confidence) = match class_result {
+            Some(cr) => (Some(cr.category.clone()), Some(cr.source.to_string()), Some(cr.confidence)),
+            None => (None, None, None),
+        };
+        result.push(ClassifiedExpenseRow {
+            title: expense.title.clone(),
+            amount: expense.amount,
+            date: orig_row.date.clone(),
+            category,
+            source,
+            confidence,
+            is_duplicate: orig_row.is_duplicate,
+        });
+    }
+
+    let regex_classified = result.iter().filter(|r| r.category.is_some()).count();
+    info!("classify_expenses: {regex_classified}/{} classified by regex", result.len());
+
+    // LLM fallback
+    if let (Some(provider_name), Some(api_key)) = (&llm_provider_name, &llm_api_key) {
+        if !provider_name.is_empty() && !api_key.is_empty() {
+            let unclassified_indices: Vec<usize> = result
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| r.category.is_none() && !r.is_duplicate)
+                .map(|(i, _)| i)
+                .collect();
+
+            if !unclassified_indices.is_empty() {
+                info!("classify_expenses: LLM fallback — {} unclassified, provider='{provider_name}'", unclassified_indices.len());
+                if let Some(provider) = create_provider(provider_name) {
+                    let config = LlmConfig {
+                        provider: provider_name.clone(),
+                        api_key: api_key.clone(),
+                    };
+                    let unclassified_expenses: Vec<ParsedExpense> = unclassified_indices
+                        .iter()
+                        .filter_map(|&i| {
+                            let row = result.get(i)?;
+                            Some(ParsedExpense {
+                                title: row.title.clone(),
+                                amount: row.amount,
+                                date: chrono::NaiveDate::parse_from_str(&row.date, "%Y-%m-%d")
+                                    .unwrap_or_else(|_| chrono::Local::now().date_naive()),
+                            })
+                        })
+                        .collect();
+
+                    match provider.classify_batch(&unclassified_expenses, &categories, &config) {
+                        Ok(llm_results) => {
+                            let llm_classified = llm_results.iter().filter(|r| r.is_some()).count();
+                            info!("classify_expenses: LLM classified {llm_classified}/{}", unclassified_expenses.len());
+                            for (idx, llm_result) in unclassified_indices.iter().zip(llm_results.into_iter()) {
+                                if let Some(classification) = llm_result {
+                                    if let Some(row) = result.get_mut(*idx) {
+                                        row.category = Some(classification.category);
+                                        row.source = Some(ClassificationSource::Llm.to_string());
+                                        row.confidence = Some(classification.confidence);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!("classify_expenses: LLM fallback failed: {e}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let final_classified = result.iter().filter(|r| r.category.is_some()).count();
+    info!("classify_expenses: complete — {final_classified}/{} classified total", result.len());
+    Ok(result)
 }
 
 #[tauri::command]
@@ -777,24 +932,24 @@ fn save_config(state: State<AppState>, key: String, value: String) -> Result<(),
 // ── Dashboard Widget Config ──
 
 #[tauri::command]
-fn get_active_widgets(state: State<AppState>) -> Result<Option<Vec<String>>, String> {
+fn get_active_widgets(state: State<AppState>) -> Result<Option<serde_json::Value>, String> {
     debug!("get_active_widgets called");
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let val = db.get_config("active_widgets").map_err(|e| e.to_string())?;
     match val {
         Some(json) if !json.is_empty() => {
-            let ids: Vec<String> = serde_json::from_str(&json).map_err(|e| e.to_string())?;
-            Ok(Some(ids))
+            let value: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+            Ok(Some(value))
         }
         _ => Ok(None),
     }
 }
 
 #[tauri::command]
-fn save_active_widgets(state: State<AppState>, widget_ids: Vec<String>) -> Result<(), String> {
-    info!("save_active_widgets: {} widgets", widget_ids.len());
+fn save_active_widgets(state: State<AppState>, widgets: serde_json::Value) -> Result<(), String> {
+    info!("save_active_widgets called");
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
-    let json = serde_json::to_string(&widget_ids).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string(&widgets).map_err(|e| e.to_string())?;
     db.set_config("active_widgets", &json).map_err(|e| { warn!("save_active_widgets failed: {e}"); e.to_string() })
 }
 
@@ -1576,14 +1731,18 @@ mod tests {
         let result = get_active_widgets(state).unwrap();
         assert!(result.is_none());
 
-        // Save
+        // Save instance-object format
         let state: State<AppState> = app.state();
-        save_active_widgets(state, vec!["total".into(), "chart".into()]).unwrap();
+        let widgets = serde_json::json!([
+            { "widgetId": "total-stats", "instanceId": "total-stats" },
+            { "widgetId": "keyword-tracker", "instanceId": "kw-1", "config": { "keyword": "LIDL" } }
+        ]);
+        save_active_widgets(state, widgets.clone()).unwrap();
 
         // Load
         let state: State<AppState> = app.state();
         let result = get_active_widgets(state).unwrap();
-        assert_eq!(result.unwrap(), vec!["total", "chart"]);
+        assert_eq!(result.unwrap(), widgets);
     }
 
     // ── LLM Config ──
@@ -1748,6 +1907,8 @@ pub fn run() {
             validate_llm_config,
             clear_llm_config,
             preview_csv,
+            parse_csv_data,
+            classify_expenses,
             parse_and_classify,
             backup_database,
             restore_database,

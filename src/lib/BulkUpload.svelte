@@ -17,11 +17,10 @@
   let parserName = $state("");
   let llmWarning = $state("");
   let classifying = $state(false);
+  let parsedRows = $state([]);
   let classifiedRows = $state([]);
   let allCategories = $state([]);
   let savedCount = $state(0);
-
-  let dataRows = $derived(previewRows.length > 1 ? previewRows.slice(1) : []);
 
   async function handleFileInput({ text, filename }) {
     error = "";
@@ -52,16 +51,36 @@
 
   async function handleMapping(mapping) {
     error = "";
-    classifying = true;
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
-      const rows = await invoke("parse_and_classify", {
+      const rows = await invoke("parse_csv_data", {
         input: inputText,
         mapping,
       });
-      classifiedRows = rows.map((r) => ({ ...r, _editing: false, rule_pattern: r.title, _autoApplied: 0, _originalSource: r.source }));
-      await loadCategories();
+      parsedRows = rows;
       step = "cleanup";
+    } catch (err) {
+      error = `Parsing failed: ${err}`;
+    }
+  }
+
+  async function handleCleanupDone() {
+    error = "";
+    classifying = true;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    try {
+      const rows = await invoke("classify_expenses", {
+        rows: parsedRows,
+      });
+      classifiedRows = rows.map((r, i) => ({
+        ...r,
+        _editing: false,
+        rule_pattern: r.title,
+        _autoApplied: 0,
+        _originalSource: r.source,
+        _originalTitle: parsedRows[i]?._originalTitle || null,
+      }));
+      await loadCategories();
+      step = "review";
     } catch (err) {
       error = `Classification failed: ${err}`;
     } finally {
@@ -78,19 +97,15 @@
     }
   }
 
-  function handleCleanupDone() {
-    step = "review";
-  }
-
   async function handleSave(nonDuplicateRows) {
     const toSave = nonDuplicateRows.map((r) => ({
-      title: r.title,
+      title: r._originalTitle || r.title,
       amount: r.amount,
       date: r.date,
       category: r.category,
       source: r.source,
       rule_pattern: r.rule_pattern !== r.title ? r.rule_pattern : null,
-      display_title: r.display_title || null,
+      display_title: r._originalTitle ? r.title : null,
     }));
 
     const count = await invoke("bulk_save_expenses", {
@@ -109,6 +124,7 @@
     previewRows = [];
     parserName = "";
     llmWarning = "";
+    parsedRows = [];
     classifiedRows = [];
     allCategories = [];
     savedCount = 0;
@@ -120,7 +136,7 @@
     <div class="bg-gray-900 border border-gray-800 rounded-2xl p-10 flex flex-col items-center gap-4 shadow-2xl max-w-sm w-full mx-4">
       <div class="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
       <p class="text-lg font-semibold text-gray-100">Classifying expenses...</p>
-      <p class="text-sm text-gray-400">{dataRows.length} expenses — matching rules, then calling AI for the rest</p>
+      <p class="text-sm text-gray-400">{parsedRows.length} expenses — matching rules, then calling AI for the rest</p>
       <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
         <div class="h-full bg-emerald-500 rounded-full animate-progress"></div>
       </div>
@@ -172,13 +188,12 @@
       {previewRows}
       {parserName}
       {llmWarning}
-      {classifying}
       onback={() => step = "input"}
       onnext={handleMapping}
     />
   {:else if step === "cleanup"}
     <TitleCleanupStep
-      bind:classifiedRows
+      bind:parsedRows
       onback={() => step = "column-mapping"}
       onnext={handleCleanupDone}
     />

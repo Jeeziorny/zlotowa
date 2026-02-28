@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
 
-  let { classifiedRows = $bindable(), onback, onnext } = $props();
+  let { parsedRows = $bindable(), onback, onnext } = $props();
 
   // Find-and-replace inputs
   let findText = $state("");
@@ -23,7 +23,7 @@
 
   onMount(() => {
     // Snapshot original titles
-    originalTitles = classifiedRows.map(r => r.title);
+    originalTitles = parsedRows.map(r => r.title);
     loadRecentCleanups();
   });
 
@@ -57,12 +57,12 @@
     }
 
     let count = 0;
-    for (let i = 0; i < classifiedRows.length; i++) {
-      const current = classifiedRows[i].title;
+    for (let i = 0; i < parsedRows.length; i++) {
+      const current = parsedRows[i].title;
       const replaced = current.replace(re, replace);
       const cleaned = normalizeWhitespace(replaced);
       if (cleaned !== current) {
-        classifiedRows[i] = { ...classifiedRows[i], title: cleaned };
+        parsedRows[i] = { ...parsedRows[i], title: cleaned };
         count++;
       }
     }
@@ -100,8 +100,8 @@
   }
 
   function handleReset() {
-    for (let i = 0; i < classifiedRows.length; i++) {
-      classifiedRows[i] = { ...classifiedRows[i], title: originalTitles[i] };
+    for (let i = 0; i < parsedRows.length; i++) {
+      parsedRows[i] = { ...parsedRows[i], title: originalTitles[i] };
     }
     appliedOps = [];
     lastApplyCount = null;
@@ -109,12 +109,10 @@
   }
 
   async function handleNext() {
-    // Set display_title for rows where title differs from original
-    for (let i = 0; i < classifiedRows.length; i++) {
-      if (classifiedRows[i].title !== originalTitles[i]) {
-        classifiedRows[i] = { ...classifiedRows[i], display_title: classifiedRows[i].title, title: originalTitles[i] };
-      } else {
-        classifiedRows[i] = { ...classifiedRows[i], display_title: null };
+    // Tag rows where title was modified so save can set display_title
+    for (let i = 0; i < parsedRows.length; i++) {
+      if (parsedRows[i].title !== originalTitles[i]) {
+        parsedRows[i] = { ...parsedRows[i], _originalTitle: originalTitles[i] };
       }
     }
 
@@ -140,7 +138,7 @@
   }
 
   let modifiedCount = $derived(
-    classifiedRows.filter((r, i) => r.title !== originalTitles[i]).length
+    parsedRows.filter((r, i) => r.title !== originalTitles[i]).length
   );
 </script>
 
@@ -248,7 +246,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-800/50">
-          {#each classifiedRows as row, i}
+          {#each parsedRows as row, i}
             {@const isModified = row.title !== originalTitles[i]}
             <tr class="{isModified ? 'bg-emerald-950/20' : ''}">
               <td class="px-4 py-2 text-gray-400 tabular-nums">{row.date}</td>

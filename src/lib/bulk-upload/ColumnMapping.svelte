@@ -1,7 +1,8 @@
 <script>
-  let { previewRows, parserName, llmWarning, classifying, onback, onnext } = $props();
+  let { previewRows, parserName, llmWarning, onback, onnext } = $props();
 
   let columnRoles = $state({});
+  let autoDetectDone = $state(false);
   let activePopover = $state(null);
   let dateFormat = $state("%Y-%m-%d");
   let mappingError = $state("");
@@ -27,7 +28,8 @@
 
   // Auto-detect columns from header names on first render
   $effect(() => {
-    if (headerRow.length > 0 && Object.keys(columnRoles).length === 0) {
+    if (headerRow.length > 0 && !autoDetectDone) {
+      autoDetectDone = true;
       const newRoles = {};
       for (let i = 0; i < headerRow.length; i++) {
         const h = headerRow[i].toLowerCase();
@@ -39,7 +41,9 @@
         if (h.includes("date") || h.includes("data"))
           newRoles[i] = "date";
       }
-      columnRoles = newRoles;
+      if (Object.keys(newRoles).length > 0) {
+        columnRoles = newRoles;
+      }
 
       const dc = findColByRole("date");
       if (dc != null) autoDetectDateFormat(dc);
@@ -284,15 +288,11 @@
     </button>
     <button
       onclick={submit}
-      disabled={classifying || !mappingComplete}
+      disabled={!mappingComplete}
       class="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium
              py-3 rounded-xl transition-colors"
     >
-      {#if classifying}
-        Classifying...
-      {:else}
-        Next: Classify & Review
-      {/if}
+      Next
     </button>
   </div>
 </div>
