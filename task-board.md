@@ -6,13 +6,13 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 61 | UX Feedback States | Loading indicators (Dashboard, Categories, TitleCleanup), double-submit prevention, auto-clear messages, timer cleanup, stale date fix. |
 | 62 | Accessibility Round 3 | Focus-visible on hover-only buttons, aria-labels on icon buttons/checkboxes/inputs, decorative SVG hiding. |
 | 63 | Docs Sync Round 3 | Remove phantom Exporter references, verify CLI crate, update IPC command count, BudgetStatus widget docs. |
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 61 | UX Feedback States | Double-submit prevention, auto-clear messages, timer cleanup, loading spinners, stale date fix, fire-and-forget catches. |
 | 60 | Security Hardening | `.expect()` → `map_err` in restore, silent migration `let _ =` → logged warnings, LLM data leakage notice in Settings. |
 | 59 | Bulk Upload Error Handling | try/catch + user-visible error banner for all 3 BulkUpload wizard steps (preview, classify, save). |
 | 58 | Backup & Restore | Full app state backup to JSON (expenses, rules, title cleanup rules, budgets). Restore with dedup/upsert. CLI commands + Settings UI. |

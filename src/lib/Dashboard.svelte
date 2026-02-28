@@ -115,7 +115,12 @@
   {/if}
 
   <!-- Widgets -->
-  {#if loaded && expenses.length === 0 && activeWidgets.length > 0}
+  {#if !loaded}
+    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
+      <div class="w-8 h-8 border-4 border-gray-700 border-t-emerald-500 rounded-full animate-spin mx-auto mb-3"></div>
+      <p class="text-sm">Loading dashboard...</p>
+    </div>
+  {:else if loaded && expenses.length === 0 && activeWidgets.length > 0}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
       <p class="text-lg mb-2">No expenses yet</p>
       <p class="text-sm">Add an expense or do a bulk upload to get started.</p>

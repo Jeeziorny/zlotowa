@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
 
   let categories = $state([]);
+  let loaded = $state(false);
   let search = $state("");
   let sortBy = $state("name");
   let sortAsc = $state(true);
@@ -49,6 +50,7 @@
     } catch (err) {
       error = `Failed to load categories: ${err}`;
     }
+    loaded = true;
   }
 
   function toggleSort(col) {
@@ -205,7 +207,12 @@
     {/if}
   </div>
 
-  {#if categories.length === 0}
+  {#if !loaded}
+    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
+      <div class="w-8 h-8 border-4 border-gray-700 border-t-emerald-500 rounded-full animate-spin mx-auto mb-3"></div>
+      <p class="text-sm">Loading categories...</p>
+    </div>
+  {:else if categories.length === 0}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
       <p class="text-lg mb-2">No categories yet</p>
       <p class="text-sm">Categories are created automatically when you categorize expenses.</p>

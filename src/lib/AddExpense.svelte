@@ -1,6 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import DatePicker from "./DatePicker.svelte";
 
   let title = $state("");
@@ -9,6 +9,8 @@
   let category = $state("");
   let message = $state("");
   let messageType = $state("");
+  let saving = $state(false);
+  let messageClearTimer;
 
   let rulePattern = $state("");
   let showRulePattern = $state(false);
@@ -31,6 +33,15 @@
     }
   });
 
+  function showMessage(msg, type) {
+    message = msg;
+    messageType = type;
+    clearTimeout(messageClearTimer);
+    if (type === "success") {
+      messageClearTimer = setTimeout(() => { message = ""; }, 3000);
+    }
+  }
+
   let debounceTimer;
   function onTitleInput(e) {
     title = e.target.value;
@@ -49,11 +60,11 @@
 
   async function submit() {
     if (!title || !amount || !date) {
-      message = "Please fill in all required fields.";
-      messageType = "error";
+      showMessage("Please fill in all required fields.", "error");
       return;
     }
 
+    saving = true;
     try {
       await invoke("add_expense", {
         input: {
@@ -66,8 +77,7 @@
         },
       });
 
-      message = "Expense added successfully!";
-      messageType = "success";
+      showMessage("Expense added successfully!", "success");
       title = "";
       amount = "";
       category = "";
@@ -81,10 +91,15 @@
         allCategories = await invoke("get_categories");
       } catch (err) { console.warn("Failed to refresh categories:", err); }
     } catch (err) {
-      message = `Error: ${err}`;
-      messageType = "error";
+      showMessage(`Error: ${err}`, "error");
     }
+    saving = false;
   }
+
+  onDestroy(() => {
+    clearTimeout(debounceTimer);
+    clearTimeout(messageClearTimer);
+  });
 </script>
 
 <div>
@@ -191,10 +206,12 @@
 
       <button
         onclick={submit}
-        class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium
+        disabled={saving}
+        class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700
+               disabled:text-gray-500 text-white font-medium
                py-2.5 rounded-lg transition-colors"
       >
-        Add Expense
+        {saving ? "Saving..." : "Add Expense"}
       </button>
 
       {#if message}

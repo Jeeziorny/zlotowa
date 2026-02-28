@@ -86,7 +86,7 @@
   function handleSearch(value) {
     searchText = value;
     currentPage = 1;
-    fetchExpenses();
+    fetchExpenses().catch(() => {});
   }
 
   function handleFilterChange(field, value) {
@@ -96,7 +96,7 @@
     else if (field === "filterAmountMin") filterAmountMin = value;
     else if (field === "filterAmountMax") filterAmountMax = value;
     currentPage = 1;
-    fetchExpenses();
+    fetchExpenses().catch(() => {});
   }
 
   function clearFilters() {
@@ -107,26 +107,26 @@
     filterAmountMin = "";
     filterAmountMax = "";
     currentPage = 1;
-    fetchExpenses();
+    fetchExpenses().catch(() => {});
   }
 
   function changePageSize(newSize) {
     pageSize = newSize;
     currentPage = 1;
-    fetchExpenses();
+    fetchExpenses().catch(() => {});
   }
 
   function prevPage() {
     if (currentPage > 1) {
       currentPage--;
-      fetchExpenses();
+      fetchExpenses().catch(() => {});
     }
   }
 
   function nextPage() {
     if (currentPage < totalPages) {
       currentPage++;
-      fetchExpenses();
+      fetchExpenses().catch(() => {});
     }
   }
 

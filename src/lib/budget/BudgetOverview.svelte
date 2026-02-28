@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import { onDestroy } from "svelte";
 
   let {
     budgetId,
@@ -25,6 +26,7 @@
   let editAmounts = $state({});
   let saving = $state(false);
   let saveMsg = $state("");
+  let saveMsgTimer;
 
   $effect(() => {
     const amounts = {};
@@ -43,7 +45,8 @@
         .map(([category, amount]) => ({ category, amount: Number(amount) }));
       await invoke("save_budget_categories", { budgetId, categories: cats });
       saveMsg = "Saved";
-      setTimeout(() => (saveMsg = ""), 2000);
+      clearTimeout(saveMsgTimer);
+      saveMsgTimer = setTimeout(() => (saveMsg = ""), 2000);
       onrefresh();
     } catch (err) {
       saveMsg = `Error: ${err}`;
@@ -61,6 +64,8 @@
     if (status === "approaching") return "bg-amber-500";
     return "bg-emerald-500";
   }
+
+  onDestroy(() => clearTimeout(saveMsgTimer));
 
   let deleting = $state(false);
   let showDeleteBudgetModal = $state(false);

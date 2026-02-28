@@ -1,10 +1,13 @@
 <script>
   let { expenses } = $props();
 
-  let now = new Date();
-  let currentMonth = $derived(
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-  );
+  function getNow() {
+    return new Date();
+  }
+  let currentMonth = $derived.by(() => {
+    const now = getNow();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   let thisMonthExpenses = $derived(
     expenses.filter((e) => e.date?.startsWith(currentMonth))

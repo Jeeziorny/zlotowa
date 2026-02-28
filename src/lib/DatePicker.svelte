@@ -13,8 +13,10 @@
 
   let selectedDate = $derived(parseDate(value));
 
-  let today = new Date();
-  let todayStr = fmt(today);
+  function getToday() {
+    return new Date();
+  }
+  let todayStr = $derived(fmt(getToday()));
 
   function parseDate(s) {
     if (!s) return null;
@@ -145,7 +147,7 @@
       <div class="mt-2 pt-2 border-t border-gray-800">
         <button
           type="button"
-          onclick={() => { onchange(todayStr); open = false; viewDate = new Date(today.getFullYear(), today.getMonth(), 1); }}
+          onclick={() => { const now = getToday(); onchange(fmt(now)); open = false; viewDate = new Date(now.getFullYear(), now.getMonth(), 1); }}
           class="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
         >
           Today
