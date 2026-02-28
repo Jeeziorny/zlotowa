@@ -5,7 +5,7 @@ use accountant_core::ical::ParsedCalendarEvent;
 use accountant_core::models::{
     BudgetCategory, BudgetCategoryStatus, BudgetStatus, CategoryAverage,
     CategoryStats, ClassificationRule, ClassificationSource, Expense, ExpenseQuery,
-    ExpenseQueryResult, ParsedExpense, TitleCleanupRule, UploadBatch, Budget,
+    ExpenseQueryResult, ParsedExpense, UploadBatch, Budget,
 };
 use accountant_core::parsers::{self, ColumnMapping};
 use log::{debug, error, info, warn};
@@ -66,6 +66,7 @@ pub struct BulkSaveExpense {
     pub category: Option<String>,
     pub source: Option<String>,
     pub rule_pattern: Option<String>,
+    pub display_title: Option<String>,
 }
 
 // ── Helpers ──
@@ -406,9 +407,9 @@ fn backup_database(state: State<AppState>, path: String) -> Result<(), String> {
     let json = serde_json::to_string_pretty(&backup).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| { warn!("backup_database write failed: {e}"); format!("Failed to write file: {}", e) })?;
 
-    info!("backup_database: complete — {} expenses, {} rules, {} cleanup rules, {} budgets",
+    info!("backup_database: complete — {} expenses, {} rules, {} budgets",
         backup.expenses.len(), backup.classification_rules.len(),
-        backup.title_cleanup_rules.len(), backup.budgets.len());
+        backup.budgets.len());
     Ok(())
 }
 
@@ -428,9 +429,9 @@ fn restore_database(
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let summary = restore_backup(&db, &backup).map_err(|e| e.to_string())?;
 
-    info!("restore_database: complete — {} expenses inserted ({} skipped), {} rules, {} cleanup rules, {} budgets ({} skipped)",
+    info!("restore_database: complete — {} expenses inserted ({} skipped), {} rules, {} budgets ({} skipped)",
         summary.expenses_inserted, summary.expenses_skipped, summary.rules_upserted,
-        summary.cleanup_rules_upserted, summary.budgets_inserted, summary.budgets_skipped);
+        summary.budgets_inserted, summary.budgets_skipped);
     Ok(summary)
 }
 
@@ -443,18 +444,12 @@ fn bulk_save_expenses(
     filename: Option<String>,
 ) -> Result<usize, String> {
     info!("bulk_save_expenses: count={} filename={:?}", expenses.len(), filename);
-    // Collect titles and compute display_title suggestions from cleanup rules
-    let titles: Vec<String> = expenses.iter().map(|e| e.title.clone()).collect();
-    let suggestions = {
-        let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
-        db.suggest_title_cleanups(&titles).map_err(|e| e.to_string())?
-    };
 
     // Build all expenses (pure computation, no lock needed), fail fast on invalid data
     let mut to_insert: Vec<Expense> = Vec::with_capacity(expenses.len());
     let mut rules: Vec<ClassificationRule> = Vec::new();
 
-    for (i, e) in expenses.iter().enumerate() {
+    for e in &expenses {
         let date = parse_date(&e.date)?;
         let source = e
             .source
@@ -465,7 +460,7 @@ fn bulk_save_expenses(
         to_insert.push(Expense {
             id: None,
             title: e.title.clone(),
-            display_title: suggestions[i].clone(),
+            display_title: e.display_title.clone(),
             amount: e.amount,
             date,
             category: e.category.clone(),
@@ -558,64 +553,6 @@ fn merge_categories(state: State<AppState>, sources: Vec<String>, target: String
     }
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     db.merge_categories(&sources, &target).map_err(|e| { warn!("merge_categories failed: {e}"); e.to_string() })
-}
-
-// ── Title Cleanup ──
-
-#[derive(Serialize, Deserialize)]
-pub struct TitleCleanupPreview {
-    pub expense_id: i64,
-    pub original: String,
-    pub cleaned: String,
-}
-
-#[tauri::command]
-fn get_title_cleanup_rules(state: State<AppState>) -> Result<Vec<TitleCleanupRule>, String> {
-    debug!("get_title_cleanup_rules called");
-    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
-    db.get_all_title_cleanup_rules().map_err(|e| { warn!("get_title_cleanup_rules failed: {e}"); e.to_string() })
-}
-
-#[tauri::command]
-fn save_title_cleanup_rule(state: State<AppState>, rule: TitleCleanupRule) -> Result<i64, String> {
-    info!("save_title_cleanup_rule: pattern='{}' id={:?}", rule.pattern, rule.id);
-    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
-    if let Some(id) = rule.id {
-        db.update_title_cleanup_rule(&rule).map_err(|e| { warn!("save_title_cleanup_rule failed: {e}"); e.to_string() })?;
-        Ok(id)
-    } else {
-        db.insert_title_cleanup_rule(&rule).map_err(|e| { warn!("save_title_cleanup_rule failed: {e}"); e.to_string() })
-    }
-}
-
-#[tauri::command]
-fn delete_title_cleanup_rule(state: State<AppState>, id: i64) -> Result<(), String> {
-    info!("delete_title_cleanup_rule: id={id}");
-    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
-    db.delete_title_cleanup_rule(id).map_err(|e| { warn!("delete_title_cleanup_rule failed: {e}"); e.to_string() })
-}
-
-#[tauri::command]
-fn preview_title_cleanup(state: State<AppState>, rule: TitleCleanupRule) -> Result<Vec<TitleCleanupPreview>, String> {
-    debug!("preview_title_cleanup: pattern='{}'", rule.pattern);
-    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
-    let results = db.preview_title_cleanup(&rule).map_err(|e| { warn!("preview_title_cleanup failed: {e}"); e.to_string() })?;
-    Ok(results
-        .into_iter()
-        .map(|(expense_id, original, cleaned)| TitleCleanupPreview {
-            expense_id,
-            original,
-            cleaned,
-        })
-        .collect())
-}
-
-#[tauri::command]
-fn apply_title_cleanup(state: State<AppState>, rule_id: i64, expense_ids: Vec<i64>) -> Result<usize, String> {
-    info!("apply_title_cleanup: rule_id={rule_id} expense_count={}", expense_ids.len());
-    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
-    let rule = db.get_title_cleanup_rule(rule_id).map_err(|e| { warn!("apply_title_cleanup failed: {e}"); e.to_string() })?;
-    db.apply_title_cleanup(&rule, &expense_ids).map_err(|e| { warn!("apply_title_cleanup failed: {e}"); e.to_string() })
 }
 
 // ── Budget Planning ──
@@ -819,6 +756,22 @@ fn get_category_averages(state: State<AppState>) -> Result<Vec<CategoryAverage>,
     debug!("get_category_averages called");
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     db.get_category_averages(3).map_err(|e| { warn!("get_category_averages failed: {e}"); e.to_string() })
+}
+
+// ── Config ──
+
+#[tauri::command]
+fn get_config(state: State<AppState>, key: String) -> Result<Option<String>, String> {
+    debug!("get_config: key={key}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.get_config(&key).map_err(|e| { warn!("get_config failed: {e}"); e.to_string() })
+}
+
+#[tauri::command]
+fn save_config(state: State<AppState>, key: String, value: String) -> Result<(), String> {
+    debug!("save_config: key={key}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.set_config(&key, &value).map_err(|e| { warn!("save_config failed: {e}"); e.to_string() })
 }
 
 // ── Dashboard Widget Config ──
@@ -1278,6 +1231,7 @@ mod tests {
                 category: Some("Food".into()),
                 source: Some("Manual".into()),
                 rule_pattern: None,
+                display_title: None,
             },
             BulkSaveExpense {
                 title: "Item2".into(),
@@ -1286,6 +1240,7 @@ mod tests {
                 category: None,
                 source: None,
                 rule_pattern: None,
+                display_title: None,
             },
         ];
 
@@ -1319,6 +1274,7 @@ mod tests {
             category: None,
             source: None,
             rule_pattern: None,
+            display_title: None,
         }];
 
         let state: State<AppState> = app.state();
@@ -1422,77 +1378,6 @@ mod tests {
         let state: State<AppState> = app.state();
         let rows = parse_and_classify(state, csv.into(), mapping).unwrap();
         assert!(rows[0].is_duplicate);
-    }
-
-    // ── Export ──
-
-    // ── Title Cleanup ──
-
-    #[test]
-    fn title_cleanup_lifecycle() {
-        let app = app();
-
-        // Add expense
-        let state: State<AppState> = app.state();
-        add_expense(
-            state,
-            ExpenseInput {
-                title: "CARD *1234 Coffee Shop".into(),
-                display_title: None,
-                amount: 5.0,
-                date: "2024-01-01".into(),
-                category: None,
-                rule_pattern: None,
-            },
-        )
-        .unwrap();
-
-        // Create rule
-        let rule = TitleCleanupRule {
-            id: None,
-            pattern: "CARD *1234 ".into(),
-            replacement: "".into(),
-            is_regex: false,
-        };
-        let state: State<AppState> = app.state();
-        let rule_id = save_title_cleanup_rule(state, rule).unwrap();
-        assert!(rule_id > 0);
-
-        // List rules
-        let state: State<AppState> = app.state();
-        let rules = get_title_cleanup_rules(state).unwrap();
-        assert_eq!(rules.len(), 1);
-
-        // Preview
-        let preview_rule = TitleCleanupRule {
-            id: Some(rule_id),
-            pattern: "CARD *1234 ".into(),
-            replacement: "".into(),
-            is_regex: false,
-        };
-        let state: State<AppState> = app.state();
-        let previews = preview_title_cleanup(state, preview_rule).unwrap();
-        assert_eq!(previews.len(), 1);
-        assert_eq!(previews[0].cleaned, "Coffee Shop");
-
-        // Apply
-        let expense_ids: Vec<i64> = previews.iter().map(|p| p.expense_id).collect();
-        let state: State<AppState> = app.state();
-        let applied = apply_title_cleanup(state, rule_id, expense_ids).unwrap();
-        assert_eq!(applied, 1);
-
-        // Verify — raw title is immutable, display_title has cleaned version
-        let state: State<AppState> = app.state();
-        let all = get_expenses(state).unwrap();
-        assert_eq!(all[0].title, "CARD *1234 Coffee Shop");
-        assert_eq!(all[0].display_title.as_deref(), Some("Coffee Shop"));
-
-        // Delete rule
-        let state: State<AppState> = app.state();
-        delete_title_cleanup_rule(state, rule_id).unwrap();
-
-        let state: State<AppState> = app.state();
-        assert!(get_title_cleanup_rules(state).unwrap().is_empty());
     }
 
     // ── Budget Planning ──
@@ -1885,11 +1770,8 @@ pub fn run() {
             parse_calendar_events,
             check_budget_overlap,
             get_category_averages,
-            get_title_cleanup_rules,
-            save_title_cleanup_rule,
-            delete_title_cleanup_rule,
-            preview_title_cleanup,
-            apply_title_cleanup,
+            get_config,
+            save_config,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

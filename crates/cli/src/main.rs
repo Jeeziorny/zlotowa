@@ -431,12 +431,11 @@ fn cmd_backup(path: Option<PathBuf>) {
     });
 
     println!(
-        "{} Backup saved to {} ({} expenses, {} rules, {} cleanup rules, {} budgets)",
+        "{} Backup saved to {} ({} expenses, {} rules, {} budgets)",
         "OK".green().bold(),
         path.display(),
         backup.expenses.len(),
         backup.classification_rules.len(),
-        backup.title_cleanup_rules.len(),
         backup.budgets.len(),
     );
 }
@@ -458,11 +457,10 @@ fn cmd_restore(path: PathBuf) {
         });
 
     println!(
-        "{} {} expenses, {} rules, {} cleanup rules, {} budgets",
+        "{} {} expenses, {} rules, {} budgets",
         "Backup contains:".dimmed(),
         backup.expenses.len(),
         backup.classification_rules.len(),
-        backup.title_cleanup_rules.len(),
         backup.budgets.len(),
     );
 
@@ -492,11 +490,6 @@ fn cmd_restore(path: PathBuf) {
     table.add_row(vec![
         "Classification rules".to_string(),
         summary.rules_upserted.to_string(),
-        "-".to_string(),
-    ]);
-    table.add_row(vec![
-        "Title cleanup rules".to_string(),
-        summary.cleanup_rules_upserted.to_string(),
         "-".to_string(),
     ]);
     table.add_row(vec![

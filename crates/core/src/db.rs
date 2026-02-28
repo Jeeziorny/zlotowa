@@ -1,6 +1,6 @@
 use crate::models::{
     Budget, BudgetCategory, CategoryAverage, CategoryStats, ClassificationRule,
-    ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, TitleCleanupRule, UploadBatch,
+    ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, UploadBatch,
 };
 use log::{error, info, warn};
 use rusqlite::{params, Connection, Result as SqlResult};
@@ -86,13 +86,6 @@ impl Database {
             CREATE TABLE IF NOT EXISTS config (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS title_cleanup_rules (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern     TEXT NOT NULL,
-                replacement TEXT NOT NULL DEFAULT '',
-                is_regex    INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS budgets (
@@ -199,12 +192,9 @@ impl Database {
         self.conn
             .execute_batch("DROP TABLE IF EXISTS calendar_events;")?;
 
-        // UNIQUE constraint on title_cleanup_rules — may fail if existing data has duplicates
-        if let Err(e) = self.conn.execute_batch(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_title_cleanup_rules_unique ON title_cleanup_rules(pattern, replacement, is_regex);",
-        ) {
-            warn!("title_cleanup_rules unique index failed (possible duplicate data): {}", e);
-        }
+        // Drop title_cleanup_rules table (feature replaced by inline cleanup in bulk upload)
+        self.conn
+            .execute_batch("DROP TABLE IF EXISTS title_cleanup_rules;")?;
 
         Ok(())
     }
@@ -701,203 +691,11 @@ impl Database {
         Ok(())
     }
 
-    // ── Title Cleanup Rules ──
+    // ── Utilities ──
 
-    pub fn insert_title_cleanup_rule(&self, rule: &TitleCleanupRule) -> Result<i64, DbError> {
-        self.conn.execute(
-            "INSERT INTO title_cleanup_rules (pattern, replacement, is_regex) VALUES (?1, ?2, ?3)",
-            params![rule.pattern, rule.replacement, rule.is_regex as i32],
-        )?;
-        Ok(self.conn.last_insert_rowid())
-    }
-
-    pub fn get_all_title_cleanup_rules(&self) -> Result<Vec<TitleCleanupRule>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, pattern, replacement, is_regex FROM title_cleanup_rules ORDER BY id",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(TitleCleanupRule {
-                id: Some(row.get(0)?),
-                pattern: row.get(1)?,
-                replacement: row.get(2)?,
-                is_regex: row.get::<_, i32>(3)? != 0,
-            })
-        })?;
-        rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
-    }
-
-    pub fn update_title_cleanup_rule(&self, rule: &TitleCleanupRule) -> Result<(), DbError> {
-        let id = rule
-            .id
-            .ok_or(DbError::InvalidData("Cannot update rule without id".into()))?;
-        let rows = self.conn.execute(
-            "UPDATE title_cleanup_rules SET pattern = ?1, replacement = ?2, is_regex = ?3 WHERE id = ?4",
-            params![rule.pattern, rule.replacement, rule.is_regex as i32, id],
-        )?;
-        if rows == 0 {
-            return Err(DbError::InvalidData(format!(
-                "Title cleanup rule with id {} not found",
-                id
-            )));
-        }
-        Ok(())
-    }
-
-    pub fn delete_title_cleanup_rule(&self, id: i64) -> Result<(), DbError> {
-        let rows = self.conn.execute(
-            "DELETE FROM title_cleanup_rules WHERE id = ?1",
-            params![id],
-        )?;
-        if rows == 0 {
-            return Err(DbError::InvalidData(format!(
-                "Title cleanup rule with id {} not found",
-                id
-            )));
-        }
-        Ok(())
-    }
-
-    pub fn get_title_cleanup_rule(&self, id: i64) -> Result<TitleCleanupRule, DbError> {
-        self.conn
-            .query_row(
-                "SELECT id, pattern, replacement, is_regex FROM title_cleanup_rules WHERE id = ?1",
-                params![id],
-                |row| {
-                    Ok(TitleCleanupRule {
-                        id: Some(row.get(0)?),
-                        pattern: row.get(1)?,
-                        replacement: row.get(2)?,
-                        is_regex: row.get::<_, i32>(3)? != 0,
-                    })
-                },
-            )
-            .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => {
-                    DbError::InvalidData(format!("Title cleanup rule with id {} not found", id))
-                }
-                other => DbError::from(other),
-            })
-    }
-
-    fn build_cleanup_regex(rule: &TitleCleanupRule) -> Result<regex::Regex, DbError> {
-        let pattern = if rule.is_regex {
-            rule.pattern.clone()
-        } else {
-            regex::escape(&rule.pattern)
-        };
-        regex::Regex::new(&pattern).map_err(|e| {
-            DbError::InvalidData(format!("Invalid regex pattern '{}': {}", rule.pattern, e))
-        })
-    }
-
-    fn normalize_whitespace(s: &str) -> String {
+    /// Normalize whitespace: collapse runs of whitespace into single space and trim.
+    pub fn normalize_whitespace(s: &str) -> String {
         s.split_whitespace().collect::<Vec<_>>().join(" ")
-    }
-
-    /// Preview what a cleanup rule would do. Returns (expense_id, original_title, cleaned) for affected rows.
-    /// Always applies rules against the raw `title` column to keep cleanup idempotent.
-    pub fn preview_title_cleanup(
-        &self,
-        rule: &TitleCleanupRule,
-    ) -> Result<Vec<(i64, String, String)>, DbError> {
-        let re = Self::build_cleanup_regex(rule)?;
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, title FROM expenses")?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })?;
-        let id_titles: Vec<(i64, String)> = rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)?;
-        let mut results = Vec::new();
-        for (id, title) in id_titles {
-            let cleaned = re.replace_all(&title, rule.replacement.as_str());
-            let cleaned = Self::normalize_whitespace(&cleaned);
-            if cleaned != title {
-                results.push((id, title, cleaned));
-            }
-        }
-        Ok(results)
-    }
-
-    /// Apply a title cleanup rule to specific expenses. Writes to `display_title`,
-    /// keeping the raw `title` immutable. Returns count of updated rows.
-    pub fn apply_title_cleanup(
-        &self,
-        rule: &TitleCleanupRule,
-        expense_ids: &[i64],
-    ) -> Result<usize, DbError> {
-        if expense_ids.is_empty() {
-            return Ok(0);
-        }
-        let re = Self::build_cleanup_regex(rule)?;
-
-        // Batch-fetch all titles in one query (always apply rules against raw title)
-        let placeholders: Vec<String> = (1..=expense_ids.len()).map(|i| format!("?{}", i)).collect();
-        let sql = format!(
-            "SELECT id, title FROM expenses WHERE id IN ({})",
-            placeholders.join(",")
-        );
-        let params: Vec<&dyn rusqlite::types::ToSql> =
-            expense_ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
-        let mut stmt = self.conn.prepare(&sql)?;
-        let rows = stmt.query_map(params.as_slice(), |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })?;
-        let fetched: Vec<(i64, String)> = rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)?;
-
-        // Check all requested IDs were found
-        if fetched.len() != expense_ids.len() {
-            let found_ids: std::collections::HashSet<i64> = fetched.iter().map(|(id, _)| *id).collect();
-            for &id in expense_ids {
-                if !found_ids.contains(&id) {
-                    return Err(DbError::InvalidData(format!("Expense with id {} not found", id)));
-                }
-            }
-        }
-
-        // Apply regex and batch-update display_title (raw title stays unchanged)
-        let tx = self.conn.unchecked_transaction()?;
-        let mut count = 0;
-        for (id, title) in &fetched {
-            let cleaned = re.replace_all(title, rule.replacement.as_str());
-            let cleaned = Self::normalize_whitespace(&cleaned);
-            if cleaned != *title {
-                tx.execute(
-                    "UPDATE expenses SET display_title = ?1 WHERE id = ?2",
-                    params![cleaned, id],
-                )?;
-                count += 1;
-            }
-        }
-        tx.commit()?;
-        Ok(count)
-    }
-
-    /// Apply all title cleanup rules to a list of titles (pure computation, no DB writes).
-    /// Returns `Some(cleaned)` for titles that changed, `None` for those that didn't.
-    pub fn suggest_title_cleanups(&self, titles: &[String]) -> Result<Vec<Option<String>>, DbError> {
-        let rules = self.get_all_title_cleanup_rules()?;
-        if rules.is_empty() {
-            return Ok(vec![None; titles.len()]);
-        }
-
-        // Pre-compile all regexes once
-        let compiled: Vec<(regex::Regex, &str)> = rules
-            .iter()
-            .map(|r| Ok((Self::build_cleanup_regex(r)?, r.replacement.as_str())))
-            .collect::<Result<Vec<_>, DbError>>()?;
-
-        Ok(titles
-            .iter()
-            .map(|title| {
-                let mut current = title.clone();
-                for (re, replacement) in &compiled {
-                    current = re.replace_all(&current, *replacement).into_owned();
-                }
-                let current = Self::normalize_whitespace(&current);
-                if current != *title { Some(current) } else { None }
-            })
-            .collect())
     }
 
     /// Check if a category name already exists (in either rules or expenses).
@@ -1284,16 +1082,7 @@ impl Database {
             summary.rules_upserted += 1;
         }
 
-        // 3. Title cleanup rules — upsert
-        for rule in &data.title_cleanup_rules {
-            tx.execute(
-                "INSERT OR REPLACE INTO title_cleanup_rules (pattern, replacement, is_regex) VALUES (?1, ?2, ?3)",
-                params![rule.pattern, rule.replacement, rule.is_regex as i32],
-            )?;
-            summary.cleanup_rules_upserted += 1;
-        }
-
-        // 4. Budgets — skip overlapping
+        // 3. Budgets — skip overlapping
         for budget in &data.budgets {
             let start = chrono::NaiveDate::parse_from_str(&budget.start_date, "%Y-%m-%d")
                 .map_err(|_| DbError::InvalidData(format!("invalid budget start_date: {}", budget.start_date)))?;
@@ -1672,235 +1461,13 @@ mod tests {
         assert_eq!(db.get_config("key").unwrap(), Some("new".to_string()));
     }
 
-    // ── Title Cleanup Rules ──
-
-    use crate::models::TitleCleanupRule;
-
-    fn make_literal_rule(pattern: &str, replacement: &str) -> TitleCleanupRule {
-        TitleCleanupRule {
-            id: None,
-            pattern: pattern.to_string(),
-            replacement: replacement.to_string(),
-            is_regex: false,
-        }
-    }
-
-    fn make_regex_rule(pattern: &str, replacement: &str) -> TitleCleanupRule {
-        TitleCleanupRule {
-            id: None,
-            pattern: pattern.to_string(),
-            replacement: replacement.to_string(),
-            is_regex: true,
-        }
-    }
+    // ── Normalize whitespace ──
 
     #[test]
-    fn title_cleanup_crud() {
-        let db = test_db();
-
-        // Insert
-        let id = db.insert_title_cleanup_rule(&make_literal_rule("CARD", "")).unwrap();
-        assert!(id > 0);
-
-        // Get all
-        let rules = db.get_all_title_cleanup_rules().unwrap();
-        assert_eq!(rules.len(), 1);
-        assert_eq!(rules[0].pattern, "CARD");
-        assert_eq!(rules[0].replacement, "");
-        assert!(!rules[0].is_regex);
-
-        // Update
-        let mut rule = rules[0].clone();
-        rule.pattern = "CARD NUMBER".to_string();
-        rule.replacement = "CARD".to_string();
-        db.update_title_cleanup_rule(&rule).unwrap();
-        let rules = db.get_all_title_cleanup_rules().unwrap();
-        assert_eq!(rules[0].pattern, "CARD NUMBER");
-        assert_eq!(rules[0].replacement, "CARD");
-
-        // Delete
-        db.delete_title_cleanup_rule(id).unwrap();
-        assert_eq!(db.get_all_title_cleanup_rules().unwrap().len(), 0);
-    }
-
-    #[test]
-    fn title_cleanup_update_without_id_fails() {
-        let db = test_db();
-        let rule = make_literal_rule("test", "");
-        assert!(db.update_title_cleanup_rule(&rule).is_err());
-    }
-
-    #[test]
-    fn title_cleanup_delete_nonexistent_fails() {
-        let db = test_db();
-        assert!(db.delete_title_cleanup_rule(9999).is_err());
-    }
-
-    #[test]
-    fn title_cleanup_get_by_id() {
-        let db = test_db();
-        let id = db.insert_title_cleanup_rule(&make_literal_rule("TEST", "")).unwrap();
-        let rule = db.get_title_cleanup_rule(id).unwrap();
-        assert_eq!(rule.pattern, "TEST");
-        assert!(db.get_title_cleanup_rule(9999).is_err());
-    }
-
-    #[test]
-    fn preview_literal_rule() {
-        let db = test_db();
-        db.insert_expense(&make_expense("OP MC 5575 ORLEN Wroclaw", 71.24, "2025-01-01")).unwrap();
-        db.insert_expense(&make_expense("Grocery Store", 52.30, "2025-01-02")).unwrap();
-
-        let rule = make_literal_rule("OP MC 5575 ", "");
-        let results = db.preview_title_cleanup(&rule).unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].2, "ORLEN Wroclaw");
-    }
-
-    #[test]
-    fn preview_regex_rule_with_capture_groups() {
-        let db = test_db();
-        db.insert_expense(&make_expense("Payment ref:12345 Shop ABC", 10.0, "2025-01-01")).unwrap();
-        db.insert_expense(&make_expense("No ref here", 20.0, "2025-01-02")).unwrap();
-
-        let rule = make_regex_rule(r"ref:\d+ ", "");
-        let results = db.preview_title_cleanup(&rule).unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].2, "Payment Shop ABC");
-    }
-
-    #[test]
-    fn apply_only_selected_ids() {
-        let db = test_db();
-        let id1 = db.insert_expense(&make_expense("NOISE Coffee", 4.0, "2025-01-01")).unwrap();
-        let id2 = db.insert_expense(&make_expense("NOISE Tea", 3.0, "2025-01-02")).unwrap();
-        let id3 = db.insert_expense(&make_expense("NOISE Water", 2.0, "2025-01-03")).unwrap();
-
-        let rule = make_literal_rule("NOISE ", "");
-        let rule_id = db.insert_title_cleanup_rule(&rule).unwrap();
-        let saved_rule = db.get_title_cleanup_rule(rule_id).unwrap();
-
-        let count = db.apply_title_cleanup(&saved_rule, &[id1, id2]).unwrap();
-        assert_eq!(count, 2);
-
-        let expenses = db.get_all_expenses().unwrap();
-        // Raw titles stay immutable
-        let raw_titles: Vec<&str> = expenses.iter().map(|e| e.title.as_str()).collect();
-        assert!(raw_titles.contains(&"NOISE Coffee"));
-        assert!(raw_titles.contains(&"NOISE Tea"));
-        assert!(raw_titles.contains(&"NOISE Water"));
-        // display_title is set for applied expenses
-        let by_id = |id: i64| expenses.iter().find(|e| e.id == Some(id)).unwrap();
-        assert_eq!(by_id(id1).display_title.as_deref(), Some("Coffee"));
-        assert_eq!(by_id(id2).display_title.as_deref(), Some("Tea"));
-        assert_eq!(by_id(id3).display_title, None); // not applied
-    }
-
-    #[test]
-    fn apply_returns_zero_when_no_match() {
-        let db = test_db();
-        let id = db.insert_expense(&make_expense("Coffee", 4.0, "2025-01-01")).unwrap();
-
-        let rule = make_literal_rule("NONEXISTENT", "");
-        let count = db.apply_title_cleanup(&rule, &[id]).unwrap();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn literal_rule_escapes_special_regex_chars() {
-        let db = test_db();
-        db.insert_expense(&make_expense("Cost (5.00) item", 5.0, "2025-01-01")).unwrap();
-
-        let rule = make_literal_rule("(5.00) ", "");
-        let results = db.preview_title_cleanup(&rule).unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].2, "Cost item");
-    }
-
-    #[test]
-    fn cleanup_collapses_spaces_and_trims() {
-        let db = test_db();
-        db.insert_expense(&make_expense("A  NOISE  B", 1.0, "2025-01-01")).unwrap();
-
-        let rule = make_literal_rule("NOISE", "");
-        let results = db.preview_title_cleanup(&rule).unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].2, "A B");
-    }
-
-    #[test]
-    fn empty_replacement_removes_match() {
-        let db = test_db();
-        db.insert_expense(&make_expense("Hello World Junk", 1.0, "2025-01-01")).unwrap();
-
-        let rule = make_literal_rule(" Junk", "");
-        let results = db.preview_title_cleanup(&rule).unwrap();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].2, "Hello World");
-    }
-
-    #[test]
-    fn apply_empty_ids_returns_zero() {
-        let db = test_db();
-        let rule = make_literal_rule("test", "");
-        let count = db.apply_title_cleanup(&rule, &[]).unwrap();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn invalid_regex_returns_error() {
-        let db = test_db();
-        db.insert_expense(&make_expense("test", 1.0, "2025-01-01")).unwrap();
-
-        let rule = make_regex_rule("[invalid", "");
-        assert!(db.preview_title_cleanup(&rule).is_err());
-    }
-
-    // ── suggest_title_cleanups tests ──
-
-    #[test]
-    fn suggest_cleanups_no_rules_returns_all_none() {
-        let db = test_db();
-        let titles = vec!["Coffee Shop".into(), "Gas Station".into()];
-        let result = db.suggest_title_cleanups(&titles).unwrap();
-        assert_eq!(result, vec![None, None]);
-    }
-
-    #[test]
-    fn suggest_cleanups_single_rule_matches_subset() {
-        let db = test_db();
-        db.insert_title_cleanup_rule(&make_literal_rule("NOISE ", "")).unwrap();
-
-        let titles = vec![
-            "NOISE Coffee Shop".into(),
-            "Gas Station".into(),
-            "NOISE Pharmacy".into(),
-        ];
-        let result = db.suggest_title_cleanups(&titles).unwrap();
-        assert_eq!(result[0], Some("Coffee Shop".into()));
-        assert_eq!(result[1], None);
-        assert_eq!(result[2], Some("Pharmacy".into()));
-    }
-
-    #[test]
-    fn suggest_cleanups_multiple_rules_compose() {
-        let db = test_db();
-        db.insert_title_cleanup_rule(&make_literal_rule("CARD ", "")).unwrap();
-        db.insert_title_cleanup_rule(&make_literal_rule("PURCHASE ", "")).unwrap();
-
-        let titles = vec!["CARD PURCHASE Coffee".into(), "CARD Tea".into(), "Milk".into()];
-        let result = db.suggest_title_cleanups(&titles).unwrap();
-        assert_eq!(result[0], Some("Coffee".into()));
-        assert_eq!(result[1], Some("Tea".into()));
-        assert_eq!(result[2], None);
-    }
-
-    #[test]
-    fn suggest_cleanups_empty_titles_returns_empty() {
-        let db = test_db();
-        db.insert_title_cleanup_rule(&make_literal_rule("X", "")).unwrap();
-        let result = db.suggest_title_cleanups(&[]).unwrap();
-        assert!(result.is_empty());
+    fn normalize_whitespace_collapses_and_trims() {
+        assert_eq!(Database::normalize_whitespace("  hello   world  "), "hello world");
+        assert_eq!(Database::normalize_whitespace("single"), "single");
+        assert_eq!(Database::normalize_whitespace("  "), "");
     }
 
     // ── Budget tests ──
@@ -2852,100 +2419,6 @@ mod tests {
         let titles: Vec<&str> = dec.iter().map(|e| e.title.as_str()).collect();
         assert!(titles.contains(&"Dec 1"));
         assert!(titles.contains(&"Dec 31"));
-    }
-
-    #[test]
-    fn title_cleanup_rules_do_not_auto_apply_on_insert() {
-        let db = test_db();
-
-        // Create a title cleanup rule
-        let rule = make_literal_rule("NOISE ", "");
-        db.insert_title_cleanup_rule(&rule).unwrap();
-
-        // Insert expenses with titles matching the rule
-        db.insert_expense(&make_expense("NOISE Coffee Shop", 4.50, "2025-01-15"))
-            .unwrap();
-        db.insert_expense(&make_expense("NOISE Grocery Store", 52.30, "2025-01-16"))
-            .unwrap();
-
-        // Also test bulk insert path
-        let bulk = vec![
-            make_expense("NOISE Gas Station", 60.00, "2025-01-17"),
-            make_expense("NOISE Pharmacy", 12.99, "2025-01-18"),
-        ];
-        db.insert_expenses_bulk(&bulk, Some("test.csv"), &[]).unwrap();
-
-        // Verify titles were NOT cleaned — rules don't auto-apply on insert
-        let all = db.get_all_expenses().unwrap();
-        assert_eq!(all.len(), 4);
-        for e in &all {
-            assert!(
-                e.title.starts_with("NOISE "),
-                "Expected title to still contain 'NOISE ', got: '{}'. \
-                 Title cleanup rules should not auto-apply during insert.",
-                e.title
-            );
-        }
-    }
-
-    #[test]
-    fn preview_title_cleanup_returns_correct_affected_rows() {
-        let db = test_db();
-        // Insert 50 expenses, half matching the rule
-        for i in 0..50 {
-            let title = if i % 2 == 0 {
-                format!("NOISE Item {}", i)
-            } else {
-                format!("Clean Item {}", i)
-            };
-            db.insert_expense(&make_expense(&title, i as f64, "2025-01-01"))
-                .unwrap();
-        }
-
-        let rule = make_literal_rule("NOISE ", "");
-        let results = db.preview_title_cleanup(&rule).unwrap();
-        assert_eq!(results.len(), 25);
-        for (_, original, cleaned) in &results {
-            assert!(original.starts_with("NOISE "));
-            assert!(!cleaned.starts_with("NOISE "));
-        }
-    }
-
-    #[test]
-    fn apply_title_cleanup_batch_fetch() {
-        let db = test_db();
-        let mut ids = Vec::new();
-        for i in 0..30 {
-            let id = db
-                .insert_expense(&make_expense(
-                    &format!("PREFIX Item {}", i),
-                    i as f64,
-                    "2025-01-01",
-                ))
-                .unwrap();
-            ids.push(id);
-        }
-
-        let rule = make_literal_rule("PREFIX ", "");
-        let count = db.apply_title_cleanup(&rule, &ids).unwrap();
-        assert_eq!(count, 30);
-
-        let all = db.get_all_expenses().unwrap();
-        for e in &all {
-            // Raw title stays unchanged
-            assert!(
-                e.title.starts_with("PREFIX Item "),
-                "Expected raw title to start with 'PREFIX Item ', got: {}",
-                e.title
-            );
-            // display_title has the cleaned version
-            let dt = e.display_title.as_deref().expect("display_title should be set");
-            assert!(
-                dt.starts_with("Item "),
-                "Expected display_title to start with 'Item ', got: {}",
-                dt
-            );
-        }
     }
 
     // ── Transaction safety tests ──

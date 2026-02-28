@@ -27,7 +27,9 @@ pub struct BackupData {
     pub exported_at: String,
     pub expenses: Vec<BackupExpense>,
     pub classification_rules: Vec<BackupClassificationRule>,
-    pub title_cleanup_rules: Vec<BackupTitleCleanupRule>,
+    /// Ignored — title cleanup rules were removed in v2. Kept for backwards compatibility with v1 backups.
+    #[serde(default, skip_serializing)]
+    pub title_cleanup_rules: Vec<serde_json::Value>,
     pub budgets: Vec<BackupBudget>,
 }
 
@@ -51,13 +53,6 @@ pub struct BackupClassificationRule {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BackupTitleCleanupRule {
-    pub pattern: String,
-    pub replacement: String,
-    pub is_regex: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupBudget {
     pub start_date: String,
     pub end_date: String,
@@ -75,19 +70,17 @@ pub struct RestoreSummary {
     pub expenses_inserted: usize,
     pub expenses_skipped: usize,
     pub rules_upserted: usize,
-    pub cleanup_rules_upserted: usize,
     pub budgets_inserted: usize,
     pub budgets_skipped: usize,
 }
 
-const CURRENT_VERSION: u32 = 1;
+const CURRENT_VERSION: u32 = 2;
 
 // ── Backup ──
 
 pub fn create_backup(db: &Database) -> Result<BackupData, BackupError> {
     let expenses = db.get_all_expenses()?;
     let rules = db.get_all_rules()?;
-    let cleanup_rules = db.get_all_title_cleanup_rules()?;
     let budgets = db.get_all_budgets()?;
 
     let mut backup_budgets = Vec::new();
@@ -131,22 +124,14 @@ pub fn create_backup(db: &Database) -> Result<BackupData, BackupError> {
                 category: r.category,
             })
             .collect(),
-        title_cleanup_rules: cleanup_rules
-            .into_iter()
-            .map(|r| BackupTitleCleanupRule {
-                pattern: r.pattern,
-                replacement: r.replacement,
-                is_regex: r.is_regex,
-            })
-            .collect(),
+        title_cleanup_rules: Vec::new(),
         budgets: backup_budgets,
     };
 
     info!(
-        "Backup created: {} expenses, {} rules, {} cleanup rules, {} budgets",
+        "Backup created: {} expenses, {} rules, {} budgets",
         backup.expenses.len(),
         backup.classification_rules.len(),
-        backup.title_cleanup_rules.len(),
         backup.budgets.len()
     );
 
@@ -193,11 +178,10 @@ pub fn restore_backup(db: &Database, data: &BackupData) -> Result<RestoreSummary
     let summary = db.restore_backup_data(data)?;
 
     info!(
-        "Restore complete: {} expenses inserted ({} skipped), {} rules, {} cleanup rules, {} budgets ({} skipped)",
+        "Restore complete: {} expenses inserted ({} skipped), {} rules, {} budgets ({} skipped)",
         summary.expenses_inserted,
         summary.expenses_skipped,
         summary.rules_upserted,
-        summary.cleanup_rules_upserted,
         summary.budgets_inserted,
         summary.budgets_skipped,
     );
@@ -218,7 +202,7 @@ mod tests {
 
     fn sample_backup() -> BackupData {
         BackupData {
-            version: 1,
+            version: 2,
             app: "4ccountant".to_string(),
             exported_at: "2026-02-27T12:00:00Z".to_string(),
             expenses: vec![
@@ -249,11 +233,7 @@ mod tests {
                     category: "Transport".to_string(),
                 },
             ],
-            title_cleanup_rules: vec![BackupTitleCleanupRule {
-                pattern: "UBER TRIP".to_string(),
-                replacement: "Uber Trip".to_string(),
-                is_regex: false,
-            }],
+            title_cleanup_rules: Vec::new(),
             budgets: vec![BackupBudget {
                 start_date: "2025-01-01".to_string(),
                 end_date: "2025-02-01".to_string(),
@@ -281,16 +261,14 @@ mod tests {
         assert_eq!(summary.expenses_inserted, 2);
         assert_eq!(summary.expenses_skipped, 0);
         assert_eq!(summary.rules_upserted, 2);
-        assert_eq!(summary.cleanup_rules_upserted, 1);
         assert_eq!(summary.budgets_inserted, 1);
         assert_eq!(summary.budgets_skipped, 0);
 
         // Create a new backup from the restored data
         let backup2 = create_backup(&db).unwrap();
-        assert_eq!(backup2.version, 1);
+        assert_eq!(backup2.version, 2);
         assert_eq!(backup2.expenses.len(), 2);
         assert_eq!(backup2.classification_rules.len(), 2);
-        assert_eq!(backup2.title_cleanup_rules.len(), 1);
         assert_eq!(backup2.budgets.len(), 1);
         assert_eq!(backup2.budgets[0].categories.len(), 2);
 
@@ -399,16 +377,37 @@ mod tests {
         let db = test_db();
         let backup = create_backup(&db).unwrap();
 
-        assert_eq!(backup.version, 1);
+        assert_eq!(backup.version, 2);
         assert_eq!(backup.app, "4ccountant");
         assert!(backup.expenses.is_empty());
         assert!(backup.classification_rules.is_empty());
-        assert!(backup.title_cleanup_rules.is_empty());
         assert!(backup.budgets.is_empty());
 
         // Should serialize to valid JSON
         let json = serde_json::to_string_pretty(&backup).unwrap();
         let parsed: BackupData = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.version, 1);
+        assert_eq!(parsed.version, 2);
+    }
+
+    #[test]
+    fn restore_v1_backup_with_cleanup_rules() {
+        let db = test_db();
+        // Simulate a v1 backup JSON that includes title_cleanup_rules
+        let json = r#"{
+            "version": 1,
+            "app": "4ccountant",
+            "exported_at": "2026-01-01T00:00:00Z",
+            "expenses": [],
+            "classification_rules": [],
+            "title_cleanup_rules": [
+                {"pattern": "NOISE", "replacement": "", "is_regex": false}
+            ],
+            "budgets": []
+        }"#;
+        let backup: BackupData = serde_json::from_str(json).unwrap();
+        let summary = restore_backup(&db, &backup).unwrap();
+        assert_eq!(summary.expenses_inserted, 0);
+        assert_eq!(summary.rules_upserted, 0);
+        assert_eq!(summary.budgets_inserted, 0);
     }
 }

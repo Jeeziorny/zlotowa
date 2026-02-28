@@ -6,10 +6,12 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
+| 65 | Multi-Instance Widgets & Keyword Tracker | Evolve widget system to support multiple instances with per-instance config. Add Keyword Tracker widget (filter expenses by keyword, monthly bar chart). Frontend-only changes — no Rust/DB schema modifications. |
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 64 | Inline Title Cleanup | Replaced title cleanup rules engine with inline find-and-replace step in bulk upload flow (5-step wizard). Persists recent pairs in config table. Dropped `title_cleanup_rules` table, removed 5 IPC commands, deleted `TitleCleanup.svelte`. Added generic `get_config`/`save_config` IPC commands. Backup v2 format (ignores v1 cleanup rules gracefully). |
 | 63 | Docs Sync Round 3 | Removed phantom Exporter trait/references, updated CLI commands (4: llm-conf, bulk-insert, backup, restore), IPC count 39→40, added backup domain, noted BudgetStatus self-fetch. |
 | 62 | Accessibility Round 3 | `group-focus-within:opacity-100` on ExpenseTable actions, `aria-label` on icon buttons/checkboxes/inputs, decorative SVG `aria-hidden`, removed unnecessary svelte-ignore. |
 | 61 | UX Feedback States | Double-submit prevention, auto-clear messages, timer cleanup, loading spinners, stale date fix, fire-and-forget catches. |

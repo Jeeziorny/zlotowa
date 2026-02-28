@@ -101,15 +101,6 @@ pub struct UploadBatch {
     pub expense_count: i64,
 }
 
-/// A find/replace rule for cleaning up noisy bank transaction titles.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TitleCleanupRule {
-    pub id: Option<i64>,
-    pub pattern: String,
-    pub replacement: String,
-    pub is_regex: bool,
-}
-
 // ── Budget Models ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

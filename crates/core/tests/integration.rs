@@ -2,7 +2,7 @@ use accountant_core::classifiers::{classify_pipeline, Classifier, RegexClassifie
 use accountant_core::db::Database;
 use accountant_core::ical::parse_ics;
 use accountant_core::models::{
-    ClassificationRule, ClassificationSource, Expense, ExpenseQuery, TitleCleanupRule,
+    ClassificationRule, ClassificationSource, Expense, ExpenseQuery,
 };
 use accountant_core::parsers::csv_parser::CsvParser;
 use accountant_core::parsers::{ColumnMapping, Parser};
@@ -120,84 +120,6 @@ fn parse_classify_save_query_roundtrip() {
 
     let saved_rules = db.get_all_rules().unwrap();
     assert_eq!(saved_rules.len(), 2);
-}
-
-// ── 2. Title cleanup -> Reclassify ──
-
-#[test]
-fn title_cleanup_enables_reclassification() {
-    let db = Database::open_memory().unwrap();
-
-    let expense = Expense {
-        id: None,
-        title: "CARD PAYMENT 12345 Starbucks".to_string(),
-        display_title: None,
-        amount: 5.00,
-        date: date(2025, 3, 1),
-        category: None,
-        classification_source: None,
-    };
-    db.insert_expense(&expense).unwrap();
-
-    let rule = ClassificationRule {
-        id: None,
-        pattern: "(?i)^starbucks$".to_string(),
-        category: "Coffee".to_string(),
-    };
-    db.insert_rule(&rule).unwrap();
-
-    let all = db.get_all_expenses().unwrap();
-    let classifier = RegexClassifier::from_rules(&[rule.clone()]);
-    let parsed = accountant_core::models::ParsedExpense {
-        title: all[0].title.clone(),
-        amount: all[0].amount,
-        date: all[0].date,
-    };
-    let result = classifier.classify(&parsed).unwrap();
-    assert!(result.is_none(), "Should not match before cleanup");
-
-    let cleanup_rule = TitleCleanupRule {
-        id: None,
-        pattern: "CARD PAYMENT \\d+ ".to_string(),
-        replacement: "".to_string(),
-        is_regex: true,
-    };
-    db.insert_title_cleanup_rule(&cleanup_rule).unwrap();
-
-    let preview = db.preview_title_cleanup(&cleanup_rule).unwrap();
-    assert_eq!(preview.len(), 1);
-    assert_eq!(preview[0].2, "Starbucks");
-
-    let expense_ids: Vec<i64> = preview.iter().map(|(id, _, _)| *id).collect();
-    let updated = db.apply_title_cleanup(&cleanup_rule, &expense_ids).unwrap();
-    assert_eq!(updated, 1);
-
-    let all = db.get_all_expenses().unwrap();
-    // Raw title stays immutable — classification rules still match against it
-    assert_eq!(all[0].title, "CARD PAYMENT 12345 Starbucks");
-    // display_title has the cleaned version
-    assert_eq!(all[0].display_title.as_deref(), Some("Starbucks"));
-
-    // Classification still uses raw title, so the strict ^starbucks$ rule won't match.
-    // In practice, rules are written to match the raw bank format (e.g. (?i)starbucks).
-    let parsed_after = accountant_core::models::ParsedExpense {
-        title: all[0].title.clone(),
-        amount: all[0].amount,
-        date: all[0].date,
-    };
-    let result_after = classifier.classify(&parsed_after).unwrap();
-    assert!(result_after.is_none(), "Strict ^starbucks$ should not match raw title");
-
-    // A rule matching the raw format would work
-    let broad_rule = ClassificationRule {
-        id: None,
-        pattern: "(?i)starbucks".to_string(),
-        category: "Coffee".to_string(),
-    };
-    let broad_classifier = RegexClassifier::from_rules(&[broad_rule]);
-    let result_broad = broad_classifier.classify(&parsed_after).unwrap();
-    assert!(result_broad.is_some());
-    assert_eq!(result_broad.unwrap().category, "Coffee");
 }
 
 // ── 4a. ClassificationRule::from_pattern with regex metacharacters ──

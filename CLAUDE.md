@@ -50,12 +50,12 @@ CSV → Parser (auto-detect format) → ParsedExpense → Classification Pipelin
 
 All commands in `src-tauri/src/lib.rs`. State is `AppState { db: Mutex<Database> }`.
 
-40 commands grouped by domain:
+37 commands grouped by domain:
 - **Expenses:** `get_expenses`, `query_expenses`, `add_expense`, `update_expense`, `delete_expense`, `delete_expenses`, `suggest_category`
 - **Bulk upload:** `preview_csv`, `parse_and_classify`, `bulk_save_expenses`, `get_upload_batches`, `delete_batch`
 - **Categories:** `get_categories`, `get_category_stats`, `create_category`, `rename_category`, `delete_category`, `merge_categories`, `get_category_averages`
 - **LLM:** `get/save/validate/clear_llm_config`
-- **Title cleanup:** `get/save/delete_title_cleanup_rule(s)`, `preview/apply_title_cleanup`
+- **Config:** `get_config`, `save_config`
 - **Budgets:** `get_budget_summary`, `get_active_budget_summary`, `list_budgets`, `create_budget`, `save_budget_categories`, `delete_budget`, `check_budget_overlap`, `parse_calendar_events`
 - **Backup:** `backup_database`, `restore_database`
 - **Widgets:** `get/save_active_widgets`
@@ -66,7 +66,7 @@ Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/co
 
 SQLite at `~/Library/Application Support/4ccountant/4ccountant.db` (macOS). Schema auto-created via `migrate()`.
 
-Tables: `expenses` (has optional `batch_id` FK), `classification_rules` (regex pattern → category), `title_cleanup_rules` (find/replace rules for title noise), `config` (key-value for LLM settings, widget state), `budgets` (start_date/end_date date-range, no overlap allowed), `budget_categories` (per-category limits), `upload_batches` (filename, timestamp, count for bulk upload undo).
+Tables: `expenses` (has optional `batch_id` FK), `classification_rules` (regex pattern → category), `config` (key-value for LLM settings, widget state, recent title cleanups), `budgets` (start_date/end_date date-range, no overlap allowed), `budget_categories` (per-category limits), `upload_batches` (filename, timestamp, count for bulk upload undo).
 
 Duplicate detection on `(title, amount, date)` tuple. Bulk inserts use transactions.
 
@@ -74,7 +74,9 @@ Error handling: `DbError` enum via `thiserror`.
 
 ### Frontend
 
-SPA routing in `App.svelte` with string-based page state. Pages: Dashboard, AddExpense, BulkUpload, ExpenseList, Categories, TitleCleanup, BudgetPlanning, Settings.
+SPA routing in `App.svelte` with string-based page state. Pages: Dashboard, AddExpense, BulkUpload, ExpenseList, Categories, BudgetPlanning, Settings.
+
+**Bulk upload flow:** 5-step wizard — Input → Columns → Cleanup (inline find-and-replace on titles) → Review → Done. Title cleanup step persists recent find-replace pairs in `config` table for reuse across uploads.
 
 Dashboard widgets registered in `src/lib/widgets/registry.js`, widget visibility/order persisted to DB. Most widgets receive data via props; `BudgetStatus` self-fetches via `invoke()` in `onMount`.
 

@@ -8,9 +8,8 @@
   import BatchDeleteModal from "./expense-list/BatchDeleteModal.svelte";
   import AddExpense from "./AddExpense.svelte";
   import BulkUpload from "./BulkUpload.svelte";
-  import TitleCleanup from "./TitleCleanup.svelte";
 
-  // Sub-view: "list" | "add" | "bulk" | "cleanup"
+  // Sub-view: "list" | "add" | "bulk"
   let subView = $state("list");
 
   let expenses = $state([]);
@@ -165,8 +164,6 @@
       <AddExpense />
     {:else if subView === "bulk"}
       <BulkUpload />
-    {:else if subView === "cleanup"}
-      <TitleCleanup />
     {/if}
   {:else}
   <div class="flex items-center justify-between mb-4">
@@ -194,13 +191,6 @@
                text-sm font-medium transition-colors border border-gray-700"
       >
         Upload CSV
-      </button>
-      <button
-        onclick={() => subView = "cleanup"}
-        class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
-               text-sm font-medium transition-colors border border-gray-700"
-      >
-        Clean Titles
       </button>
     </div>
   </div>

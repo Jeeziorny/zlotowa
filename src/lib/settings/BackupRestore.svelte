@@ -53,7 +53,6 @@
         parts.push(s);
       }
       if (summary.rules_upserted > 0) parts.push(`${summary.rules_upserted} rules`);
-      if (summary.cleanup_rules_upserted > 0) parts.push(`${summary.cleanup_rules_upserted} cleanup rules`);
       if (summary.budgets_inserted > 0 || summary.budgets_skipped > 0) {
         let s = `${summary.budgets_inserted} budgets`;
         if (summary.budgets_skipped > 0) s += ` (${summary.budgets_skipped} skipped)`;

@@ -2,10 +2,11 @@
   import { invoke } from "@tauri-apps/api/core";
   import FileInput from "./bulk-upload/FileInput.svelte";
   import ColumnMapping from "./bulk-upload/ColumnMapping.svelte";
+  import TitleCleanupStep from "./bulk-upload/TitleCleanupStep.svelte";
   import ReviewClassified from "./bulk-upload/ReviewClassified.svelte";
   import BulkDone from "./bulk-upload/BulkDone.svelte";
 
-  // Steps: input -> column-mapping -> review -> done
+  // Steps: input -> column-mapping -> cleanup -> review -> done
   let step = $state("input");
   let error = $state("");
 
@@ -60,7 +61,7 @@
       });
       classifiedRows = rows.map((r) => ({ ...r, _editing: false, rule_pattern: r.title, _autoApplied: 0, _originalSource: r.source }));
       await loadCategories();
-      step = "review";
+      step = "cleanup";
     } catch (err) {
       error = `Classification failed: ${err}`;
     } finally {
@@ -77,6 +78,10 @@
     }
   }
 
+  function handleCleanupDone() {
+    step = "review";
+  }
+
   async function handleSave(nonDuplicateRows) {
     const toSave = nonDuplicateRows.map((r) => ({
       title: r.title,
@@ -85,6 +90,7 @@
       category: r.category,
       source: r.source,
       rule_pattern: r.rule_pattern !== r.title ? r.rule_pattern : null,
+      display_title: r.display_title || null,
     }));
 
     const count = await invoke("bulk_save_expenses", {
@@ -130,17 +136,23 @@
     {#each [
       { id: "input", label: "1. Input" },
       { id: "column-mapping", label: "2. Columns" },
-      { id: "review", label: "3. Review" },
-      { id: "done", label: "4. Done" },
+      { id: "cleanup", label: "3. Cleanup" },
+      { id: "review", label: "4. Review" },
+      { id: "done", label: "5. Done" },
     ] as s, i}
+      {@const stepOrder = ["input", "column-mapping", "cleanup", "review", "done"]}
+      {@const currentIdx = stepOrder.indexOf(step)}
+      {@const thisIdx = stepOrder.indexOf(s.id)}
       {#if i > 0}
-        <div class="h-px flex-1 max-w-8 {step === s.id || ['column-mapping', 'review', 'done'].indexOf(step) > ['column-mapping', 'review', 'done'].indexOf(s.id) ? 'bg-emerald-500' : 'bg-gray-700'}"></div>
+        <div class="h-px flex-1 max-w-8 {thisIdx <= currentIdx ? 'bg-emerald-500' : 'bg-gray-700'}"></div>
       {/if}
       <span
         class="px-3 py-1 rounded-full text-xs font-medium
           {step === s.id
           ? 'bg-emerald-600 text-white'
-          : 'bg-gray-800 text-gray-500'}"
+          : thisIdx < currentIdx
+            ? 'bg-emerald-900/50 text-emerald-400'
+            : 'bg-gray-800 text-gray-500'}"
       >
         {s.label}
       </span>
@@ -164,11 +176,17 @@
       onback={() => step = "input"}
       onnext={handleMapping}
     />
+  {:else if step === "cleanup"}
+    <TitleCleanupStep
+      bind:classifiedRows
+      onback={() => step = "column-mapping"}
+      onnext={handleCleanupDone}
+    />
   {:else if step === "review"}
     <ReviewClassified
       bind:classifiedRows
       {allCategories}
-      onback={() => step = "column-mapping"}
+      onback={() => step = "cleanup"}
       onsave={handleSave}
     />
   {:else if step === "done"}
