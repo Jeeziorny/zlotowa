@@ -10,7 +10,7 @@
   let matchingExpenses = $derived.by(() => {
     if (keywords.length === 0) return [];
     return expenses.filter((e) => {
-      const title = (e.display_title || e.title || "").toLowerCase();
+      const title = (e.title || "").toLowerCase();
       return keywords.some((kw) => title.includes(kw));
     });
   });

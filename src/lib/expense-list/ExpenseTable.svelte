@@ -15,7 +15,7 @@
 
   // Inline edit state
   let editingId = $state(null);
-  let editDisplayTitle = $state("");
+  let editTitle = $state("");
   let editAmount = $state("");
   let editDate = $state("");
   let editCategory = $state("");
@@ -24,7 +24,7 @@
 
   function startEdit(expense) {
     editingId = expense.id;
-    editDisplayTitle = expense.display_title || expense.title;
+    editTitle = expense.title;
     editAmount = String(expense.amount);
     editDate = expense.date;
     editCategory = expense.category || "";
@@ -42,7 +42,7 @@
       editError = "Amount must be a valid number";
       return;
     }
-    if (!editDisplayTitle.trim()) {
+    if (!editTitle.trim()) {
       editError = "Title cannot be empty";
       return;
     }
@@ -53,12 +53,10 @@
     saving = true;
     editError = "";
     try {
-      const editedExpense = expenses.find(e => e.id === editingId);
       await invoke("update_expense", {
         id: editingId,
         input: {
-          title: editedExpense.title,
-          display_title: editDisplayTitle.trim(),
+          title: editTitle.trim(),
           amount,
           date: editDate,
           category: editCategory.trim() || null,
@@ -111,15 +109,10 @@
             <td class="px-4 py-2">
               <input
                 type="text"
-                bind:value={editDisplayTitle}
+                bind:value={editTitle}
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
                        text-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
               />
-              {#if expense.display_title}
-                <div class="text-xs text-gray-600 mt-0.5 truncate" title={expense.title}>
-                  Raw: {expense.title}
-                </div>
-              {/if}
             </td>
             <td class="px-4 py-2">
               <input
@@ -185,7 +178,7 @@
               />
             </td>
             <td class="px-4 py-3 text-sm text-gray-400">{expense.date}</td>
-            <td class="px-4 py-3" title={expense.display_title ? expense.title : ''}>{expense.display_title || expense.title}</td>
+            <td class="px-4 py-3">{expense.title}</td>
             <td class="px-4 py-3 text-right font-mono">{expense.amount.toFixed(2)}</td>
             <td class="px-4 py-3">
               {#if expense.category}

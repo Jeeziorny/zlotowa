@@ -6,11 +6,28 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 65 | Multi-Instance Widgets & Keyword Tracker | Evolve widget system to support multiple instances with per-instance config. Add Keyword Tracker widget (filter expenses by keyword, monthly bar chart). Frontend-only changes — no Rust/DB schema modifications. |
+| 69 | Sidebar Branding | SVG logo mark + two-tone wordmark + contextual version footer. |
+| 70 | Chart Visualizations | Unovis charts: SpendingByCategory → donut, MonthlyTrend → bar chart with axes/tooltips. Zero backend changes. |
+| 71 | Autocomplete Component | Shared `Autocomplete.svelte` replacing fragile blur-timeout pattern in 4 components. Keyboard nav, proper focus. |
+| 72 | Table Interaction Consistency | Unified action column (hover-reveal icons) + edit hint + left border accent across all 3 tables. |
+| 73 | Widget Drag-and-Drop | HTML5 drag-and-drop reorder in dashboard edit mode with visual indicators. Arrow buttons as fallback. |
+| 74 | Empty State Component | Shared `EmptyState.svelte` with inline SVG icons and optional CTA buttons across 8 locations. |
+| 75 | Filter Chip Bar | Dismissible chips showing active filters between SearchFilterBar and ExpenseTable. Per-filter remove + clear all. |
+| 76 | Generic Confirm Modal | Shared `ConfirmModal.svelte` replacing 3 duplicate modals. Includes `focusTrap` action for all modals. |
+| 77 | Accessibility Round 4 | Colorblind-safe status labels, aria-labels on all icon buttons, screen reader sort announcements. |
+| 78 | Keyboard Shortcuts & Quick-Add | Global Cmd+N/U/K/1-4/Esc shortcuts, sidebar quick-add button, shortcut cheat sheet overlay. |
+| 79 | Remember Column Mappings | Persist CSV column mappings per filename/header pattern in config table. Auto-restore on repeat uploads. |
+| 80a | Input Validation: Amounts | Bulk upload `Math.abs()` at save, AddExpense & ExpenseTable block `<= 0` with inline error. BudgetCreator already handled. |
+| 80b | Input Validation: Character Limits | Title maxlength 200 with graduated counter, pattern/category limits. (Deferred) |
+| 81 | Safer Backup Restore | Two-step flow: preview backup contents, warning block, confirmation checkbox, "backup first" convenience. New `preview_backup` IPC. |
+
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 67 | Classification Rules Tab | Rules page (opt-in via Settings toggle) with table view of regex rules, inline editing, filtering, match counts, add/delete. 3 new model types, 3 new DB methods (7 tests), 4 new IPC commands, 4 new Svelte components. PaginationBar generalized with `label` prop. |
+| 66 | Bulk Upload Navigation Guard | Confirmation modal when navigating away from in-progress bulk upload. BulkUpload exposes dirty state via `ondirtychange` callback. ExpenseList guards "Back to Expenses" button, App.svelte guards sidebar/dashboard nav. Shared `ConfirmLeaveModal.svelte` component. |
+| 65 | Multi-Instance Widgets & Keyword Tracker | Widget system evolved from flat string-array to instance-object array with per-instance config. Rust IPC widened to `serde_json::Value`. New KeywordTracker widget (keyword filter + monthly bar chart). Config dialog for add/edit. Old format auto-migrates. Multi-instance widgets always shown in picker with "(+ add another)". |
 | 64 | Inline Title Cleanup | Replaced title cleanup rules engine with inline find-and-replace step in bulk upload flow (5-step wizard). Persists recent pairs in config table. Dropped `title_cleanup_rules` table, removed 5 IPC commands, deleted `TitleCleanup.svelte`. Added generic `get_config`/`save_config` IPC commands. Backup v2 format (ignores v1 cleanup rules gracefully). |
 | 63 | Docs Sync Round 3 | Removed phantom Exporter trait/references, updated CLI commands (4: llm-conf, bulk-insert, backup, restore), IPC count 39→40, added backup domain, noted BudgetStatus self-fetch. |
 | 62 | Accessibility Round 3 | `group-focus-within:opacity-100` on ExpenseTable actions, `aria-label` on icon buttons/checkboxes/inputs, decorative SVG `aria-hidden`, removed unnecessary svelte-ignore. |

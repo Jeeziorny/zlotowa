@@ -81,7 +81,7 @@
         <!-- Top row: Date | Title | Amount + confidence -->
         <div class="flex items-center gap-3 mb-3">
           <span class="text-sm text-gray-400 shrink-0">{row.date}</span>
-          <span class="text-sm truncate flex-1">{row.display_title || row.title}</span>
+          <span class="text-sm truncate flex-1">{row.title}</span>
           <span class="text-sm font-mono text-gray-100 shrink-0">{row.amount.toFixed(2)}</span>
           {#if showSource && row.confidence != null}
             <span class="inline-flex items-center gap-1.5 shrink-0">
@@ -212,7 +212,7 @@
               {#each incomeRows as row}
                 <tr class="border-b border-gray-800/50">
                   <td class="px-4 py-2 text-gray-500">{row.date}</td>
-                  <td class="px-4 py-2 text-gray-500">{row.display_title || row.title}</td>
+                  <td class="px-4 py-2 text-gray-500">{row.title}</td>
                   <td class="px-4 py-2 text-right font-mono text-gray-500"
                     >{row.amount.toFixed(2)}</td
                   >
@@ -245,7 +245,7 @@
               {#each duplicateRows as row}
                 <tr class="border-b border-gray-800/50">
                   <td class="px-4 py-2 text-gray-500">{row.date}</td>
-                  <td class="px-4 py-2 text-gray-500">{row.display_title || row.title}</td>
+                  <td class="px-4 py-2 text-gray-500">{row.title}</td>
                   <td class="px-4 py-2 text-right font-mono text-gray-500"
                     >{row.amount.toFixed(2)}</td
                   >

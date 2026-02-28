@@ -8,9 +8,36 @@
   import BatchDeleteModal from "./expense-list/BatchDeleteModal.svelte";
   import AddExpense from "./AddExpense.svelte";
   import BulkUpload from "./BulkUpload.svelte";
+  import ConfirmLeaveModal from "./ConfirmLeaveModal.svelte";
+
+  let { onbulkdirtychange = () => {} } = $props();
 
   // Sub-view: "list" | "add" | "bulk"
   let subView = $state("list");
+  let bulkUploadDirty = $state(false);
+  let showLeaveConfirm = $state(false);
+
+  function handleBulkDirtyChange(dirty) {
+    bulkUploadDirty = dirty;
+    onbulkdirtychange(dirty);
+  }
+
+  function handleBackToExpenses() {
+    if (bulkUploadDirty) {
+      showLeaveConfirm = true;
+    } else {
+      subView = "list";
+      fetchExpenses();
+    }
+  }
+
+  function confirmLeave() {
+    showLeaveConfirm = false;
+    bulkUploadDirty = false;
+    onbulkdirtychange(false);
+    subView = "list";
+    fetchExpenses();
+  }
 
   let expenses = $state([]);
   let totalCount = $state(0);
@@ -152,7 +179,7 @@
 <div>
   {#if subView !== "list"}
     <button
-      onclick={() => { subView = "list"; fetchExpenses(); }}
+      onclick={handleBackToExpenses}
       class="text-gray-400 hover:text-emerald-400 text-sm mb-4 inline-flex items-center gap-1 transition-colors"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -163,7 +190,14 @@
     {#if subView === "add"}
       <AddExpense />
     {:else if subView === "bulk"}
-      <BulkUpload />
+      <BulkUpload ondirtychange={handleBulkDirtyChange} />
+    {/if}
+
+    {#if showLeaveConfirm}
+      <ConfirmLeaveModal
+        onconfirm={confirmLeave}
+        oncancel={() => { showLeaveConfirm = false; }}
+      />
     {/if}
   {:else}
   <div class="flex items-center justify-between mb-4">

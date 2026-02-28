@@ -6,8 +6,15 @@
   import ReviewClassified from "./bulk-upload/ReviewClassified.svelte";
   import BulkDone from "./bulk-upload/BulkDone.svelte";
 
+  let { ondirtychange = () => {} } = $props();
+
   // Steps: input -> column-mapping -> cleanup -> review -> done
   let step = $state("input");
+  let isDirty = $derived(step !== "input" && step !== "done");
+
+  $effect(() => {
+    ondirtychange(isDirty);
+  });
   let error = $state("");
 
   // Shared state across steps
@@ -71,13 +78,12 @@
       const rows = await invoke("classify_expenses", {
         rows: parsedRows,
       });
-      classifiedRows = rows.map((r, i) => ({
+      classifiedRows = rows.map((r) => ({
         ...r,
         _editing: false,
         rule_pattern: r.title,
         _autoApplied: 0,
         _originalSource: r.source,
-        _originalTitle: parsedRows[i]?._originalTitle || null,
       }));
       await loadCategories();
       step = "review";
@@ -99,13 +105,12 @@
 
   async function handleSave(nonDuplicateRows) {
     const toSave = nonDuplicateRows.map((r) => ({
-      title: r._originalTitle || r.title,
+      title: r.title,
       amount: r.amount,
       date: r.date,
       category: r.category,
       source: r.source,
       rule_pattern: r.rule_pattern !== r.title ? r.rule_pattern : null,
-      display_title: r._originalTitle ? r.title : null,
     }));
 
     const count = await invoke("bulk_save_expenses", {

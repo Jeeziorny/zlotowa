@@ -113,6 +113,20 @@
     checking = false;
   }
 
+  function setNextMonth() {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+    startDate = first.toISOString().split("T")[0];
+    endDate = last.toISOString().split("T")[0];
+  }
+
+  let nextMonthLabel = $derived(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toLocaleString("default", { month: "long" });
+  });
+
   function addCategory(cat) {
     if (categoryBudgets.find((c) => c.category === cat)) return;
     categoryBudgets = [
@@ -190,7 +204,17 @@
 
   {#if step === 1}
     <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-      <h3 class="text-lg font-semibold mb-4">Set Budget Period</h3>
+      <div class="flex items-center gap-3 mb-4">
+        <h3 class="text-lg font-semibold">Set Budget Period</h3>
+        <button
+          onclick={setNextMonth}
+          class="px-2.5 py-0.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400
+                 hover:text-emerald-400 rounded-full border border-gray-700
+                 hover:border-emerald-500/50 transition-colors"
+        >
+          {nextMonthLabel()}
+        </button>
+      </div>
       <div class="flex gap-4 items-end">
         <div>
           <label for="budget-start-date" class="text-xs text-gray-500 block mb-1">Start Date</label>
@@ -315,6 +339,7 @@
               <th class="text-left px-3 py-2">Category</th>
               <th class="text-right px-3 py-2">Avg (3mo)</th>
               <th class="text-right px-3 py-2">Budget</th>
+              <th class="w-8"></th>
             </tr>
           </thead>
           <tbody>
@@ -324,7 +349,7 @@
                 <td
                   class="px-3 py-2 text-right text-gray-500 font-mono text-xs"
                 >
-                  {cb.average > 0 ? cb.average.toFixed(2) : "\u2014"}
+                  {cb.average > 0 ? Math.round(cb.average) : "\u2014"}
                 </td>
                 <td class="px-3 py-2 text-right">
                   <input
@@ -336,6 +361,15 @@
                            text-right text-gray-100 font-mono focus:outline-none
                            focus:border-emerald-500"
                   />
+                </td>
+                <td class="px-1 py-2 text-center">
+                  <button
+                    onclick={() => (categoryBudgets = categoryBudgets.filter((_, j) => j !== i))}
+                    class="text-gray-600 hover:text-red-400 transition-colors text-sm"
+                    title="Remove {cb.category}"
+                  >
+                    &times;
+                  </button>
                 </td>
               </tr>
             {/each}

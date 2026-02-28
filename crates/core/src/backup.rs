@@ -36,8 +36,6 @@ pub struct BackupData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupExpense {
     pub title: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub display_title: Option<String>,
     pub amount: f64,
     pub date: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -110,7 +108,6 @@ pub fn create_backup(db: &Database) -> Result<BackupData, BackupError> {
             .into_iter()
             .map(|e| BackupExpense {
                 title: e.title,
-                display_title: e.display_title,
                 amount: e.amount,
                 date: e.date.to_string(),
                 category: e.category,
@@ -208,15 +205,13 @@ mod tests {
             expenses: vec![
                 BackupExpense {
                     title: "Coffee".to_string(),
-                    display_title: None,
                     amount: 4.50,
                     date: "2025-01-15".to_string(),
                     category: Some("Drinks".to_string()),
                     classification_source: Some("database".to_string()),
                 },
                 BackupExpense {
-                    title: "UBER TRIP".to_string(),
-                    display_title: Some("Uber Trip".to_string()),
+                    title: "Uber Trip".to_string(),
                     amount: 12.99,
                     date: "2025-01-16".to_string(),
                     category: Some("Transport".to_string()),
@@ -273,8 +268,7 @@ mod tests {
         assert_eq!(backup2.budgets[0].categories.len(), 2);
 
         // Verify expense data survived roundtrip
-        let uber = backup2.expenses.iter().find(|e| e.title == "UBER TRIP").unwrap();
-        assert_eq!(uber.display_title.as_deref(), Some("Uber Trip"));
+        let uber = backup2.expenses.iter().find(|e| e.title == "Uber Trip").unwrap();
         assert_eq!(uber.category.as_deref(), Some("Transport"));
         assert_eq!(uber.classification_source.as_deref(), Some("llm"));
     }
@@ -342,7 +336,6 @@ mod tests {
         let mut backup = sample_backup();
         backup.expenses.push(BackupExpense {
             title: "Bad".to_string(),
-            display_title: None,
             amount: f64::INFINITY, // invalid
             date: "2025-01-17".to_string(),
             category: None,

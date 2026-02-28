@@ -1,11 +1,12 @@
 <script>
-  let { currentPage, onnavigate } = $props();
+  let { currentPage, onnavigate, showRules = false } = $props();
 
-  const items = [
+  let items = $derived([
     { id: "expenses", label: "Expenses", icon: "☰" },
     { id: "categories", label: "Categories", icon: "▤" },
     { id: "budget", label: "Budget", icon: "◎" },
-  ];
+    ...(showRules ? [{ id: "rules", label: "Rules", icon: "⚡" }] : []),
+  ]);
 </script>
 
 <aside class="w-56 bg-gray-900 border-r border-gray-800 flex flex-col">

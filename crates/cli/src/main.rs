@@ -380,7 +380,6 @@ fn cmd_bulk_insert(path: PathBuf) {
         to_insert.push(Expense {
             id: None,
             title: r.0.clone(),
-            display_title: None,
             amount: r.1,
             date,
             category: r.3.clone(),

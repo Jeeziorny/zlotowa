@@ -9,7 +9,6 @@ pub const UNCATEGORIZED: &str = "uncategorized";
 pub struct Expense {
     pub id: Option<i64>,
     pub title: String,
-    pub display_title: Option<String>,
     pub amount: f64,
     pub date: NaiveDate,
     pub category: Option<String>,
@@ -82,6 +81,30 @@ impl ClassificationRule {
             category: category.to_string(),
         }
     }
+}
+
+// ── Rule Query ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleWithMatchCount {
+    pub id: i64,
+    pub pattern: String,
+    pub category: String,
+    pub match_count: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RuleQuery {
+    pub search: Option<String>,
+    pub category: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleQueryResult {
+    pub rules: Vec<RuleWithMatchCount>,
+    pub total_count: i64,
 }
 
 /// Category with usage statistics.

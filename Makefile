@@ -6,11 +6,8 @@ purge-data:
 		DELETE FROM expenses; \
 		DELETE FROM classification_rules; \
 		DELETE FROM config WHERE key NOT IN ('llm_provider', 'llm_api_key'); \
-		DELETE FROM title_cleanup_rules; \
 		DELETE FROM budgets; \
 		DELETE FROM budget_categories; \
-		DELETE FROM planned_expenses; \
-		DELETE FROM calendar_events; \
 		DELETE FROM upload_batches; \
 		VACUUM; \
 	"

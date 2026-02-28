@@ -109,13 +109,6 @@
   }
 
   async function handleNext() {
-    // Tag rows where title was modified so save can set display_title
-    for (let i = 0; i < parsedRows.length; i++) {
-      if (parsedRows[i].title !== originalTitles[i]) {
-        parsedRows[i] = { ...parsedRows[i], _originalTitle: originalTitles[i] };
-      }
-    }
-
     // Persist applied operations as recent cleanups
     if (appliedOps.length > 0) {
       try {

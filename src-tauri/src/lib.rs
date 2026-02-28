@@ -5,7 +5,7 @@ use accountant_core::ical::ParsedCalendarEvent;
 use accountant_core::models::{
     BudgetCategory, BudgetCategoryStatus, BudgetStatus, CategoryAverage,
     CategoryStats, ClassificationRule, ClassificationSource, Expense, ExpenseQuery,
-    ExpenseQueryResult, ParsedExpense, UploadBatch, Budget,
+    ExpenseQueryResult, ParsedExpense, RuleQuery, RuleQueryResult, UploadBatch, Budget,
 };
 use accountant_core::parsers::{self, ColumnMapping};
 use log::{debug, error, info, warn};
@@ -22,7 +22,6 @@ pub struct AppState {
 #[derive(Serialize, Deserialize)]
 pub struct ExpenseInput {
     pub title: String,
-    pub display_title: Option<String>,
     pub amount: f64,
     pub date: String,
     pub category: Option<String>,
@@ -74,7 +73,6 @@ pub struct BulkSaveExpense {
     pub category: Option<String>,
     pub source: Option<String>,
     pub rule_pattern: Option<String>,
-    pub display_title: Option<String>,
 }
 
 // ── Helpers ──
@@ -110,7 +108,6 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
         let expense = Expense {
             id: None,
             title: input.title.clone(),
-            display_title: input.display_title.clone(),
             amount: input.amount,
             date,
             category: input.category.clone(),
@@ -149,7 +146,6 @@ fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Resul
         let expense = Expense {
             id: Some(id),
             title: input.title.clone(),
-            display_title: input.display_title.clone(),
             amount: input.amount,
             date,
             category: input.category.clone(),
@@ -461,6 +457,21 @@ fn parse_and_classify(
     }; // mutex released here
     info!("parse_and_classify: phase 2 complete — loaded {} rules, {} categories", rules.len(), categories.len());
 
+    // Phase 2b: Detect intra-batch duplicates (second+ occurrence of same title/amount/date)
+    let mut dup_flags = dup_flags;
+    {
+        let mut seen = std::collections::HashSet::new();
+        for (i, expense) in parsed.iter().enumerate() {
+            if dup_flags[i] {
+                continue; // already flagged as DB duplicate
+            }
+            let key = (expense.title.as_str(), expense.amount.to_bits(), expense.date);
+            if !seen.insert(key) {
+                dup_flags[i] = true;
+            }
+        }
+    }
+
     // Phase 3: Classify with regex rules (no DB needed)
     let regex_classifier = RegexClassifier::from_rules(&rules);
     let classifiers: Vec<Box<dyn Classifier>> = vec![Box::new(regex_classifier)];
@@ -615,7 +626,6 @@ fn bulk_save_expenses(
         to_insert.push(Expense {
             id: None,
             title: e.title.clone(),
-            display_title: e.display_title.clone(),
             amount: e.amount,
             date,
             category: e.category.clone(),
@@ -929,6 +939,38 @@ fn save_config(state: State<AppState>, key: String, value: String) -> Result<(),
     db.set_config(&key, &value).map_err(|e| { warn!("save_config failed: {e}"); e.to_string() })
 }
 
+// ── Classification Rules ──
+
+#[tauri::command]
+fn query_rules(state: State<AppState>, query: RuleQuery) -> Result<RuleQueryResult, String> {
+    debug!("query_rules called");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.query_rules(&query).map_err(|e| { warn!("query_rules failed: {e}"); e.to_string() })
+}
+
+#[tauri::command]
+fn add_rule(state: State<AppState>, pattern: String, category: String) -> Result<i64, String> {
+    debug!("add_rule: pattern={pattern}, category={category}");
+    let rule = ClassificationRule { id: None, pattern, category };
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.insert_rule(&rule).map_err(|e| { warn!("add_rule failed: {e}"); e.to_string() })
+}
+
+#[tauri::command]
+fn update_rule(state: State<AppState>, id: i64, pattern: String, category: String) -> Result<(), String> {
+    debug!("update_rule: id={id}");
+    let rule = ClassificationRule { id: Some(id), pattern, category };
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.update_rule(&rule).map_err(|e| { warn!("update_rule failed: {e}"); e.to_string() })
+}
+
+#[tauri::command]
+fn delete_rule(state: State<AppState>, id: i64) -> Result<(), String> {
+    debug!("delete_rule: id={id}");
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    db.delete_rule(id).map_err(|e| { warn!("delete_rule failed: {e}"); e.to_string() })
+}
+
 // ── Dashboard Widget Config ──
 
 #[tauri::command]
@@ -979,7 +1021,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Coffee".into(),
-                display_title: None,
+
                 amount: 3.50,
                 date: "2024-01-15".into(),
                 category: Some("Food".into()),
@@ -1005,7 +1047,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "X".into(),
-                display_title: None,
+
                 amount: 1.0,
                 date: "not-a-date".into(),
                 category: None,
@@ -1024,7 +1066,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Old".into(),
-                display_title: None,
+
                 amount: 10.0,
                 date: "2024-02-01".into(),
                 category: None,
@@ -1038,8 +1080,7 @@ mod tests {
             state,
             id,
             ExpenseInput {
-                title: "Old".into(),
-                display_title: Some("New".into()),
+                title: "New".into(),
                 amount: 20.0,
                 date: "2024-02-02".into(),
                 category: Some("Transport".into()),
@@ -1050,8 +1091,7 @@ mod tests {
 
         let state: State<AppState> = app.state();
         let all = get_expenses(state).unwrap();
-        assert_eq!(all[0].title, "Old"); // raw title is immutable
-        assert_eq!(all[0].display_title.as_deref(), Some("New"));
+        assert_eq!(all[0].title, "New");
         assert_eq!(all[0].amount, 20.0);
     }
 
@@ -1063,7 +1103,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "X".into(),
-                display_title: None,
+
                 amount: 1.0,
                 date: "2024-01-01".into(),
                 category: None,
@@ -1078,7 +1118,7 @@ mod tests {
             id,
             ExpenseInput {
                 title: "X".into(),
-                display_title: None,
+
                 amount: 1.0,
                 date: "bad".into(),
                 category: None,
@@ -1097,7 +1137,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Gone".into(),
-                display_title: None,
+
                 amount: 5.0,
                 date: "2024-03-01".into(),
                 category: None,
@@ -1130,7 +1170,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: format!("E{}", i),
-                    display_title: None,
+    
                     amount: 1.0,
                     date: "2024-01-01".into(),
                     category: None,
@@ -1169,7 +1209,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: title.into(),
-                    display_title: None,
+    
                     amount,
                     date: "2024-01-15".into(),
                     category: Some(cat.into()),
@@ -1248,7 +1288,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "X".into(),
-                display_title: None,
+
                 amount: 1.0,
                 date: "2024-01-01".into(),
                 category: Some("Food".into()),
@@ -1293,7 +1333,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: title.into(),
-                    display_title: None,
+    
                     amount: 1.0,
                     date: "2024-01-01".into(),
                     category: Some(cat.into()),
@@ -1343,7 +1383,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Starbucks".into(),
-                display_title: None,
+
                 amount: 5.0,
                 date: "2024-01-01".into(),
                 category: Some("Coffee".into()),
@@ -1386,7 +1426,7 @@ mod tests {
                 category: Some("Food".into()),
                 source: Some("Manual".into()),
                 rule_pattern: None,
-                display_title: None,
+
             },
             BulkSaveExpense {
                 title: "Item2".into(),
@@ -1395,7 +1435,7 @@ mod tests {
                 category: None,
                 source: None,
                 rule_pattern: None,
-                display_title: None,
+
             },
         ];
 
@@ -1429,7 +1469,6 @@ mod tests {
             category: None,
             source: None,
             rule_pattern: None,
-            display_title: None,
         }];
 
         let state: State<AppState> = app.state();
@@ -1482,7 +1521,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Coffee".into(),
-                display_title: None,
+
                 amount: 5.0,
                 date: "2024-06-01".into(),
                 category: Some("Drinks".into()),
@@ -1513,7 +1552,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Coffee".into(),
-                display_title: None,
+
                 amount: 3.50,
                 date: "2024-01-01".into(),
                 category: None,
@@ -1533,6 +1572,24 @@ mod tests {
         let state: State<AppState> = app.state();
         let rows = parse_and_classify(state, csv.into(), mapping).unwrap();
         assert!(rows[0].is_duplicate);
+    }
+
+    #[test]
+    fn parse_and_classify_detects_intra_batch_duplicates() {
+        let app = app();
+        let csv = "date,title,amount\n2024-01-01,Coffee,3.50\n2024-01-01,Coffee,3.50\n2024-01-01,Bus,2.00\n";
+        let mapping = ColumnMapping {
+            title_index: 1,
+            amount_index: 2,
+            date_index: 0,
+            date_format: "%Y-%m-%d".into(),
+        };
+
+        let state: State<AppState> = app.state();
+        let rows = parse_and_classify(state, csv.into(), mapping).unwrap();
+        assert!(!rows[0].is_duplicate, "first Coffee should be kept");
+        assert!(rows[1].is_duplicate, "second Coffee should be flagged as intra-batch duplicate");
+        assert!(!rows[2].is_duplicate, "Bus is unique");
     }
 
     // ── Budget Planning ──
@@ -1671,7 +1728,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "Lunch".into(),
-                display_title: None,
+
                 amount: 85.0,
                 date: "2024-01-10".into(),
                 category: Some("Food".into()),
@@ -1704,7 +1761,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: "Meal".into(),
-                    display_title: None,
+    
                     amount: 100.0,
                     date: date.clone(),
                     category: Some("Food".into()),
@@ -1812,7 +1869,7 @@ mod tests {
                 state,
                 ExpenseInput {
                     title: title.into(),
-                    display_title: None,
+    
                     amount: 10.0,
                     date: "2024-01-01".into(),
                     category: Some(cat.into()),
@@ -1839,7 +1896,7 @@ mod tests {
             state,
             ExpenseInput {
                 title: "CARD*1234 Starbucks NYC".into(),
-                display_title: None,
+
                 amount: 5.0,
                 date: "2024-01-01".into(),
                 category: Some("Coffee".into()),
@@ -1933,6 +1990,10 @@ pub fn run() {
             get_category_averages,
             get_config,
             save_config,
+            query_rules,
+            add_rule,
+            update_rule,
+            delete_rule,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

@@ -32,7 +32,7 @@
     <h3 id="delete-modal-title" class="text-lg font-semibold text-gray-100 mb-2">Delete expense?</h3>
     <p class="text-sm text-gray-400 mb-1">This cannot be undone.</p>
     <p class="text-sm text-gray-300 mb-5 break-words">
-      "{expense.display_title || expense.title}" &mdash; {expense.amount.toFixed(2)}
+      "{expense.title}" &mdash; {expense.amount.toFixed(2)}
     </p>
     {#if deleteError}
       <div class="text-sm bg-red-900/50 text-red-400 px-4 py-2 rounded-lg mb-3">{deleteError}</div>

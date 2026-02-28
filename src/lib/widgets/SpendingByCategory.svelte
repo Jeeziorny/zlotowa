@@ -25,18 +25,22 @@
   {#if sortedCategories.length > 0}
     <div class="space-y-3">
       {#each sortedCategories as [category, amount]}
-        <div>
+        {@const pct = totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0}
+        <div class="group rounded-lg px-1 -mx-1 transition-all duration-200 hover:brightness-110">
           <div class="flex justify-between text-sm mb-1">
             <span class="text-gray-300">{category}</span>
             <span class="text-gray-400">{amount.toFixed(2)}</span>
           </div>
-          <div class="w-full bg-gray-800 rounded-full h-2">
-            <div
-              class="bg-emerald-500 h-2 rounded-full transition-all"
-              style="width: {totalExpenses > 0
-                ? (amount / totalExpenses) * 100
-                : 0}%"
-            ></div>
+          <div class="flex items-center gap-2">
+            <div class="flex-1 bg-gray-800 rounded-full h-3">
+              <div
+                class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-3 rounded-full transition-all duration-200"
+                style="width: {pct}%"
+              ></div>
+            </div>
+            <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200 w-10 text-right">
+              {pct.toFixed(0)}%
+            </span>
           </div>
         </div>
       {/each}

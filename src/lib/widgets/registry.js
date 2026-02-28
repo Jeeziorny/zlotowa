@@ -4,6 +4,7 @@ import BiggestExpense from "./BiggestExpense.svelte";
 import MonthlyTrend from "./MonthlyTrend.svelte";
 import MostFrequent from "./MostFrequent.svelte";
 import BudgetStatus from "./BudgetStatus.svelte";
+import KeywordTracker from "./KeywordTracker.svelte";
 
 /**
  * Widget registry.
@@ -14,6 +15,7 @@ import BudgetStatus from "./BudgetStatus.svelte";
  *
  * Each widget component receives:
  *   - expenses: Array<{ id, title, amount, date, category, classification_source }>
+ *   - config: optional per-instance config object (for configurable widgets)
  */
 export const widgets = [
   {
@@ -58,11 +60,20 @@ export const widgets = [
     size: "half",
     component: BudgetStatus,
   },
+  {
+    id: "keyword-tracker",
+    name: "Keyword Tracker",
+    description: "Monthly spending for expenses matching a keyword.",
+    size: "half",
+    component: KeywordTracker,
+    configurable: true,
+    multiInstance: true,
+  },
 ];
 
-/** Default widget IDs shown on a fresh dashboard. */
-export const defaultWidgetIds = [
-  "total-stats",
-  "spending-by-category",
-  "biggest-expense",
+/** Default widget instances shown on a fresh dashboard. */
+export const defaultWidgetInstances = [
+  { widgetId: "total-stats", instanceId: "total-stats" },
+  { widgetId: "spending-by-category", instanceId: "spending-by-category" },
+  { widgetId: "biggest-expense", instanceId: "biggest-expense" },
 ];

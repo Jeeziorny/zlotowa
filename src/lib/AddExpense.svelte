@@ -69,7 +69,6 @@
       await invoke("add_expense", {
         input: {
           title,
-          display_title: null,
           amount: parseFloat(amount),
           date,
           category: category || null,

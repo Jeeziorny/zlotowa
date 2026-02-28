@@ -60,7 +60,7 @@ fn parse_classify_save_query_roundtrip() {
         .map(|(p, c)| Expense {
             id: None,
             title: p.title,
-            display_title: None,
+
             amount: p.amount,
             date: p.date,
             category: c.as_ref().map(|r| r.category.clone()),
@@ -395,7 +395,7 @@ fn bulk_insert_batch_tracks_correct_count() {
         Expense {
             id: None,
             title: "A".to_string(),
-            display_title: None,
+
             amount: 1.0,
             date: date(2025, 1, 1),
             category: None,
@@ -404,7 +404,7 @@ fn bulk_insert_batch_tracks_correct_count() {
         Expense {
             id: None,
             title: "B".to_string(),
-            display_title: None,
+
             amount: 2.0,
             date: date(2025, 1, 2),
             category: None,

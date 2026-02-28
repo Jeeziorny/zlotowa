@@ -6,6 +6,7 @@
     showingFrom,
     showingTo,
     totalCount,
+    label = "expense",
     onpagesize,
     onprev,
     onnext,
@@ -14,7 +15,7 @@
 
 <div class="flex items-center justify-between mt-4 text-sm text-gray-400">
   <span>
-    Showing {showingFrom}-{showingTo} of {totalCount} expense{totalCount !== 1 ? "s" : ""}
+    Showing {showingFrom}-{showingTo} of {totalCount} {label}{totalCount !== 1 ? "s" : ""}
   </span>
   <div class="flex items-center gap-3">
     <div class="flex items-center gap-1.5">

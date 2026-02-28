@@ -1,6 +1,7 @@
 use crate::models::{
     Budget, BudgetCategory, CategoryAverage, CategoryStats, ClassificationRule,
-    ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, UploadBatch,
+    ClassificationSource, Expense, ExpenseQuery, ExpenseQueryResult, RuleQuery,
+    RuleQueryResult, RuleWithMatchCount, UploadBatch,
 };
 use log::{error, info, warn};
 use rusqlite::{params, Connection, Result as SqlResult};
@@ -168,15 +169,46 @@ impl Database {
             migration_result?;
         }
 
-        // display_title column for cleaned titles — ignore "duplicate column" but log others
-        if let Err(e) = self
+        // Merge display_title into title (if column exists) then drop it.
+        // display_title was used to store cleaned titles separately; now we save
+        // the cleaned title directly as `title`.
+        let has_display_title = self
             .conn
-            .execute_batch("ALTER TABLE expenses ADD COLUMN display_title TEXT;")
-        {
-            let msg = e.to_string();
-            if !msg.contains("duplicate column") {
-                warn!("display_title migration failed: {}", msg);
-            }
+            .prepare("SELECT display_title FROM expenses LIMIT 0")
+            .is_ok();
+        if has_display_title {
+            self.conn.execute_batch(
+                "UPDATE expenses SET title = COALESCE(display_title, title);",
+            )?;
+            // SQLite can't DROP COLUMN before 3.35.0; use a table rebuild.
+            self.conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+            let rebuild_result = (|| -> Result<(), DbError> {
+                let tx = self.conn.unchecked_transaction()?;
+                self.conn.execute_batch(
+                    "CREATE TABLE expenses_v2 (
+                        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title                 TEXT NOT NULL,
+                        amount                REAL NOT NULL,
+                        date                  TEXT NOT NULL,
+                        category              TEXT,
+                        classification_source TEXT,
+                        batch_id              INTEGER REFERENCES upload_batches(id)
+                    );
+                    INSERT INTO expenses_v2 (id, title, amount, date, category, classification_source, batch_id)
+                        SELECT id, title, amount, date, category, classification_source, batch_id FROM expenses;
+                    DROP TABLE expenses;
+                    ALTER TABLE expenses_v2 RENAME TO expenses;
+                    CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+                    CREATE INDEX IF NOT EXISTS idx_expenses_dup ON expenses(title, amount, date);
+                    CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+                    CREATE INDEX IF NOT EXISTS idx_expenses_source ON expenses(classification_source);
+                    CREATE INDEX IF NOT EXISTS idx_expenses_batch_id ON expenses(batch_id);",
+                )?;
+                tx.commit()?;
+                Ok(())
+            })();
+            self.conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+            rebuild_result?;
         }
 
         // FK indices on budget child tables (idempotent)
@@ -195,6 +227,12 @@ impl Database {
         // Drop title_cleanup_rules table (feature replaced by inline cleanup in bulk upload)
         self.conn
             .execute_batch("DROP TABLE IF EXISTS title_cleanup_rules;")?;
+
+        // Drop ghost UNIQUE index on expenses(title,amount,date) — legitimate
+        // duplicate transactions (same title, amount, date) are valid. Duplicate
+        // detection is handled at the application level by check_duplicates_batch.
+        self.conn
+            .execute_batch("DROP INDEX IF EXISTS idx_expenses_unique_dup;")?;
 
         Ok(())
     }
@@ -228,11 +266,10 @@ impl Database {
             )));
         }
         self.conn.execute(
-            "INSERT INTO expenses (title, display_title, amount, date, category, classification_source)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO expenses (title, amount, date, category, classification_source)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
                 expense.title,
-                expense.display_title,
                 expense.amount,
                 expense.date.to_string(),
                 expense.category,
@@ -275,11 +312,10 @@ impl Database {
                 )));
             }
             tx.execute(
-                "INSERT INTO expenses (title, display_title, amount, date, category, classification_source, batch_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO expenses (title, amount, date, category, classification_source, batch_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
                     expense.title,
-                    expense.display_title,
                     expense.amount,
                     expense.date.to_string(),
                     expense.category,
@@ -303,23 +339,23 @@ impl Database {
 
     pub fn get_all_expenses(&self) -> Result<Vec<Expense>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, title, display_title, amount, date, category, classification_source FROM expenses ORDER BY date DESC",
+            "SELECT id, title, amount, date, category, classification_source FROM expenses ORDER BY date DESC",
         )?;
         let rows = stmt.query_map([], Self::row_to_expense)?;
         rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
     }
 
-    /// Map a row from `SELECT id, title, display_title, amount, date, category, classification_source`
+    /// Map a row from `SELECT id, title, amount, date, category, classification_source`
     fn row_to_expense(row: &rusqlite::Row) -> rusqlite::Result<Expense> {
-        let source_str: Option<String> = row.get(6)?;
+        let source_str: Option<String> = row.get(5)?;
         let source = source_str
             .as_deref()
             .and_then(ClassificationSource::from_str_opt);
-        let date_str: String = row.get(4)?;
+        let date_str: String = row.get(3)?;
         let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
             .map_err(|e| {
                 rusqlite::Error::FromSqlConversionFailure(
-                    4,
+                    3,
                     rusqlite::types::Type::Text,
                     Box::new(e),
                 )
@@ -327,10 +363,9 @@ impl Database {
         Ok(Expense {
             id: Some(row.get(0)?),
             title: row.get(1)?,
-            display_title: row.get(2)?,
-            amount: row.get(3)?,
+            amount: row.get(2)?,
             date,
-            category: row.get(5)?,
+            category: row.get(4)?,
             classification_source: source,
         })
     }
@@ -343,7 +378,7 @@ impl Database {
         if let Some(ref search) = query.search {
             if !search.is_empty() {
                 conditions.push(format!(
-                    "(title LIKE '%' || ?{idx} || '%' COLLATE NOCASE OR display_title LIKE '%' || ?{idx} || '%' COLLATE NOCASE)",
+                    "title LIKE '%' || ?{idx} || '%' COLLATE NOCASE",
                 ));
                 param_values.push(Box::new(search.clone()));
                 idx += 1;
@@ -403,7 +438,7 @@ impl Database {
         let offset = query.offset.unwrap_or(0);
 
         let select_sql = format!(
-            "SELECT id, title, display_title, amount, date, category, classification_source FROM expenses{} ORDER BY date DESC LIMIT ?{} OFFSET ?{}",
+            "SELECT id, title, amount, date, category, classification_source FROM expenses{} ORDER BY date DESC LIMIT ?{} OFFSET ?{}",
             where_clause, idx, idx + 1
         );
         param_values.push(Box::new(limit));
@@ -497,9 +532,9 @@ impl Database {
             )));
         }
         let rows = self.conn.execute(
-            "UPDATE expenses SET display_title = ?1, amount = ?2, date = ?3, category = ?4, classification_source = ?5 WHERE id = ?6",
+            "UPDATE expenses SET title = ?1, amount = ?2, date = ?3, category = ?4, classification_source = ?5 WHERE id = ?6",
             params![
-                expense.display_title,
+                expense.title,
                 expense.amount,
                 expense.date.to_string(),
                 expense.category,
@@ -623,6 +658,118 @@ impl Database {
         )?;
         let rows = stmt.query_map([], |row| row.get(0))?;
         rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)
+    }
+
+    pub fn delete_rule(&self, id: i64) -> Result<(), DbError> {
+        let changed = self.conn.execute(
+            "DELETE FROM classification_rules WHERE id = ?1",
+            params![id],
+        )?;
+        if changed == 0 {
+            return Err(DbError::InvalidData(format!("Rule {id} not found")));
+        }
+        Ok(())
+    }
+
+    pub fn update_rule(&self, rule: &ClassificationRule) -> Result<(), DbError> {
+        let id = rule.id.ok_or_else(|| DbError::InvalidData("Rule id is required".into()))?;
+        let changed = self.conn.execute(
+            "UPDATE classification_rules SET pattern = ?1, category = ?2 WHERE id = ?3",
+            params![rule.pattern, rule.category, id],
+        )?;
+        if changed == 0 {
+            return Err(DbError::InvalidData(format!("Rule {id} not found")));
+        }
+        Ok(())
+    }
+
+    pub fn query_rules(&self, query: &RuleQuery) -> Result<RuleQueryResult, DbError> {
+        let mut conditions: Vec<String> = Vec::new();
+        let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        let mut idx = 1;
+
+        if let Some(ref search) = query.search {
+            if !search.is_empty() {
+                conditions.push(format!(
+                    "pattern LIKE '%' || ?{idx} || '%' COLLATE NOCASE"
+                ));
+                param_values.push(Box::new(search.clone()));
+                idx += 1;
+            }
+        }
+
+        if let Some(ref category) = query.category {
+            if !category.is_empty() {
+                conditions.push(format!("category = ?{}", idx));
+                param_values.push(Box::new(category.clone()));
+                idx += 1;
+            }
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", conditions.join(" AND "))
+        };
+
+        // Count total matching rows
+        let count_sql = format!("SELECT COUNT(*) FROM classification_rules{}", where_clause);
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            param_values.iter().map(|p| p.as_ref()).collect();
+        let total_count: i64 = self
+            .conn
+            .query_row(&count_sql, params_refs.as_slice(), |row| row.get(0))?;
+
+        // Fetch page
+        let limit = query.limit.unwrap_or(50);
+        let offset = query.offset.unwrap_or(0);
+
+        let select_sql = format!(
+            "SELECT id, pattern, category FROM classification_rules{} ORDER BY id LIMIT ?{} OFFSET ?{}",
+            where_clause, idx, idx + 1
+        );
+        param_values.push(Box::new(limit));
+        param_values.push(Box::new(offset));
+
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            param_values.iter().map(|p| p.as_ref()).collect();
+        let mut stmt = self.conn.prepare(&select_sql)?;
+        let rows = stmt.query_map(params_refs.as_slice(), |row| {
+            Ok(ClassificationRule {
+                id: Some(row.get(0)?),
+                pattern: row.get(1)?,
+                category: row.get(2)?,
+            })
+        })?;
+        let rules = rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)?;
+
+        // Compute match counts: load all expense titles and test each rule's regex
+        let all_titles: Vec<String> = self
+            .conn
+            .prepare("SELECT DISTINCT title FROM expenses")?
+            .query_map([], |row| row.get(0))?
+            .collect::<SqlResult<Vec<_>>>()
+            .map_err(DbError::from)?;
+
+        let rules_with_counts = rules
+            .into_iter()
+            .map(|r| {
+                let count = regex::Regex::new(&r.pattern)
+                    .map(|re| all_titles.iter().filter(|t| re.is_match(t)).count() as i64)
+                    .unwrap_or(0);
+                RuleWithMatchCount {
+                    id: r.id.unwrap(),
+                    pattern: r.pattern,
+                    category: r.category,
+                    match_count: count,
+                }
+            })
+            .collect();
+
+        Ok(RuleQueryResult {
+            rules: rules_with_counts,
+            total_count,
+        })
     }
 
     // ── Category Management ──
@@ -985,7 +1132,7 @@ impl Database {
         end: chrono::NaiveDate,
     ) -> Result<Vec<Expense>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, title, display_title, amount, date, category, classification_source
+            "SELECT id, title, amount, date, category, classification_source
              FROM expenses
              WHERE date >= ?1 AND date <= ?2
              ORDER BY date DESC",
@@ -999,7 +1146,7 @@ impl Database {
 
     pub fn get_category_averages(&self, months: u32) -> Result<Vec<CategoryAverage>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT category, AVG(monthly_total) as average, COUNT(*) as months_with_data
+            "SELECT category, ROUND(ABS(AVG(monthly_total))) as average, COUNT(*) as months_with_data
              FROM (
                  SELECT category, strftime('%Y-%m', date) as month, SUM(amount) as monthly_total
                  FROM expenses
@@ -1059,11 +1206,10 @@ impl Database {
                 .as_deref()
                 .and_then(ClassificationSource::from_str_opt);
             tx.execute(
-                "INSERT INTO expenses (title, display_title, amount, date, category, classification_source)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO expenses (title, amount, date, category, classification_source)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![
                     expense.title,
-                    expense.display_title,
                     expense.amount,
                     date.to_string(),
                     expense.category,
@@ -1128,7 +1274,6 @@ mod tests {
         Expense {
             id: None,
             title: title.to_string(),
-            display_title: None,
             amount,
             date: NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap(),
             category: None,
@@ -1169,7 +1314,7 @@ mod tests {
         let expense = Expense {
             id: None,
             title: "Groceries".to_string(),
-            display_title: None,
+
             amount: 52.30,
             date: NaiveDate::from_ymd_opt(2025, 3, 10).unwrap(),
             category: Some("Food".to_string()),
@@ -1307,8 +1452,7 @@ mod tests {
 
         let updated = Expense {
             id: Some(id),
-            title: "Coffee".to_string(),
-            display_title: Some("Latte".to_string()),
+            title: "Latte".to_string(),
             amount: 5.75,
             date: NaiveDate::from_ymd_opt(2025, 2, 20).unwrap(),
             category: Some("Drinks".to_string()),
@@ -1318,8 +1462,7 @@ mod tests {
 
         let all = db.get_all_expenses().unwrap();
         assert_eq!(all.len(), 1);
-        assert_eq!(all[0].title, "Coffee"); // raw title is immutable
-        assert_eq!(all[0].display_title.as_deref(), Some("Latte"));
+        assert_eq!(all[0].title, "Latte");
         assert_eq!(all[0].amount, 5.75);
         assert_eq!(all[0].date.to_string(), "2025-02-20");
         assert_eq!(all[0].category.as_deref(), Some("Drinks"));
@@ -1331,7 +1474,7 @@ mod tests {
         let expense = Expense {
             id: Some(9999),
             title: "Ghost".to_string(),
-            display_title: None,
+
             amount: 1.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -1358,7 +1501,7 @@ mod tests {
         let expense = Expense {
             id: Some(id),
             title: "Coffee".to_string(),
-            display_title: None,
+
             amount: f64::NAN,
             date: NaiveDate::from_ymd_opt(2025, 1, 15).unwrap(),
             category: None,
@@ -1376,7 +1519,7 @@ mod tests {
         let expense = Expense {
             id: Some(id),
             title: "Coffee".to_string(),
-            display_title: None,
+
             amount: f64::INFINITY,
             date: NaiveDate::from_ymd_opt(2025, 1, 15).unwrap(),
             category: None,
@@ -1776,11 +1919,11 @@ mod tests {
 
     fn seed_query_db(db: &Database) {
         let expenses = vec![
-            Expense { id: None, title: "Coffee Shop".into(), display_title: None, amount: 4.50, date: NaiveDate::from_ymd_opt(2025, 3, 1).unwrap(), category: Some("Food".into()), classification_source: None },
-            Expense { id: None, title: "Gas Station".into(), display_title: None, amount: 55.00, date: NaiveDate::from_ymd_opt(2025, 3, 5).unwrap(), category: Some("Transport".into()), classification_source: None },
-            Expense { id: None, title: "Grocery Store".into(), display_title: None, amount: 120.30, date: NaiveDate::from_ymd_opt(2025, 3, 10).unwrap(), category: Some("Food".into()), classification_source: None },
-            Expense { id: None, title: "Electric Bill".into(), display_title: None, amount: 89.99, date: NaiveDate::from_ymd_opt(2025, 3, 15).unwrap(), category: Some("Utilities".into()), classification_source: None },
-            Expense { id: None, title: "Mystery Payment".into(), display_title: None, amount: 25.00, date: NaiveDate::from_ymd_opt(2025, 3, 20).unwrap(), category: None, classification_source: None },
+            Expense { id: None, title: "Coffee Shop".into(), amount: 4.50, date: NaiveDate::from_ymd_opt(2025, 3, 1).unwrap(), category: Some("Food".into()), classification_source: None },
+            Expense { id: None, title: "Gas Station".into(), amount: 55.00, date: NaiveDate::from_ymd_opt(2025, 3, 5).unwrap(), category: Some("Transport".into()), classification_source: None },
+            Expense { id: None, title: "Grocery Store".into(), amount: 120.30, date: NaiveDate::from_ymd_opt(2025, 3, 10).unwrap(), category: Some("Food".into()), classification_source: None },
+            Expense { id: None, title: "Electric Bill".into(), amount: 89.99, date: NaiveDate::from_ymd_opt(2025, 3, 15).unwrap(), category: Some("Utilities".into()), classification_source: None },
+            Expense { id: None, title: "Mystery Payment".into(), amount: 25.00, date: NaiveDate::from_ymd_opt(2025, 3, 20).unwrap(), category: None, classification_source: None },
         ];
         for e in &expenses {
             db.insert_expense(e).unwrap();
@@ -1933,7 +2076,7 @@ mod tests {
         let e = Expense {
             id: None,
             title: "Lidl".into(),
-            display_title: None,
+
             amount: 50.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: Some("Food".into()),
@@ -1960,7 +2103,7 @@ mod tests {
         let e = Expense {
             id: None,
             title: "Lidl".into(),
-            display_title: None,
+
             amount: 50.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: Some("Groceries".into()),
@@ -1984,7 +2127,7 @@ mod tests {
         let base = Expense {
             id: None,
             title: "".into(),
-            display_title: None,
+
             amount: 10.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -2011,7 +2154,7 @@ mod tests {
         let e = Expense {
             id: None,
             title: "Test".into(),
-            display_title: None,
+
             amount: 10.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: Some("Food".into()),
@@ -2040,7 +2183,7 @@ mod tests {
         let e = Expense {
             id: None,
             title: "Uber".into(),
-            display_title: None,
+
             amount: 15.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: Some("Transport".into()),
@@ -2085,7 +2228,7 @@ mod tests {
         db.insert_expense(&Expense {
             id: None,
             title: "Coffee".into(),
-            display_title: None,
+
             amount: 4.50,
             date,
             category: None,
@@ -2160,7 +2303,7 @@ mod tests {
         let e = Expense {
             id: None,
             title: "Żabka sklep".into(),
-            display_title: None,
+
             amount: 15.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -2210,7 +2353,7 @@ mod tests {
         let e = Expense {
             id: None,
             title: "Test".into(),
-            display_title: None,
+
             amount: 10.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: Some("Food".into()),
@@ -2236,7 +2379,7 @@ mod tests {
         let e = Expense {
             id: None,
             title: "Test".into(),
-            display_title: None,
+
             amount: 10.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: Some("Food".into()),
@@ -2254,7 +2397,7 @@ mod tests {
         let base = Expense {
             id: None,
             title: "".into(),
-            display_title: None,
+
             amount: 10.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: None,
@@ -2282,7 +2425,7 @@ mod tests {
         let base = Expense {
             id: None,
             title: "Lidl".into(),
-            display_title: None,
+
             amount: 10.0,
             date: NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             category: Some("Groceries".into()),
@@ -2331,7 +2474,7 @@ mod tests {
             db.insert_expense(&Expense {
                 id: None,
                 title: format!("Expense {}", i),
-                display_title: None,
+    
                 amount: (i + 1) as f64 * 10.0,
                 date: *date,
                 category: None,
@@ -2512,5 +2655,145 @@ mod tests {
         let saved_rules = db.get_all_rules().unwrap();
         assert!(saved_rules.iter().any(|r| r.category == "Food"));
         assert!(saved_rules.iter().any(|r| r.category == "Transport"));
+    }
+
+    // ── Rule CRUD ──
+
+    #[test]
+    fn delete_rule_removes_it() {
+        let db = test_db();
+        let rule = ClassificationRule::from_pattern("Coffee", "Food");
+        let id = db.insert_rule(&rule).unwrap();
+        db.delete_rule(id).unwrap();
+        let rules = db.get_all_rules().unwrap();
+        assert!(rules.is_empty());
+    }
+
+    #[test]
+    fn delete_rule_not_found_errors() {
+        let db = test_db();
+        assert!(db.delete_rule(999).is_err());
+    }
+
+    #[test]
+    fn update_rule_changes_fields() {
+        let db = test_db();
+        let rule = ClassificationRule::from_pattern("Coffee", "Food");
+        let id = db.insert_rule(&rule).unwrap();
+
+        let updated = ClassificationRule {
+            id: Some(id),
+            pattern: "(?i)tea".to_string(),
+            category: "Drinks".to_string(),
+        };
+        db.update_rule(&updated).unwrap();
+
+        let rules = db.get_all_rules().unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].pattern, "(?i)tea");
+        assert_eq!(rules[0].category, "Drinks");
+    }
+
+    #[test]
+    fn update_rule_not_found_errors() {
+        let db = test_db();
+        let rule = ClassificationRule {
+            id: Some(999),
+            pattern: "x".into(),
+            category: "y".into(),
+        };
+        assert!(db.update_rule(&rule).is_err());
+    }
+
+    #[test]
+    fn query_rules_returns_all_with_counts() {
+        let db = test_db();
+        db.insert_rule(&ClassificationRule::from_pattern("Coffee", "Food"))
+            .unwrap();
+        db.insert_rule(&ClassificationRule::from_pattern("Bus", "Transport"))
+            .unwrap();
+
+        // Add some expenses that match
+        let mut e = make_expense("Coffee Shop", 5.0, "2025-01-01");
+        e.category = Some("Food".into());
+        db.insert_expense(&e).unwrap();
+
+        let result = db
+            .query_rules(&crate::models::RuleQuery::default())
+            .unwrap();
+        assert_eq!(result.total_count, 2);
+        assert_eq!(result.rules.len(), 2);
+
+        // "Coffee" rule should match "Coffee Shop"
+        let coffee_rule = result.rules.iter().find(|r| r.category == "Food").unwrap();
+        assert_eq!(coffee_rule.match_count, 1);
+
+        // "Bus" rule shouldn't match "Coffee Shop"
+        let bus_rule = result
+            .rules
+            .iter()
+            .find(|r| r.category == "Transport")
+            .unwrap();
+        assert_eq!(bus_rule.match_count, 0);
+    }
+
+    #[test]
+    fn query_rules_filters_by_search_and_category() {
+        let db = test_db();
+        db.insert_rule(&ClassificationRule::from_pattern("Coffee", "Food"))
+            .unwrap();
+        db.insert_rule(&ClassificationRule::from_pattern("Bus", "Transport"))
+            .unwrap();
+
+        // Filter by search
+        let result = db
+            .query_rules(&crate::models::RuleQuery {
+                search: Some("coffee".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.rules[0].category, "Food");
+
+        // Filter by category
+        let result = db
+            .query_rules(&crate::models::RuleQuery {
+                category: Some("Transport".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.rules[0].category, "Transport");
+    }
+
+    #[test]
+    fn query_rules_pagination() {
+        let db = test_db();
+        for i in 0..5 {
+            db.insert_rule(&ClassificationRule::from_pattern(
+                &format!("Rule{i}"),
+                "Cat",
+            ))
+            .unwrap();
+        }
+
+        let result = db
+            .query_rules(&crate::models::RuleQuery {
+                limit: Some(2),
+                offset: Some(0),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(result.total_count, 5);
+        assert_eq!(result.rules.len(), 2);
+
+        let result = db
+            .query_rules(&crate::models::RuleQuery {
+                limit: Some(2),
+                offset: Some(4),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(result.rules.len(), 1);
     }
 }
