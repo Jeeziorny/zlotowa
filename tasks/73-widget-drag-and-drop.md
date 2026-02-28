@@ -14,8 +14,8 @@ Implement HTML5 drag-and-drop in edit mode.
 
 - In edit mode, each widget card gets `draggable="true"`.
 - Show a drag handle icon (⠿ grip dots or ≡ lines) at the top-left of each card in edit mode. Style: `cursor-grab text-gray-600 hover:text-gray-400`.
-- On drag start: add `ring-2 ring-emerald-500/50 opacity-60` to the dragged card. Store the source index.
-- On drag over another card: show a vertical insertion indicator — a `w-1 h-full bg-emerald-500 rounded` bar between cards. Use `e.preventDefault()` to allow drop.
+- On drag start: add `ring-2 ring-amber-500/50 opacity-60` to the dragged card. Store the source index. (Per task #82 palette.)
+- On drag over another card: show a vertical insertion indicator — a `w-1 h-full bg-amber-500 rounded` bar between cards. Use `e.preventDefault()` to allow drop.
 - On drop: reorder the `activeWidgets` array, save to DB via `invoke("save_active_widgets")`.
 - On drag end: remove all visual indicators.
 

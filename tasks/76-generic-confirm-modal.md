@@ -15,7 +15,7 @@ Additionally, all modals lack focus trapping — Tab key can escape the modal ov
 Create `ConfirmModal.svelte` with these props:
 - `title` — heading text (required)
 - `confirmLabel` — confirm button text (default: `"Delete"`)
-- `confirmStyle` — `"danger"` (bg-red-600) or `"primary"` (bg-emerald-600), default `"danger"`
+- `confirmStyle` — `"danger"` (bg-red-600) or `"primary"` (bg-amber-500 text-gray-950, per task #82 palette), default `"danger"`
 - `onconfirm` — async callback, modal manages loading state internally
 - `onclose` — close callback
 - `children` — Svelte snippet for body content (replaces slot)

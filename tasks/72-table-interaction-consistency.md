@@ -30,7 +30,7 @@ All three tables should use the same pattern:
 
 ### Editability hint
 
-- On row hover, add a subtle left border: `border-l-2 border-transparent group-hover:border-emerald-500/40 transition-colors`
+- On row hover, add a subtle left border: `border-l-2 border-transparent group-hover:border-amber-500/40 transition-colors` (per task #82 palette)
 - Add a one-time instructional hint below the table header: `"Hover a row to edit or delete"` in `text-xs text-gray-600`. Store a `has_seen_edit_hint` flag in the config table. After the user's first inline edit on any table, hide the hint permanently.
 
 ### Shared row behavior
@@ -54,6 +54,6 @@ Ensure all three tables use `<tr class="group">` wrapper for hover detection.
 
 ## Verification
 1. All three tables: hover reveals same-style edit/delete icons
-2. All three tables: row hover shows left emerald border accent
+2. All three tables: row hover shows left amber border accent
 3. Categories: pencil icon → inline edit works, trash icon → delete modal
 4. Edit hint shows on first visit, disappears after first edit

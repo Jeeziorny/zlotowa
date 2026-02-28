@@ -44,20 +44,22 @@ Add `.npmrc` with `legacy-peer-deps=true` to silence warnings permanently.
 
 ### Shared Theme: `src/lib/widgets/chart-theme.js`
 
+**Note:** Use the gold/amber palette from task #82 (Visual Identity), not emerald.
+
 ```javascript
-export const EMERALD_PALETTE = [
-  "#34d399", // emerald-400
-  "#10b981", // emerald-500
-  "#059669", // emerald-600
-  "#047857", // emerald-700
-  "#065f46", // emerald-800
-  "#6ee7b7", // emerald-300
-  "#a7f3d0", // emerald-200
-  "#064e3b", // emerald-900
+export const CHART_PALETTE = [
+  "#f59e0b", // amber-500 (primary)
+  "#d97706", // amber-600
+  "#b45309", // amber-700
+  "#92400e", // amber-800
+  "#eab308", // yellow-500
+  "#ca8a04", // yellow-600
+  "#a16207", // yellow-700
+  "#854d0e", // yellow-800
 ];
 
-export function emeraldColor(index) {
-  return EMERALD_PALETTE[index % EMERALD_PALETTE.length];
+export function chartColor(index) {
+  return CHART_PALETTE[index % CHART_PALETTE.length];
 }
 
 export function formatAmount(value) {
@@ -129,7 +131,7 @@ Zero backend changes. No new IPC commands, no Rust changes, no schema changes.
 2. `npm run dev` — both widgets render correctly
 3. SpendingByCategory: donut segments colored by category, hover shows tooltip, center shows total
 4. MonthlyTrend: bars with rounded corners, Y-axis gridlines, hover shows tooltip
-5. Both charts match dark theme (gray-900 cards, emerald accents)
+5. Both charts match dark theme (gray-900 cards, gold/amber accents per task #82)
 6. No console errors (deprecation warnings for `$$Generic` are expected)
 
 ## Fallback Plan

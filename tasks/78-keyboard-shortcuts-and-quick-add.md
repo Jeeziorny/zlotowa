@@ -35,7 +35,7 @@ Add a `keydown` listener in `App.svelte` that handles:
 Add a prominent `"+ Add"` button at the top of the sidebar navigation, above the page links:
 
 ```html
-<button class="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium mb-3 transition-colors">
+<button class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 rounded-lg py-2 text-sm font-medium mb-3 transition-colors"> <!-- per task #82 palette -->
   + Add
 </button>
 ```

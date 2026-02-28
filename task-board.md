@@ -7,6 +7,7 @@
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
 | 69 | Sidebar Branding | SVG logo mark + two-tone wordmark + contextual version footer. |
+| 82 | Visual Identity & Color Palette | Emerald→amber/gold accent swap, SVG sidebar icons, surface hierarchy, CSS custom properties. Do before other FE tasks. |
 | 70 | Chart Visualizations | Unovis charts: SpendingByCategory → donut, MonthlyTrend → bar chart with axes/tooltips. Zero backend changes. |
 | 71 | Autocomplete Component | Shared `Autocomplete.svelte` replacing fragile blur-timeout pattern in 4 components. Keyboard nav, proper focus. |
 | 72 | Table Interaction Consistency | Unified action column (hover-reveal icons) + edit hint + left border accent across all 3 tables. |

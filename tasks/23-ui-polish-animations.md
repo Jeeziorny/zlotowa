@@ -82,7 +82,7 @@ The app has a solid dark theme and functional layout, but lacks visual polish:
 ### 7. Toast notification system
 
 - Create `Toast.svelte` component: slides in from top-right, auto-dismisses after 3-4s
-- Success (emerald), error (red), info (blue) variants
+- Success (emerald), error (red), info (blue) variants. Use amber for primary accent per task #82.
 - Store toast state in a shared module (`src/lib/stores/toast.js`)
 - Replace inline success/error messages in BulkUpload, ExpenseList export, Settings, Categories
 

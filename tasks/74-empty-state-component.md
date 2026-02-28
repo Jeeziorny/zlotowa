@@ -51,7 +51,7 @@ Container: text-center py-12
 Icon: w-12 h-12 text-gray-700 mx-auto mb-3
 Title: text-gray-400 font-medium mb-1
 Description: text-sm text-gray-600
-CTA: mt-4 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm
+CTA: mt-4 bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg text-sm (per task #82 palette)
 ```
 
 ## Files

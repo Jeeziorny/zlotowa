@@ -46,7 +46,7 @@ Create a reusable `Autocomplete.svelte` component that replaces all instances.
 ### Styling
 
 Match existing input + dropdown styles:
-- Input: `bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-emerald-500`
+- Input: `bg-gray-800 border border-gray-700 rounded-lg text-sm focus:border-amber-500` (per task #82 palette)
 - Dropdown: `absolute z-30 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto`
 - Option: `px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 cursor-pointer`
 
