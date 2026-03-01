@@ -63,16 +63,16 @@ impl Database {
 
         // Auto-migrate from old "4ccountant" location
         if !new_path.exists() {
-            let old_dir = data_dir.join("4ccountant");
-            if old_dir.exists() {
+            let old_path = data_dir.join("4ccountant").join("4ccountant.db");
+            if old_path.exists() {
                 info!(
-                    "Migrating data directory from {} to {}",
-                    old_dir.display(),
-                    new_dir.display()
+                    "Migrating database from {} to {}",
+                    old_path.display(),
+                    new_path.display()
                 );
-                if let Err(e) = std::fs::rename(&old_dir, &new_dir) {
-                    warn!("Could not migrate data directory: {e}");
-                    // Fall through — open_default will create the new dir
+                std::fs::create_dir_all(&new_dir).ok();
+                if let Err(e) = std::fs::rename(&old_path, &new_path) {
+                    warn!("Could not migrate database file: {e}");
                 }
             }
         }
