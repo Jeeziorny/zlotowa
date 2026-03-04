@@ -1,4 +1,6 @@
 <script>
+  import EmptyState from "../EmptyState.svelte";
+
   let { expenses, config } = $props();
 
   let keyword = $derived(config?.keyword || "");
@@ -60,9 +62,9 @@
   </h3>
 
   {#if !keyword}
-    <p class="text-sm text-gray-500">No keyword configured.</p>
+    <EmptyState title="No keyword configured." variant="widget" />
   {:else if matchingExpenses.length === 0}
-    <p class="text-sm text-gray-500">No expenses matching "{keyword}".</p>
+    <EmptyState title={`No expenses matching "${keyword}".`} variant="widget" />
   {:else}
     <div class="flex items-end gap-2 h-32">
       {#each monthlyData as [month, amount]}

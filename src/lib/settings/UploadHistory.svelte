@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import EmptyState from "../EmptyState.svelte";
 
   let batches = $state([]);
   let confirmingBatchId = $state(null);
@@ -53,7 +54,7 @@
   </p>
 
   {#if batches.length === 0}
-    <p class="text-sm text-gray-500">No bulk uploads yet.</p>
+    <EmptyState title="No bulk uploads yet." variant="widget" />
   {:else}
     <div class="space-y-3">
       {#each batches as batch}

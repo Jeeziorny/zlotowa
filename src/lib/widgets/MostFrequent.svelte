@@ -1,4 +1,5 @@
 <script>
+  import EmptyState from "../EmptyState.svelte";
   let { expenses } = $props();
 
   let topTitles = $derived.by(() => {
@@ -26,6 +27,6 @@
       {/each}
     </div>
   {:else}
-    <p class="text-sm text-gray-500">No data yet.</p>
+    <EmptyState title="No data yet." variant="widget" />
   {/if}
 </div>

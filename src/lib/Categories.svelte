@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
   import ConfirmModal from "./ConfirmModal.svelte";
   import { focusTrap } from "./actions/focusTrap.js";
+  import EmptyState from "./EmptyState.svelte";
 
   let categories = $state([]);
   let loaded = $state(false);
@@ -202,10 +203,11 @@
       <p class="text-sm">Loading categories...</p>
     </div>
   {:else if categories.length === 0}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <p class="text-lg mb-2">No categories yet</p>
-      <p class="text-sm">Categories are created automatically when you categorize expenses.</p>
-    </div>
+    <EmptyState
+      title="No categories yet"
+      subtitle="Categories are created automatically when you categorize expenses."
+      icon="tag"
+    />
   {:else}
     <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
       <table class="w-full">

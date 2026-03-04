@@ -2,6 +2,7 @@
   import { VisDonut, VisTooltip, VisSingleContainer } from "@unovis/svelte";
   import { Donut } from "@unovis/ts";
   import { CHART_PALETTE, chartColor, formatAmount } from "./chart-theme.js";
+  import EmptyState from "../EmptyState.svelte";
 
   let { expenses, config = {}, onnavigate = () => {}, onconfigchange = () => {} } = $props();
 
@@ -109,6 +110,6 @@
       {/if}
     </div>
   {:else}
-    <p class="text-sm text-gray-500">No data for this period.</p>
+    <EmptyState title="No data for this period." variant="widget" />
   {/if}
 </button>

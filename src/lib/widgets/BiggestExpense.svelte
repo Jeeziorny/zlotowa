@@ -1,4 +1,5 @@
 <script>
+  import EmptyState from "../EmptyState.svelte";
   let { expenses } = $props();
 
   function getNow() {
@@ -38,6 +39,6 @@
       {/if}
     </div>
   {:else}
-    <p class="text-sm text-gray-500">No expenses this month.</p>
+    <EmptyState title="No expenses this month." variant="widget" />
   {/if}
 </div>

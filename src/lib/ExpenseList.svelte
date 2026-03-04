@@ -7,6 +7,7 @@
   import AddExpense from "./AddExpense.svelte";
   import BulkUpload from "./BulkUpload.svelte";
   import ConfirmModal from "./ConfirmModal.svelte";
+  import EmptyState from "./EmptyState.svelte";
 
   let { onbulkdirtychange = () => {} } = $props();
 
@@ -250,15 +251,17 @@
       <p class="text-lg">Loading expenses...</p>
     </div>
   {:else if expenses.length === 0 && !hasActiveFilters}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <p class="text-lg mb-2">No expenses yet</p>
-      <p class="text-sm">Add an expense or do a bulk upload to get started.</p>
-    </div>
+    <EmptyState
+      title="No expenses yet"
+      subtitle="Add an expense or do a bulk upload to get started."
+      icon="inbox"
+    />
   {:else if expenses.length === 0 && hasActiveFilters}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <p class="text-lg mb-2">No matching expenses</p>
-      <p class="text-sm">Try adjusting your search or filters.</p>
-    </div>
+    <EmptyState
+      title="No matching expenses"
+      subtitle="Try adjusting your search or filters."
+      icon="search"
+    />
   {:else}
     <ExpenseTable
       {expenses}

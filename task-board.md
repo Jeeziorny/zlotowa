@@ -10,7 +10,6 @@
 | 71 | Autocomplete Component | Shared `Autocomplete.svelte` replacing fragile blur-timeout pattern in 4 components. Keyboard nav, proper focus. |
 | 72 | Table Interaction Consistency | Unified action column (hover-reveal icons) + edit hint + left border accent across all 3 tables. |
 | 73 | Widget Drag-and-Drop | HTML5 drag-and-drop reorder in dashboard edit mode with visual indicators. Arrow buttons as fallback. |
-| 74 | Empty State Component | Shared `EmptyState.svelte` with inline SVG icons and optional CTA buttons across 8 locations. |
 | 75 | Filter Chip Bar | Dismissible chips showing active filters between SearchFilterBar and ExpenseTable. Per-filter remove + clear all. |
 | 77 | Accessibility Round 4 | Colorblind-safe status labels, aria-labels on all icon buttons, screen reader sort announcements. |
 | 78 | Keyboard Shortcuts & Quick-Add | Global Cmd+N/U/K/1-4/Esc shortcuts, sidebar quick-add button, shortcut cheat sheet overlay. |
@@ -25,6 +24,7 @@
 | 69 | Rebrand to złotówa | Full rebrand: DB path migration (auto-migrates from old 4ccountant dir), sidebar coin logo+wordmark, app icons (.icns/.ico/PNGs), config renames (tauri.conf, package.json, Cargo.toml), Rust source strings, frontend backup filename, all docs. |
 | 80a | Input Validation: Amounts | Bulk upload `Math.abs()` at save, AddExpense & ExpenseTable block `<= 0` with inline error, `min="0.01"` on number inputs. BudgetCreator already handled. |
 | 76 | Generic Confirm Modal | Shared `ConfirmModal.svelte` replacing 4 duplicate modals (DeleteConfirmModal, BatchDeleteModal, RuleDeleteModal, ConfirmLeaveModal). Reusable `focusTrap` action applied to all modals including Categories merge and Dashboard config dialog. ~150 lines of duplication removed. |
+| 74 | Empty State Component | Shared `EmptyState.svelte` (page/widget variants) with 5 inline SVG icons and optional CTA button. Applied across 13 locations: ExpenseList (2), Dashboard, Categories, Rules (2), BudgetPlanning, UploadHistory, and 5 widgets. |
 | 82 | Visual Identity & Color Palette | Emerald→amber/gold accent swap across 28 Svelte files. CSS custom properties for palette. Sidebar SVG icons (receipt, tag, pie, bolt, gear) with left-border active state. Primary buttons use dark text (`text-gray-950`) on amber. Semantic green preserved for budget health, success messages, confidence badges. |
 | 67 | Classification Rules Tab | Rules page (opt-in via Settings toggle) with table view of regex rules, inline editing, filtering, match counts, add/delete. 3 new model types, 3 new DB methods (7 tests), 4 new IPC commands, 4 new Svelte components. PaginationBar generalized with `label` prop. |
 | 66 | Bulk Upload Navigation Guard | Confirmation modal when navigating away from in-progress bulk upload. BulkUpload exposes dirty state via `ondirtychange` callback. ExpenseList guards "Back to Expenses" button, App.svelte guards sidebar/dashboard nav. Shared `ConfirmLeaveModal.svelte` component. |

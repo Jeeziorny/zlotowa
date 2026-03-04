@@ -5,6 +5,7 @@
   import RulesTable from "./rules/RulesTable.svelte";
   import ConfirmModal from "./ConfirmModal.svelte";
   import PaginationBar from "./expense-list/PaginationBar.svelte";
+  import EmptyState from "./EmptyState.svelte";
 
   let rules = $state([]);
   let totalCount = $state(0);
@@ -218,15 +219,17 @@
       <p class="text-lg">Loading rules...</p>
     </div>
   {:else if rules.length === 0 && !hasActiveFilters}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <p class="text-lg mb-2">No classification rules yet</p>
-      <p class="text-sm">Rules are auto-created when you manually categorize expenses, or add one above.</p>
-    </div>
+    <EmptyState
+      title="No classification rules yet"
+      subtitle="Rules are auto-created when you manually categorize expenses, or add one above."
+      icon="list"
+    />
   {:else if rules.length === 0 && hasActiveFilters}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <p class="text-lg mb-2">No matching rules</p>
-      <p class="text-sm">Try adjusting your search or filters.</p>
-    </div>
+    <EmptyState
+      title="No matching rules"
+      subtitle="Try adjusting your search or filters."
+      icon="search"
+    />
   {:else}
     <RulesTable
       {rules}

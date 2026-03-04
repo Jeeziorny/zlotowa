@@ -2,6 +2,7 @@
   import { VisXYContainer, VisGroupedBar, VisAxis, VisTooltip } from "@unovis/svelte";
   import { GroupedBar } from "@unovis/ts";
   import { CHART_PALETTE, formatAmount } from "./chart-theme.js";
+  import EmptyState from "../EmptyState.svelte";
 
   let { expenses } = $props();
 
@@ -67,6 +68,6 @@
       <VisTooltip {triggers} />
     </VisXYContainer>
   {:else}
-    <p class="text-sm text-gray-500">No data yet.</p>
+    <EmptyState title="No data yet." variant="widget" />
   {/if}
 </div>

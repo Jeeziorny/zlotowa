@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { widgets, defaultWidgetInstances } from "./widgets/registry.js";
   import { focusTrap } from "./actions/focusTrap.js";
+  import EmptyState from "./EmptyState.svelte";
 
   let { onnavigate = () => {} } = $props();
 
@@ -293,10 +294,11 @@
       <p class="text-sm">Loading dashboard...</p>
     </div>
   {:else if loaded && expenses.length === 0 && activeWidgets.length > 0}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <p class="text-lg mb-2">No expenses yet</p>
-      <p class="text-sm">Add an expense or do a bulk upload to get started.</p>
-    </div>
+    <EmptyState
+      title="No expenses yet"
+      subtitle="Add an expense or do a bulk upload to get started."
+      icon="inbox"
+    />
   {:else if loaded}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
       {#each activeWidgets as widget, i (widget.instanceId)}

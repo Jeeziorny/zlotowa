@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import BudgetCreator from "./budget/BudgetCreator.svelte";
   import BudgetOverview from "./budget/BudgetOverview.svelte";
+  import EmptyState from "./EmptyState.svelte";
 
   let activeTab = $state("overview");
   let loading = $state(true);
@@ -158,20 +159,12 @@
         onrefresh={onRefresh}
       />
     {:else}
-      <div
-        class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center"
-      >
-        <p class="text-gray-400 mb-2">No budgets yet.</p>
-        <p class="text-sm text-gray-600">
-          Go to the
-          <button
-            onclick={() => (activeTab = "create")}
-            class="text-amber-400 hover:text-amber-300 underline"
-            >Create +</button
-          >
-          tab to set up a budget.
-        </p>
-      </div>
+      <EmptyState
+        title="No budgets yet"
+        subtitle="Set up a budget to track your spending against limits."
+        icon="wallet"
+        cta={{ label: "Create budget", onclick: () => (activeTab = "create") }}
+      />
     {/if}
   {:else if activeTab === "create"}
     <BudgetCreator
