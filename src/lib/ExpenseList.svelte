@@ -63,6 +63,11 @@
     filterDateTo !== "" || filterAmountMin !== "" || filterAmountMax !== ""
   );
 
+  let activeFilterCount = $derived(
+    [searchText, filterCategory, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax]
+      .filter(Boolean).length
+  );
+
   // Delete
   let deleteModalExpense = $state(null);
 
@@ -245,6 +250,58 @@
     onfilterchange={handleFilterChange}
     onclear={clearFilters}
   />
+
+  {#if hasActiveFilters}
+    <div class="flex flex-wrap gap-2 mb-3">
+      {#if searchText}
+        <span class="inline-flex items-center gap-1.5 bg-gray-800 text-gray-300 border border-gray-700 rounded-full px-3 py-1 text-xs">
+          <span class="text-gray-500">Search:</span>
+          <span>"{searchText}"</span>
+          <button onclick={() => handleSearch("")} class="text-gray-500 hover:text-red-400 transition-colors" aria-label="Remove search filter">×</button>
+        </span>
+      {/if}
+      {#if filterCategory}
+        <span class="inline-flex items-center gap-1.5 bg-gray-800 text-gray-300 border border-gray-700 rounded-full px-3 py-1 text-xs">
+          <span class="text-gray-500">Category:</span>
+          <span>{filterCategory}</span>
+          <button onclick={() => handleFilterChange("filterCategory", "")} class="text-gray-500 hover:text-red-400 transition-colors" aria-label="Remove category filter">×</button>
+        </span>
+      {/if}
+      {#if filterDateFrom}
+        <span class="inline-flex items-center gap-1.5 bg-gray-800 text-gray-300 border border-gray-700 rounded-full px-3 py-1 text-xs">
+          <span class="text-gray-500">From:</span>
+          <span>{filterDateFrom}</span>
+          <button onclick={() => handleFilterChange("filterDateFrom", "")} class="text-gray-500 hover:text-red-400 transition-colors" aria-label="Remove date from filter">×</button>
+        </span>
+      {/if}
+      {#if filterDateTo}
+        <span class="inline-flex items-center gap-1.5 bg-gray-800 text-gray-300 border border-gray-700 rounded-full px-3 py-1 text-xs">
+          <span class="text-gray-500">To:</span>
+          <span>{filterDateTo}</span>
+          <button onclick={() => handleFilterChange("filterDateTo", "")} class="text-gray-500 hover:text-red-400 transition-colors" aria-label="Remove date to filter">×</button>
+        </span>
+      {/if}
+      {#if filterAmountMin}
+        <span class="inline-flex items-center gap-1.5 bg-gray-800 text-gray-300 border border-gray-700 rounded-full px-3 py-1 text-xs">
+          <span class="text-gray-500">Min amount:</span>
+          <span>{filterAmountMin}</span>
+          <button onclick={() => handleFilterChange("filterAmountMin", "")} class="text-gray-500 hover:text-red-400 transition-colors" aria-label="Remove min amount filter">×</button>
+        </span>
+      {/if}
+      {#if filterAmountMax}
+        <span class="inline-flex items-center gap-1.5 bg-gray-800 text-gray-300 border border-gray-700 rounded-full px-3 py-1 text-xs">
+          <span class="text-gray-500">Max amount:</span>
+          <span>{filterAmountMax}</span>
+          <button onclick={() => handleFilterChange("filterAmountMax", "")} class="text-gray-500 hover:text-red-400 transition-colors" aria-label="Remove max amount filter">×</button>
+        </span>
+      {/if}
+      {#if activeFilterCount >= 2}
+        <button onclick={clearFilters} class="inline-flex items-center bg-gray-800 text-gray-500 hover:text-gray-300 border border-gray-700 rounded-full px-3 py-1 text-xs transition-colors">
+          Clear all
+        </button>
+      {/if}
+    </div>
+  {/if}
 
   {#if loading && expenses.length === 0}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">

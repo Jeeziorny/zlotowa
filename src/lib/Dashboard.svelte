@@ -14,6 +14,11 @@
   let loaded = $state(false);
   let configDialog = $state(null); // { instanceId?, widgetId, chips[], input }
 
+  // Drag-and-drop state
+  let dragIndex = $state(null);
+  let dragOverIndex = $state(null);
+  let dropPosition = $state(null); // 'before' | 'after'
+
   let activeWidgets = $derived(
     activeInstances
       .map((inst) => {
@@ -60,7 +65,6 @@
     } else {
       activeInstances = [...activeInstances, { widgetId: widgetDef.id, instanceId: widgetDef.id }];
       if (!widgetDef.multiInstance) {
-        // Hide picker if no more single-instance widgets available
         const remaining = widgets.filter(
           (w) => w.multiInstance || !activeInstances.some((inst) => inst.widgetId === w.id)
         );
@@ -86,7 +90,6 @@
 
   function confirmConfig() {
     if (!configDialog) return;
-    // Flush any remaining input text as a chip
     const trailing = configDialog.input.trim();
     const allChips = trailing && !configDialog.chips.includes(trailing)
       ? [...configDialog.chips, trailing]
@@ -95,14 +98,12 @@
     const keyword = allChips.join(", ");
 
     if (configDialog.instanceId) {
-      // Editing existing instance
       activeInstances = activeInstances.map((inst) =>
         inst.instanceId === configDialog.instanceId
           ? { ...inst, config: { keyword } }
           : inst
       );
     } else {
-      // Adding new instance
       const instanceId = `${configDialog.widgetId}-${Date.now()}`;
       activeInstances = [
         ...activeInstances,
@@ -168,6 +169,55 @@
     }
     if (e.key === "Escape") configDialog = null;
   }
+
+  // ── Drag-and-drop ──
+
+  function handleDragStart(e, i) {
+    dragIndex = i;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(i));
+  }
+
+  function handleDragOver(e, i) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const rect = e.currentTarget.getBoundingClientRect();
+    dragOverIndex = i;
+    dropPosition = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+  }
+
+  function handleDragLeave(e, i) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      if (dragOverIndex === i) {
+        dragOverIndex = null;
+        dropPosition = null;
+      }
+    }
+  }
+
+  function handleDrop(e, i) {
+    e.preventDefault();
+    if (dragIndex === null) { resetDrag(); return; }
+
+    let targetIndex = dropPosition === "after" ? i + 1 : i;
+    const copy = [...activeInstances];
+    const [dragged] = copy.splice(dragIndex, 1);
+    if (dragIndex < targetIndex) targetIndex--;
+    copy.splice(targetIndex, 0, dragged);
+    activeInstances = copy;
+    persist();
+    resetDrag();
+  }
+
+  function handleDragEnd() {
+    resetDrag();
+  }
+
+  function resetDrag() {
+    dragIndex = null;
+    dragOverIndex = null;
+    dropPosition = null;
+  }
 </script>
 
 <div>
@@ -184,7 +234,7 @@
         </button>
       {/if}
       <button
-        onclick={() => { editing = !editing; if (!editing) showPicker = false; }}
+        onclick={() => { editing = !editing; if (!editing) { showPicker = false; resetDrag(); } }}
         class="px-4 py-2 text-sm rounded-lg transition-colors {editing
           ? 'bg-amber-500 hover:bg-amber-400 text-gray-950'
           : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}"
@@ -300,60 +350,89 @@
       icon="inbox"
     />
   {:else if loaded}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       {#each activeWidgets as widget, i (widget.instanceId)}
-        <div class={widget.size === "full" ? "md:col-span-2" : ""}>
+        <div
+          class="{widget.size === 'full' ? 'md:col-span-2' : ''} flex flex-col relative transition-opacity
+                 {dragIndex === i ? 'opacity-40' : 'opacity-100'}
+                 {editing ? 'cursor-grab active:cursor-grabbing' : ''}"
+          draggable={editing}
+          ondragstart={(e) => editing && handleDragStart(e, i)}
+          ondragover={(e) => editing && handleDragOver(e, i)}
+          ondragleave={(e) => editing && handleDragLeave(e, i)}
+          ondrop={(e) => editing && handleDrop(e, i)}
+          ondragend={handleDragEnd}
+        >
+          <!-- Drop indicator: before -->
+          {#if dragOverIndex === i && dropPosition === "before" && dragIndex !== i}
+            <div class="absolute -top-[13px] left-0 right-0 h-0.5 bg-amber-500 rounded z-20 pointer-events-none"></div>
+          {/if}
+
           {#if editing}
             <!-- Widget toolbar -->
-            <div class="flex items-center justify-end gap-1 mb-1">
-              {#if widget.configurable}
+            <div class="flex items-center justify-between mb-1">
+              <span
+                class="text-gray-600 hover:text-gray-400 px-1 select-none text-base leading-none cursor-grab"
+                aria-hidden="true"
+                title="Drag to reorder"
+              >⠿</span>
+              <div class="flex items-center gap-1">
+                {#if widget.configurable}
+                  <button
+                    onclick={() => editWidgetConfig(widget.instanceId)}
+                    class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-amber-400"
+                    title="Edit config"
+                    aria-label="Edit {widget.name} config"
+                  >
+                    &#x270E;
+                  </button>
+                {/if}
                 <button
-                  onclick={() => editWidgetConfig(widget.instanceId)}
-                  class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-amber-400"
-                  title="Edit config"
-                  aria-label="Edit {widget.name} config"
+                  onclick={() => moveWidget(i, -1)}
+                  disabled={i === 0}
+                  class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
+                         disabled:opacity-30 disabled:hover:text-gray-500"
+                  title="Move left"
+                  aria-label="Move {widget.name} left"
                 >
-                  &#x270E;
+                  ←
                 </button>
-              {/if}
-              <button
-                onclick={() => moveWidget(i, -1)}
-                disabled={i === 0}
-                class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
-                       disabled:opacity-30 disabled:hover:text-gray-500"
-                title="Move left"
-                aria-label="Move {widget.name} left"
-              >
-                ←
-              </button>
-              <button
-                onclick={() => moveWidget(i, 1)}
-                disabled={i === activeWidgets.length - 1}
-                class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
-                       disabled:opacity-30 disabled:hover:text-gray-500"
-                title="Move right"
-                aria-label="Move {widget.name} right"
-              >
-                →
-              </button>
-              <button
-                onclick={() => removeWidget(widget.instanceId)}
-                class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-red-400"
-                title="Remove widget"
-                aria-label="Remove {widget.name}"
-              >
-                ×
-              </button>
+                <button
+                  onclick={() => moveWidget(i, 1)}
+                  disabled={i === activeWidgets.length - 1}
+                  class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-gray-300
+                         disabled:opacity-30 disabled:hover:text-gray-500"
+                  title="Move right"
+                  aria-label="Move {widget.name} right"
+                >
+                  →
+                </button>
+                <button
+                  onclick={() => removeWidget(widget.instanceId)}
+                  class="text-xs px-1.5 py-0.5 text-gray-500 hover:text-red-400"
+                  title="Remove widget"
+                  aria-label="Remove {widget.name}"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           {/if}
 
           <!-- Widget content -->
-          <widget.component
-            {expenses}
-            {onnavigate}
-            config={widget.config}
-            onconfigchange={(cfg) => updateWidgetConfig(widget.instanceId, cfg)}
-          />
+          <div class="flex-1 [&>*]:h-full">
+            <widget.component
+              {expenses}
+              {onnavigate}
+              config={widget.config}
+              onconfigchange={(cfg) => updateWidgetConfig(widget.instanceId, cfg)}
+            />
+          </div>
+
+          <!-- Drop indicator: after -->
+          {#if dragOverIndex === i && dropPosition === "after" && dragIndex !== i}
+            <div class="absolute -bottom-[13px] left-0 right-0 h-0.5 bg-amber-500 rounded z-20 pointer-events-none"></div>
+          {/if}
         </div>
       {/each}
     </div>

@@ -6,8 +6,6 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 73 | Widget Drag-and-Drop | HTML5 drag-and-drop reorder in dashboard edit mode with visual indicators. Arrow buttons as fallback. |
-| 75 | Filter Chip Bar | Dismissible chips showing active filters between SearchFilterBar and ExpenseTable. Per-filter remove + clear all. |
 | 77 | Accessibility Round 4 | Colorblind-safe status labels, aria-labels on all icon buttons, screen reader sort announcements. |
 | 78 | Keyboard Shortcuts & Quick-Add | Global Cmd+N/U/K/1-4/Esc shortcuts, sidebar quick-add button, shortcut cheat sheet overlay. |
 | 79 | Remember Column Mappings | Persist CSV column mappings per filename/header pattern in config table. Auto-restore on repeat uploads. |
@@ -18,11 +16,13 @@
 
 | # | Task | Summary |
 |---|------|---------|
+| 73 | Widget Drag-and-Drop | HTML5 DnD in edit mode: drag handle ⠿, amber insertion line indicator (before/after), drop reorders + persists. Arrow fallback kept. Grid `items-start` removed for uniform row gaps. |
 | 72 | Table Interaction Consistency | Unified action column (hover-reveal icons) + left border accent across all 3 tables. No hint (border accent only). |
 | 71 | Autocomplete Component | Shared `Autocomplete.svelte` replacing fragile blur-timeout pattern in 4 components. Keyboard nav, proper focus. |
 | 70 | Chart Visualizations | Unovis charts: SpendingByCategory → donut, MonthlyTrend → bar chart with axes/tooltips. Zero backend changes. |
 | 69 | Rebrand to złotówa | Full rebrand: DB path migration (auto-migrates from old 4ccountant dir), sidebar coin logo+wordmark, app icons (.icns/.ico/PNGs), config renames (tauri.conf, package.json, Cargo.toml), Rust source strings, frontend backup filename, all docs. |
 | 80a | Input Validation: Amounts | Bulk upload `Math.abs()` at save, AddExpense & ExpenseTable block `<= 0` with inline error, `min="0.01"` on number inputs. BudgetCreator already handled. |
+| 75 | Filter Chip Bar | Dismissible chips between SearchFilterBar and ExpenseTable. Per-filter × removes one filter; "Clear all" appears when 2+ active. `activeFilterCount` derived. |
 | 76 | Generic Confirm Modal | Shared `ConfirmModal.svelte` replacing 4 duplicate modals (DeleteConfirmModal, BatchDeleteModal, RuleDeleteModal, ConfirmLeaveModal). Reusable `focusTrap` action applied to all modals including Categories merge and Dashboard config dialog. ~150 lines of duplication removed. |
 | 74 | Empty State Component | Shared `EmptyState.svelte` (page/widget variants) with 5 inline SVG icons and optional CTA button. Applied across 13 locations: ExpenseList (2), Dashboard, Categories, Rules (2), BudgetPlanning, UploadHistory, and 5 widgets. |
 | 82 | Visual Identity & Color Palette | Emerald→amber/gold accent swap across 28 Svelte files. CSS custom properties for palette. Sidebar SVG icons (receipt, tag, pie, bolt, gear) with left-border active state. Primary buttons use dark text (`text-gray-950`) on amber. Semantic green preserved for budget health, success messages, confidence badges. |
