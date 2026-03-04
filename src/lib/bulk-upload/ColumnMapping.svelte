@@ -1,5 +1,8 @@
 <script>
-  let { previewRows, parserName, llmWarning, onback, onnext } = $props();
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+
+  let { previewRows, parserName, llmWarning, filename = "", onback, onnext } = $props();
 
   let columnRoles = $state({});
   let autoDetectDone = $state(false);
@@ -7,6 +10,49 @@
   let dateFormat = $state("%Y-%m-%d");
   let mappingError = $state("");
   let llmWarningDismissed = $state(false);
+  let restoredBanner = $state(false);
+
+  function extractFilenamePattern(name) {
+    const base = name.replace(/\.[^.]+$/, "");
+    return base.replace(/[-_]?(\d{4}|\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-_\d]*$/i, "") || base;
+  }
+
+  function findSavedMapping(mappings, headers) {
+    const key = JSON.stringify(headers);
+    const exact = mappings.find(m => JSON.stringify(m.headers) === key);
+    if (exact) return exact;
+    const pattern = extractFilenamePattern(filename);
+    if (pattern) return mappings.find(m => m.pattern && filename.startsWith(m.pattern)) ?? null;
+    return null;
+  }
+
+  onMount(async () => {
+    if (headerRow.length === 0) return;
+    try {
+      const saved = await invoke("get_config", { key: "column_mappings" });
+      if (!saved) return;
+      const mappings = JSON.parse(saved);
+      const match = findSavedMapping(mappings, headerRow);
+      if (!match) return;
+      const roles = {};
+      roles[match.mapping.title] = "title";
+      roles[match.mapping.amount] = "amount";
+      roles[match.mapping.date] = "date";
+      columnRoles = roles;
+      dateFormat = match.dateFormat ?? "%Y-%m-%d";
+      autoDetectDone = true;
+      restoredBanner = true;
+    } catch (err) {
+      console.warn("Failed to load column mappings:", err);
+    }
+  });
+
+  function resetMapping() {
+    restoredBanner = false;
+    columnRoles = {};
+    dateFormat = "%Y-%m-%d";
+    autoDetectDone = false; // triggers $effect to re-run auto-detection
+  }
 
   const dateFormats = [
     { value: "%Y-%m-%d", label: "YYYY-MM-DD" },
@@ -154,6 +200,16 @@
           class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
           aria-label="Dismiss warning"
         >&times;</button>
+      </div>
+    {/if}
+
+    {#if restoredBanner}
+      <div class="text-sm px-4 py-2 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 mb-4 flex items-center justify-between gap-3">
+        <span>Column mapping restored from a previous upload.</span>
+        <button
+          onclick={resetMapping}
+          class="text-amber-400 hover:text-amber-300 shrink-0 underline underline-offset-2"
+        >Reset</button>
       </div>
     {/if}
 

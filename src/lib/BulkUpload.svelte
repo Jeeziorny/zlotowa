@@ -56,6 +56,39 @@
     step = "column-mapping";
   }
 
+  function extractFilenamePattern(name) {
+    const base = name.replace(/\.[^.]+$/, "");
+    return base.replace(/[-_]?(\d{4}|\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-_\d]*$/i, "") || base;
+  }
+
+  async function saveColumnMapping(mapping) {
+    try {
+      const headers = previewRows[0] ?? [];
+      const pattern = extractFilenamePattern(batchFilename);
+      const existing = await invoke("get_config", { key: "column_mappings" });
+      let mappings = [];
+      if (existing) {
+        try { mappings = JSON.parse(existing); } catch {}
+      }
+      // Upsert: remove existing entry with same headers
+      const headersKey = JSON.stringify(headers);
+      mappings = mappings.filter(m => JSON.stringify(m.headers) !== headersKey);
+      mappings.push({
+        pattern,
+        headers,
+        mapping: { title: mapping.title_index, amount: mapping.amount_index, date: mapping.date_index },
+        dateFormat: mapping.date_format,
+        savedAt: new Date().toISOString(),
+      });
+      // Keep 10 most recent
+      mappings.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+      mappings = mappings.slice(0, 10);
+      await invoke("save_config", { key: "column_mappings", value: JSON.stringify(mappings) });
+    } catch (err) {
+      console.warn("Failed to save column mapping:", err);
+    }
+  }
+
   async function handleMapping(mapping) {
     error = "";
     try {
@@ -64,6 +97,7 @@
         mapping,
       });
       parsedRows = rows;
+      await saveColumnMapping(mapping);
       step = "cleanup";
     } catch (err) {
       error = `Parsing failed: ${err}`;
@@ -193,6 +227,7 @@
       {previewRows}
       {parserName}
       {llmWarning}
+      filename={batchFilename}
       onback={() => step = "input"}
       onnext={handleMapping}
     />
