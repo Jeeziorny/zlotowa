@@ -6,9 +6,6 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 70 | Chart Visualizations | Unovis charts: SpendingByCategory → donut, MonthlyTrend → bar chart with axes/tooltips. Zero backend changes. |
-| 71 | Autocomplete Component | Shared `Autocomplete.svelte` replacing fragile blur-timeout pattern in 4 components. Keyboard nav, proper focus. |
-| 72 | Table Interaction Consistency | Unified action column (hover-reveal icons) + edit hint + left border accent across all 3 tables. |
 | 73 | Widget Drag-and-Drop | HTML5 drag-and-drop reorder in dashboard edit mode with visual indicators. Arrow buttons as fallback. |
 | 75 | Filter Chip Bar | Dismissible chips showing active filters between SearchFilterBar and ExpenseTable. Per-filter remove + clear all. |
 | 77 | Accessibility Round 4 | Colorblind-safe status labels, aria-labels on all icon buttons, screen reader sort announcements. |
@@ -21,6 +18,9 @@
 
 | # | Task | Summary |
 |---|------|---------|
+| 72 | Table Interaction Consistency | Unified action column (hover-reveal icons) + left border accent across all 3 tables. No hint (border accent only). |
+| 71 | Autocomplete Component | Shared `Autocomplete.svelte` replacing fragile blur-timeout pattern in 4 components. Keyboard nav, proper focus. |
+| 70 | Chart Visualizations | Unovis charts: SpendingByCategory → donut, MonthlyTrend → bar chart with axes/tooltips. Zero backend changes. |
 | 69 | Rebrand to złotówa | Full rebrand: DB path migration (auto-migrates from old 4ccountant dir), sidebar coin logo+wordmark, app icons (.icns/.ico/PNGs), config renames (tauri.conf, package.json, Cargo.toml), Rust source strings, frontend backup filename, all docs. |
 | 80a | Input Validation: Amounts | Bulk upload `Math.abs()` at save, AddExpense & ExpenseTable block `<= 0` with inline error, `min="0.01"` on number inputs. BudgetCreator already handled. |
 | 76 | Generic Confirm Modal | Shared `ConfirmModal.svelte` replacing 4 duplicate modals (DeleteConfirmModal, BatchDeleteModal, RuleDeleteModal, ConfirmLeaveModal). Reusable `focusTrap` action applied to all modals including Categories merge and Dashboard config dialog. ~150 lines of duplication removed. |

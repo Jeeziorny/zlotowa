@@ -1,9 +1,9 @@
 <script>
+  import Autocomplete from "../Autocomplete.svelte";
+
   let { classifiedRows = $bindable(), allCategories, onback, onsave } = $props();
 
   let reviewError = $state("");
-  let activeCategoryDropdown = $state(null);
-  let categoryInputText = $state({});
 
   let nonDuplicateRows = $derived(classifiedRows.filter((r) => !r.is_duplicate && r.amount < 0));
   let incomeRows = $derived(classifiedRows.filter((r) => !r.is_duplicate && r.amount >= 0));
@@ -13,7 +13,6 @@
   let llmClassified = $derived(nonDuplicateRows.filter(r => r._originalSource === "Llm"));
   let unclassified = $derived(nonDuplicateRows.filter(r => !r._originalSource));
 
-
   function editCategory(index, newCategory) {
     classifiedRows[index].category = newCategory;
     classifiedRows[index].source = "Manual";
@@ -21,46 +20,10 @@
 
   function selectCategory(index, cat) {
     editCategory(index, cat);
-    activeCategoryDropdown = null;
-    categoryInputText = { ...categoryInputText, [index]: "" };
   }
 
   function removeCategory(index) {
     editCategory(index, "");
-    activeCategoryDropdown = null;
-  }
-
-  function getCategoryFilteredSuggestions(index) {
-    const text = (categoryInputText[index] || "").toLowerCase();
-    if (!text) return allCategories;
-    return allCategories.filter((c) => c.toLowerCase().includes(text));
-  }
-
-  function onCategoryKeydown(index, e) {
-    if (e.key === "Enter") {
-      const text = (categoryInputText[index] || "").trim();
-      if (text) {
-        selectCategory(index, text);
-      }
-      e.preventDefault();
-    } else if (e.key === "Escape") {
-      activeCategoryDropdown = null;
-    }
-  }
-
-  function onCategoryInput(index, e) {
-    categoryInputText = { ...categoryInputText, [index]: e.target.value };
-    activeCategoryDropdown = index;
-  }
-
-  function onCategoryFocus(index) {
-    activeCategoryDropdown = index;
-  }
-
-  function onCategoryBlur(index) {
-    setTimeout(() => {
-      if (activeCategoryDropdown === index) activeCategoryDropdown = null;
-    }, 150);
   }
 
   async function doSave() {
@@ -108,31 +71,14 @@
               >&times;</button>
             </span>
           {:else}
-            <input
-              type="text"
-              value={categoryInputText[origIndex] || ""}
-              oninput={(e) => onCategoryInput(origIndex, e)}
-              onfocus={() => onCategoryFocus(origIndex)}
-              onblur={() => onCategoryBlur(origIndex)}
-              onkeydown={(e) => onCategoryKeydown(origIndex, e)}
+            <Autocomplete
+              options={allCategories}
               placeholder="Type category..."
-              class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5
-                     text-gray-100 placeholder-gray-600 focus:outline-none
-                     focus:border-amber-500 w-full text-sm"
+              onselect={(cat) => selectCategory(origIndex, cat)}
+              inputClass="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5
+                          text-gray-100 placeholder-gray-600 focus:outline-none
+                          focus:border-amber-500 w-full text-sm"
             />
-            {#if activeCategoryDropdown === origIndex}
-              {@const suggestions = getCategoryFilteredSuggestions(origIndex)}
-              {#if suggestions.length > 0}
-                <div class="absolute z-30 mt-1 left-0 right-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                  {#each suggestions as cat}
-                    <button
-                      onmousedown={() => selectCategory(origIndex, cat)}
-                      class="w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-gray-700 transition-colors"
-                    >{cat}</button>
-                  {/each}
-                </div>
-              {/if}
-            {/if}
           {/if}
         </div>
       </div>

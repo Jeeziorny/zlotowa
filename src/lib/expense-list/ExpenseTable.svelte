@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import Autocomplete from "../Autocomplete.svelte";
 
   let {
     expenses,
@@ -125,18 +126,13 @@
               />
             </td>
             <td class="px-4 py-2">
-              <input
-                type="text"
+              <Autocomplete
                 bind:value={editCategory}
-                list="edit-categories"
-                class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
-                       text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                options={categories}
+                class="w-full"
+                inputClass="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
+                            text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
               />
-              <datalist id="edit-categories">
-                {#each categories as cat}
-                  <option value={cat}></option>
-                {/each}
-              </datalist>
             </td>
             <td class="px-4 py-2">
               <div class="flex gap-1">
@@ -169,7 +165,7 @@
           </tr>
         {:else}
           <!-- Normal row -->
-          <tr class="border-b border-gray-800/50 hover:bg-gray-800/30 group">
+          <tr class="border-b border-gray-800/50 hover:bg-gray-800/30 group border-l-2 border-l-transparent group-hover:border-l-amber-500/40 transition-colors">
             <td class="px-4 py-3">
               <input
                 type="checkbox"
@@ -194,7 +190,7 @@
               <div class="flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                 <button
                   onclick={() => startEdit(expense)}
-                  class="text-gray-400 hover:text-amber-400 p-1 transition-colors"
+                  class="text-gray-500 hover:text-gray-300 p-1 transition-colors"
                   title="Edit"
                   aria-label="Edit expense"
                 >
@@ -205,7 +201,7 @@
                 </button>
                 <button
                   onclick={() => ondelete(expense)}
-                  class="text-gray-400 hover:text-red-400 p-1 transition-colors"
+                  class="text-gray-500 hover:text-red-400 p-1 transition-colors"
                   title="Delete"
                   aria-label="Delete expense"
                 >

@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, onDestroy } from "svelte";
   import DatePicker from "./DatePicker.svelte";
+  import Autocomplete from "./Autocomplete.svelte";
 
   let title = $state("");
   let amount = $state("");
@@ -16,14 +17,7 @@
   let showRulePattern = $state(false);
 
   let allCategories = $state([]);
-  let showCategorySuggestions = $state(false);
   let suggestedCategory = $state("");
-
-  let filteredCategories = $derived(
-    category
-      ? allCategories.filter(c => c.toLowerCase().includes(category.toLowerCase()))
-      : allCategories
-  );
 
   onMount(async () => {
     try {
@@ -169,35 +163,14 @@
       </div>
 
       <div>
-        <label class="block text-sm text-gray-400 mb-1" for="category">Category (optional)</label>
-        <div class="relative">
-          <input
-            id="category"
-            type="text"
-            bind:value={category}
-            oninput={() => showCategorySuggestions = true}
-            onfocus={() => showCategorySuggestions = true}
-            onblur={() => setTimeout(() => showCategorySuggestions = false, 150)}
-            placeholder="e.g. Groceries"
-            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"
-          />
-          {#if showCategorySuggestions && filteredCategories.length > 0}
-            <div class="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700
-                        rounded-lg shadow-lg max-h-48 overflow-y-auto">
-              {#each filteredCategories as cat}
-                <button
-                  type="button"
-                  class="w-full text-left px-4 py-2 text-gray-200 hover:bg-gray-700
-                         transition-colors text-sm"
-                  onmousedown={() => { category = cat; showCategorySuggestions = false; }}
-                >
-                  {cat}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
+        <label class="block text-sm text-gray-400 mb-1">Category (optional)</label>
+        <Autocomplete
+          bind:value={category}
+          options={allCategories}
+          placeholder="e.g. Groceries"
+          inputClass="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
+                      text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"
+        />
         {#if suggestedCategory && !category}
           <button
             type="button"

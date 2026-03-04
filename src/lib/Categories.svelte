@@ -17,9 +17,10 @@
   let newName = $state("");
   let createError = $state("");
 
-  // Inline rename
+  // Inline edit
   let editingIndex = $state(null);
   let editingName = $state("");
+  let editSaving = $state(false);
 
   // Delete modal
   let deleteTarget = $state(null);
@@ -91,12 +92,14 @@
 
   async function saveEdit(oldName) {
     if (editingName.trim() && editingName.trim() !== oldName) {
+      editSaving = true;
       try {
         await invoke("rename_category", { oldName, newName: editingName.trim() });
         await loadCategories();
       } catch (err) {
         error = `Rename failed: ${err}`;
       }
+      editSaving = false;
     }
     editingIndex = null;
   }
@@ -235,22 +238,15 @@
                 onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("rules"); } }}>
               Rules{sortIndicator("rules")}
             </th>
-            <th class="w-16 px-4 py-3"></th>
+            <th class="w-24 px-4 py-3"></th>
           </tr>
         </thead>
         <tbody>
           {#each filtered as cat, i}
-            <tr class="border-b border-gray-800/50 hover:bg-gray-800/30">
-              <td class="px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={selected.has(cat.name)}
-                  onchange={() => toggleSelect(cat.name)}
-                  class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
-                />
-              </td>
-              <td class="px-4 py-3">
-                {#if editingIndex === i}
+            {#if editingIndex === i}
+              <tr class="border-b border-gray-800/50 bg-gray-800/20 border-l-2 border-l-amber-500/40">
+                <td class="px-4 py-2"></td>
+                <td class="px-4 py-2">
                   <input
                     type="text"
                     bind:value={editingName}
@@ -258,33 +254,79 @@
                       if (e.key === "Enter") saveEdit(cat.name);
                       if (e.key === "Escape") cancelEdit();
                     }}
-                    onblur={() => saveEdit(cat.name)}
-                    class="bg-gray-800 border border-amber-500 rounded px-2 py-1
-                           text-gray-100 focus:outline-none w-full max-w-64"
+                    class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
+                           text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
                   />
-                {:else}
-                  <button
-                    onclick={() => startEdit(i, cat.name)}
-                    class="text-left hover:text-amber-400 transition-colors"
-                    title="Click to rename"
-                  >
-                    {cat.name}
-                  </button>
-                {/if}
-              </td>
-              <td class="px-4 py-3 text-right text-gray-400 font-mono text-sm">{cat.expense_count}</td>
-              <td class="px-4 py-3 text-right text-gray-400 font-mono text-sm">{cat.rule_count}</td>
-              <td class="px-4 py-3 text-right">
-                <button
-                  onclick={() => { deleteTarget = cat; deleteReplacement = ""; deleteError = ""; }}
-                  class="text-gray-600 hover:text-red-400 transition-colors text-sm"
-                  title="Delete category"
-                  aria-label="Delete category {cat.name}"
-                >
-                  &#x2715;
-                </button>
-              </td>
-            </tr>
+                </td>
+                <td class="px-4 py-2"></td>
+                <td class="px-4 py-2"></td>
+                <td class="px-4 py-2">
+                  <div class="flex gap-1 justify-end">
+                    <button
+                      onclick={() => saveEdit(cat.name)}
+                      disabled={editSaving}
+                      class="text-amber-400 hover:text-amber-300 disabled:opacity-50 p-1 transition-colors"
+                      title="Save"
+                      aria-label="Save rename"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onclick={cancelEdit}
+                      class="text-gray-400 hover:text-gray-300 p-1 transition-colors"
+                      title="Cancel"
+                      aria-label="Cancel edit"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {:else}
+              <tr class="border-b border-gray-800/50 hover:bg-gray-800/30 group border-l-2 border-l-transparent group-hover:border-l-amber-500/40 transition-colors">
+                <td class="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(cat.name)}
+                    onchange={() => toggleSelect(cat.name)}
+                    class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
+                  />
+                </td>
+                <td class="px-4 py-3">{cat.name}</td>
+                <td class="px-4 py-3 text-right text-gray-400 font-mono text-sm">{cat.expense_count}</td>
+                <td class="px-4 py-3 text-right text-gray-400 font-mono text-sm">{cat.rule_count}</td>
+                <td class="px-4 py-3">
+                  <div class="flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity justify-end">
+                    <button
+                      onclick={() => startEdit(i, cat.name)}
+                      class="text-gray-500 hover:text-gray-300 p-1 transition-colors"
+                      title="Rename"
+                      aria-label="Rename category {cat.name}"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      onclick={() => { deleteTarget = cat; deleteReplacement = ""; }}
+                      class="text-gray-500 hover:text-red-400 p-1 transition-colors"
+                      title="Delete"
+                      aria-label="Delete category {cat.name}"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {/if}
           {/each}
         </tbody>
       </table>
