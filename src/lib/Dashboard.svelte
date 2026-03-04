@@ -138,6 +138,13 @@
     await persist();
   }
 
+  async function updateWidgetConfig(instanceId, newConfig) {
+    activeInstances = activeInstances.map((inst) =>
+      inst.instanceId === instanceId ? { ...inst, config: newConfig } : inst
+    );
+    await persist();
+  }
+
   async function persist() {
     try {
       await invoke("save_active_widgets", { widgets: activeInstances });
@@ -339,7 +346,12 @@
           {/if}
 
           <!-- Widget content -->
-          <widget.component {expenses} {onnavigate} config={widget.config} />
+          <widget.component
+            {expenses}
+            {onnavigate}
+            config={widget.config}
+            onconfigchange={(cfg) => updateWidgetConfig(widget.instanceId, cfg)}
+          />
         </div>
       {/each}
     </div>

@@ -20,6 +20,8 @@
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2.10.0",
-    "@tauri-apps/plugin-dialog": "^2.6.0"
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@unovis/svelte": "^1.6.4",
+    "@unovis/ts": "^1.6.4"
   }
 }

@@ -1,3 +1,8 @@
+.PHONY: up purge-data
+
+up:
+	npm run tauri dev
+
 DB_PATH := $(HOME)/Library/Application Support/zlotowa/zlotowa.db
 
 ## Wipe all rows from every table, keeping schema intact
