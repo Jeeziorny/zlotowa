@@ -82,7 +82,7 @@
   />
   {#if open && filtered.length > 0}
     <div
-      class="absolute z-30 w-full mt-1 bg-gray-800 border border-gray-700
+      class="absolute z-30 min-w-full w-max mt-1 bg-gray-800 border border-gray-700
              rounded-lg shadow-lg max-h-48 overflow-y-auto"
     >
       {#each filtered as opt, i}

@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import Autocomplete from "../Autocomplete.svelte";
+  import DatePicker from "../DatePicker.svelte";
 
   let {
     expenses,
@@ -100,11 +101,11 @@
           <tr class="border-b border-gray-800/50 bg-gray-800/20">
             <td class="px-4 py-2"></td>
             <td class="px-4 py-2">
-              <input
-                type="date"
-                bind:value={editDate}
-                class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
-                       text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+              <DatePicker
+                value={editDate}
+                onchange={(d) => editDate = d}
+                inputClass="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
+                            text-gray-200 font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
               />
             </td>
             <td class="px-4 py-2">

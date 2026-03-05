@@ -1,5 +1,5 @@
 <script>
-  let { value, onchange, id = undefined } = $props();
+  let { value, onchange, id = undefined, inputClass = "" } = $props();
 
   let open = $state(false);
   let inputRef = $state(null);
@@ -83,8 +83,7 @@
     oninput={handleInputChange}
     onfocus={() => open = true}
     placeholder="YYYY-MM-DD"
-    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-           text-gray-100 focus:outline-none focus:border-amber-500 font-mono"
+    class={inputClass || "w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-100 focus:outline-none focus:border-amber-500 font-mono"}
   />
 
   {#if open}
