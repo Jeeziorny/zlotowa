@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from "svelte";
+  import { DEBOUNCE_MS } from "../constants.js";
 
   let {
     searchText,
@@ -22,7 +23,7 @@
     const value = e.target.value;
     debounceTimer = setTimeout(() => {
       onsearch(value);
-    }, 300);
+    }, DEBOUNCE_MS);
   }
 
   onDestroy(() => clearTimeout(debounceTimer));

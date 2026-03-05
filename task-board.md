@@ -2,11 +2,15 @@
 
 ## TODO
 
-| # | Task | Summary |
-|---|------|---------|
-| 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
+| # | Task |
+|---|------|
 
 ## DONE
+
+| # | Task | Summary |
+|---|------|---------|
+| 83 | GitHub Releases Distribution | `.github/workflows/release.yml` — triggers on `v*` tags, builds macOS (ARM+Intel), Linux, Windows via `tauri-action`, uploads artifacts to draft GitHub Release. `.gitignore` updated to exclude personal files (PDFs, CSVs, etc.). |
+| 50 | Minor Polish | Shared `constants.js` (debounce, page sizes, trend window, top-N, API key mask thresholds). Sidebar version sourced from `package.json`. IPC DTOs + `AppState` narrowed to `pub(crate)`. Date staleness already fixed (items 7-8). LLM providers already private (item 11). |
 
 | # | Task | Summary |
 |---|------|---------|

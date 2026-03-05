@@ -1,5 +1,6 @@
 <script>
   import EmptyState from "../EmptyState.svelte";
+  import { TOP_N_FREQUENT } from "../constants.js";
   let { expenses } = $props();
 
   let topTitles = $derived.by(() => {
@@ -9,7 +10,7 @@
     }
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
+      .slice(0, TOP_N_FREQUENT)
       .map(([title, count]) => ({ title, count }));
   });
 </script>

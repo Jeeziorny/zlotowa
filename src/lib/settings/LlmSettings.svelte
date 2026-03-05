@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { addToast } from "../stores/toast.svelte.js";
+  import { API_KEY_MASK_MIN_LENGTH, API_KEY_MASK_PREFIX, API_KEY_MASK_SUFFIX } from "../constants.js";
 
   let provider = $state("openai");
   let apiKey = $state("");
@@ -85,8 +86,8 @@
   }
 
   function maskKey(key) {
-    if (!key || key.length < 8) return key;
-    return key.slice(0, 4) + "..." + key.slice(-4);
+    if (!key || key.length < API_KEY_MASK_MIN_LENGTH) return key;
+    return key.slice(0, API_KEY_MASK_PREFIX) + "..." + key.slice(-API_KEY_MASK_SUFFIX);
   }
 </script>
 

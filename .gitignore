@@ -4,3 +4,13 @@ target/
 *.db
 .DS_Store
 docs/book/
+
+# Personal files in repo root
+*.pdf
+*.epub
+*.ics
+*.csv
+*.zip
+*.html
+*.svg
+kamil-insights_files/

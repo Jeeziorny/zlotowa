@@ -3,6 +3,7 @@
   import { GroupedBar } from "@unovis/ts";
   import { CHART_PALETTE, formatAmount } from "./chart-theme.js";
   import EmptyState from "../EmptyState.svelte";
+  import { TREND_MONTHS } from "../constants.js";
 
   let { expenses } = $props();
 
@@ -25,7 +26,7 @@
     }
     return Object.entries(months)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-6)
+      .slice(-TREND_MONTHS)
       .map(([ym, amount], index) => ({ index, ym, amount }));
   });
 

@@ -4,6 +4,7 @@
   import DatePicker from "./DatePicker.svelte";
   import Autocomplete from "./Autocomplete.svelte";
   import { addToast } from "./stores/toast.svelte.js";
+  import { DEBOUNCE_MS } from "./constants.js";
 
   let title = $state("");
   let amount = $state("");
@@ -50,7 +51,7 @@
       } else {
         suggestedCategory = "";
       }
-    }, 300);
+    }, DEBOUNCE_MS);
   }
 
   async function submit() {

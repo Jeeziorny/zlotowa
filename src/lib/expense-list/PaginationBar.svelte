@@ -1,4 +1,6 @@
 <script>
+  import { PAGE_SIZE_OPTIONS } from "../constants.js";
+
   let {
     currentPage,
     totalPages,
@@ -20,7 +22,7 @@
   <div class="flex items-center gap-3">
     <div class="flex items-center gap-1.5">
       <span class="text-gray-500">Rows:</span>
-      {#each [25, 50, 100] as size}
+      {#each PAGE_SIZE_OPTIONS as size}
         <button
           onclick={() => onpagesize(size)}
           class="px-2 py-0.5 rounded text-sm transition-colors

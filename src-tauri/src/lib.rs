@@ -13,14 +13,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
 
-pub struct AppState {
-    pub db: Mutex<Database>,
+pub(crate) struct AppState {
+    pub(crate) db: Mutex<Database>,
 }
 
 // ── Types ──
 
 #[derive(Serialize, Deserialize)]
-pub struct ExpenseInput {
+pub(crate) struct ExpenseInput {
     pub title: String,
     pub amount: f64,
     pub date: String,
@@ -29,25 +29,25 @@ pub struct ExpenseInput {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct LlmConfigInput {
+pub(crate) struct LlmConfigInput {
     pub provider: String,
     pub api_key: String,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct LlmConfigOutput {
+pub(crate) struct LlmConfigOutput {
     pub provider: Option<String>,
     pub api_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PreviewResult {
+pub(crate) struct PreviewResult {
     pub parser_name: String,
     pub rows: Vec<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct ParsedExpenseRow {
+pub(crate) struct ParsedExpenseRow {
     pub title: String,
     pub amount: f64,
     pub date: String,
@@ -55,7 +55,7 @@ pub struct ParsedExpenseRow {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ClassifiedExpenseRow {
+pub(crate) struct ClassifiedExpenseRow {
     pub title: String,
     pub amount: f64,
     pub date: String,
@@ -66,7 +66,7 @@ pub struct ClassifiedExpenseRow {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct BulkSaveExpense {
+pub(crate) struct BulkSaveExpense {
     pub title: String,
     pub amount: f64,
     pub date: String,
@@ -739,13 +739,13 @@ fn merge_categories(state: State<AppState>, sources: Vec<String>, target: String
 // ── Budget Planning ──
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BudgetCategoryInput {
+pub(crate) struct BudgetCategoryInput {
     pub category: String,
     pub amount: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct BudgetSummaryOutput {
+pub(crate) struct BudgetSummaryOutput {
     pub budget_id: i64,
     pub start_date: String,
     pub end_date: String,

@@ -8,6 +8,7 @@
   import BulkUpload from "./BulkUpload.svelte";
   import ConfirmModal from "./ConfirmModal.svelte";
   import EmptyState from "./EmptyState.svelte";
+  import { DEFAULT_PAGE_SIZE } from "./constants.js";
 
   let { onbulkdirtychange = () => {}, subView = $bindable("list") } = $props();
   let bulkUploadDirty = $state(false);
@@ -48,7 +49,7 @@
   let filterAmountMax = $state("");
 
   // Pagination
-  let pageSize = $state(50);
+  let pageSize = $state(DEFAULT_PAGE_SIZE);
   let currentPage = $state(1);
 
   let totalPages = $derived(Math.max(1, Math.ceil(totalCount / pageSize)));
