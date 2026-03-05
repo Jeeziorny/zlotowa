@@ -3,6 +3,7 @@
   import { Donut } from "@unovis/ts";
   import { CHART_PALETTE, chartColor, formatAmount } from "./chart-theme.js";
   import EmptyState from "../EmptyState.svelte";
+  import { DATE_RANGE_PRESETS } from "../constants.js";
 
   let { expenses, config = {}, onnavigate = () => {}, onconfigchange = () => {} } = $props();
 
@@ -14,13 +15,6 @@
     }
   });
 
-  const PRESETS = [
-    { label: "1M", months: 1 },
-    { label: "3M", months: 3 },
-    { label: "6M", months: 6 },
-    { label: "All", months: null },
-  ];
-
   let activePreset = $derived(config.dateRange ?? "All");
 
   function selectPreset(label) {
@@ -28,7 +22,7 @@
   }
 
   let filteredExpenses = $derived.by(() => {
-    const preset = PRESETS.find((p) => p.label === activePreset) ?? PRESETS[3];
+    const preset = DATE_RANGE_PRESETS.find((p) => p.label === activePreset) ?? DATE_RANGE_PRESETS.at(-1);
     if (preset.months === null) return expenses;
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - preset.months);
@@ -74,7 +68,7 @@
       class="flex items-center gap-0.5 bg-gray-800 rounded-lg p-0.5"
       onclick={(e) => e.stopPropagation()}
     >
-      {#each PRESETS as preset}
+      {#each DATE_RANGE_PRESETS as preset}
         <button
           onclick={() => selectPreset(preset.label)}
           class="px-2.5 py-1 text-xs rounded-md transition-colors {activePreset === preset.label
