@@ -27,7 +27,8 @@
     const preset = DATE_RANGE_PRESETS.find((p) => p.label === activePreset) ?? DATE_RANGE_PRESETS[1];
     if (preset.months !== null) {
       const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - preset.months);
+      cutoff.setDate(1);
+      cutoff.setMonth(cutoff.getMonth() - (preset.months - 1));
       const cutoffStr = cutoff.toISOString().slice(0, 10);
       filtered = filtered.filter((e) => e.date >= cutoffStr);
     }
@@ -35,16 +36,29 @@
   });
 
   let monthlyData = $derived.by(() => {
-    const months = {};
+    const totals = {};
     for (const e of matchingExpenses) {
       const month = e.date?.slice(0, 7);
       if (month) {
-        months[month] = (months[month] || 0) + Math.abs(e.amount);
+        totals[month] = (totals[month] || 0) + Math.abs(e.amount);
       }
     }
-    return Object.entries(months)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([ym, amount], index) => ({ index, ym, amount }));
+    const months = Object.keys(totals);
+    if (months.length === 0) return [];
+    // Build full month range from earliest to latest
+    const sorted = months.sort();
+    const [startY, startM] = sorted[0].split("-").map(Number);
+    const [endY, endM] = sorted[sorted.length - 1].split("-").map(Number);
+    const result = [];
+    let y = startY, m = startM, index = 0;
+    while (y < endY || (y === endY && m <= endM)) {
+      const ym = `${y}-${String(m).padStart(2, "0")}`;
+      result.push({ index, ym, amount: totals[ym] || 0 });
+      index++;
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+    return result;
   });
 
   let totalAmount = $derived(
@@ -115,6 +129,7 @@
   {:else if matchingExpenses.length === 0}
     <EmptyState title={`No expenses matching "${keyword}".`} variant="widget" />
   {:else}
+    {#key activePreset}
     <VisXYContainer data={monthlyData} height={130} padding={{ top: 10 }}>
       <VisGroupedBar
         {x}
@@ -138,6 +153,7 @@
       />
       <VisTooltip {triggers} />
     </VisXYContainer>
+    {/key}
 
     <p class="text-sm text-gray-400 mt-4">
       {matchingExpenses.length} transaction{matchingExpenses.length === 1 ? "" : "s"}

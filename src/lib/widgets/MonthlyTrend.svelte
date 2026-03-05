@@ -17,7 +17,8 @@
     const preset = DATE_RANGE_PRESETS.find((p) => p.label === activePreset) ?? DATE_RANGE_PRESETS[1];
     if (preset.months === null) return expenses;
     const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - preset.months);
+    cutoff.setDate(1);
+    cutoff.setMonth(cutoff.getMonth() - (preset.months - 1));
     const cutoffStr = cutoff.toISOString().slice(0, 10);
     return expenses.filter((e) => e.date >= cutoffStr);
   });
@@ -84,6 +85,7 @@
   </div>
 
   {#if monthlyData.length > 0}
+    {#key activePreset}
     <VisXYContainer data={monthlyData} height={180} padding={{ top: 10 }}>
       <VisGroupedBar
         {x}
@@ -107,6 +109,7 @@
       />
       <VisTooltip {triggers} />
     </VisXYContainer>
+    {/key}
   {:else}
     <EmptyState title="No data for this period." variant="widget" />
   {/if}

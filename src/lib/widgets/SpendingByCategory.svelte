@@ -5,7 +5,7 @@
   import EmptyState from "../EmptyState.svelte";
   import { DATE_RANGE_PRESETS } from "../constants.js";
 
-  let { expenses, config = {}, onnavigate = () => {}, onconfigchange = () => {} } = $props();
+  let { expenses, config = {}, onconfigchange = () => {} } = $props();
 
   let chartReady = $state(false);
   $effect(() => {
@@ -46,7 +46,8 @@
   });
 
   const legendMax = 6;
-  let legendItems = $derived(sortedCategories.slice(0, legendMax));
+  let legendExpanded = $state(false);
+  let legendItems = $derived(legendExpanded ? sortedCategories : sortedCategories.slice(0, legendMax));
   let overflowCount = $derived(Math.max(0, sortedCategories.length - legendMax));
 
   const triggers = {
@@ -55,19 +56,12 @@
   };
 </script>
 
-<button
-  onclick={() => onnavigate("categories")}
-  class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-full text-left
-         cursor-pointer hover:border-amber-500/50 hover:bg-gray-900/80 transition-all card-hover"
+<div
+  class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-full text-left"
 >
   <div class="flex items-center justify-between mb-4">
     <h3 class="text-lg font-semibold">Spending by Category</h3>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="flex items-center gap-0.5 bg-gray-800 rounded-lg p-0.5"
-      onclick={(e) => e.stopPropagation()}
-    >
+    <div class="flex items-center gap-0.5 bg-gray-800 rounded-lg p-0.5">
       {#each DATE_RANGE_PRESETS as preset}
         <button
           onclick={() => selectPreset(preset.label)}
@@ -82,9 +76,7 @@
   </div>
 
   {#if sortedCategories.length > 0}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div onclick={(e) => e.stopPropagation()} style="pointer-events: auto;">
+    <div>
       <VisSingleContainer data={chartReady ? sortedCategories : sortedCategories.map(d => ({ ...d, value: 0 }))} height={180}>
         <VisDonut
           value={(d) => d.value}
@@ -108,10 +100,15 @@
         </div>
       {/each}
       {#if overflowCount > 0}
-        <span class="text-xs text-gray-500">+{overflowCount} more</span>
+        <button
+          onclick={() => { legendExpanded = !legendExpanded; }}
+          class="text-xs text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+        >
+          {legendExpanded ? 'Show less' : `+${overflowCount} more`}
+        </button>
       {/if}
     </div>
   {:else}
     <EmptyState title="No data for this period." variant="widget" />
   {/if}
-</button>
+</div>

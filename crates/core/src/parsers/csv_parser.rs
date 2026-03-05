@@ -10,33 +10,40 @@ impl CsvParser {
         let first_lines: Vec<&str> = input.lines().take(5).collect();
         let delimiters = [',', ';', '\t', '|'];
 
-        let result = delimiters
+        let (best_delim, best_score) = delimiters
             .iter()
             .copied()
-            .max_by_key(|&d| {
-                // Pick the delimiter that gives the most consistent column count
+            .map(|d| {
                 let counts: Vec<usize> = first_lines
                     .iter()
-                    .map(|line| line.split(d).count())
+                    .map(|line| Self::split_csv_line(line, d).len())
                     .collect();
                 if counts.is_empty() {
-                    return 0;
+                    return (d, 0);
                 }
-                let first = counts[0];
-                if first <= 1 {
-                    return 0;
+                // Use the most common column count (mode)
+                let mode = *counts.iter()
+                    .max_by_key(|&&c| counts.iter().filter(|&&x| x == c).count())
+                    .unwrap_or(&0);
+                if mode <= 1 {
+                    return (d, 0);
                 }
-                // Score = column count if consistent, 0 otherwise
-                let score = if counts.iter().all(|&c| c == first) {
-                    first
+                // Count rows matching mode or off-by-one (trailing delimiter)
+                let consistent = counts.iter().filter(|&&c| c == mode || c + 1 == mode || c == mode + 1).count();
+                let ratio = consistent as f64 / counts.len() as f64;
+                let score = if ratio > 0.6 {
+                    (mode as f64 * ratio) as usize
                 } else {
                     0
                 };
-                debug!("CSV delimiter '{d}': score={score}");
-                score
+                debug!("CSV delimiter '{d}': score={score} (ratio={ratio:.2})");
+                (d, score)
             })
-            .unwrap_or(',');
-        result
+            .max_by_key(|&(_, score)| score)
+            .unwrap_or((',', 0));
+
+        // Default to comma when all delimiters score 0
+        if best_score == 0 { ',' } else { best_delim }
     }
 
     fn split_csv_line(line: &str, delimiter: char) -> Vec<String> {
@@ -59,6 +66,91 @@ impl CsvParser {
     }
 }
 
+impl CsvParser {
+    pub fn preview_rows_with_delimiter(
+        &self,
+        input: &str,
+        delimiter: char,
+    ) -> Result<Vec<Vec<String>>, ParseError> {
+        let rows: Vec<Vec<String>> = input
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(|line| Self::split_csv_line(line, delimiter))
+            .collect();
+
+        if rows.len() < 2 {
+            return Err(ParseError::ParseFailed(
+                "Need at least a header row and one data row".to_string(),
+            ));
+        }
+
+        Ok(rows)
+    }
+
+    pub fn parse_with_delimiter(
+        &self,
+        input: &str,
+        mapping: &ColumnMapping,
+        delimiter: char,
+    ) -> Result<Vec<ParsedExpense>, ParseError> {
+        let lines: Vec<&str> = input
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+
+        if lines.len() < 2 {
+            return Err(ParseError::ParseFailed("Not enough rows".to_string()));
+        }
+
+        let mut expenses = Vec::new();
+        for (i, line) in lines.iter().skip(1).enumerate() {
+            let fields = Self::split_csv_line(line, delimiter);
+
+            let title = fields
+                .get(mapping.title_index)
+                .ok_or_else(|| {
+                    ParseError::ParseFailed(format!("Row {}: missing title column", i + 2))
+                })?
+                .clone();
+
+            let amount_str = fields.get(mapping.amount_index).ok_or_else(|| {
+                ParseError::ParseFailed(format!("Row {}: missing amount column", i + 2))
+            })?;
+
+            let amount = parse_amount(amount_str).map_err(|_| {
+                let msg = format!("Row {}: can't parse amount '{}'", i + 2, amount_str);
+                warn!("CSV parse error: {msg}");
+                ParseError::ParseFailed(msg)
+            })?;
+
+            let date_str = fields.get(mapping.date_index).ok_or_else(|| {
+                ParseError::ParseFailed(format!("Row {}: missing date column", i + 2))
+            })?;
+
+            let date =
+                NaiveDate::parse_from_str(date_str, &mapping.date_format).map_err(|_| {
+                    let msg = format!(
+                        "Row {}: can't parse date '{}' with format '{}'",
+                        i + 2,
+                        date_str,
+                        mapping.date_format
+                    );
+                    warn!("CSV parse error: {msg}");
+                    ParseError::ParseFailed(msg)
+                })?;
+
+            expenses.push(ParsedExpense {
+                title,
+                amount,
+                date,
+            });
+        }
+
+        info!("CSV parsed {} rows with explicit delimiter", expenses.len());
+        Ok(expenses)
+    }
+}
+
 impl Parser for CsvParser {
     fn name(&self) -> &str {
         "CSV"
@@ -71,14 +163,19 @@ impl Parser for CsvParser {
         }
 
         let delim = Self::detect_delimiter(input);
-        let col_counts: Vec<usize> = lines.iter().map(|l| l.split(delim).count()).collect();
+        let col_counts: Vec<usize> = lines.iter().map(|l| Self::split_csv_line(l, delim).len()).collect();
 
-        if col_counts[0] < 2 {
+        // Use the most common column count (mode), not just the header row
+        let mode = *col_counts.iter()
+            .max_by_key(|&&c| col_counts.iter().filter(|&&x| x == c).count())
+            .unwrap_or(&0);
+
+        if mode < 2 {
             return 0.0;
         }
 
-        // Check consistency of column counts
-        let consistent = col_counts.iter().filter(|&&c| c == col_counts[0]).count();
+        // Count rows that match the mode OR are off by one (trailing delimiter)
+        let consistent = col_counts.iter().filter(|&&c| c == mode || c + 1 == mode || c == mode + 1).count();
         let ratio = consistent as f64 / col_counts.len() as f64;
 
         if ratio > 0.8 {

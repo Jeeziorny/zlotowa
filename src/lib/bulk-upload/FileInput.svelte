@@ -4,6 +4,16 @@
   let inputText = $state("");
   let file = $state(null);
   let inputError = $state("");
+  let delimiter = $state(null);
+  let showDelimiterPicker = $state(false);
+
+  const delimiters = [
+    { value: null, label: "Auto-detect" },
+    { value: ",", label: "Comma (,)" },
+    { value: ";", label: "Semicolon (;)" },
+    { value: "\t", label: "Tab" },
+    { value: "|", label: "Pipe (|)" },
+  ];
 
   function handleFileDrop(event) {
     event.preventDefault();
@@ -41,9 +51,13 @@
     }
     inputError = "";
     try {
-      await onnext({ text: inputText, filename: file ? file.name : "Pasted data" });
+      await onnext({ text: inputText, filename: file ? file.name : "Pasted data", delimiter });
     } catch (err) {
-      inputError = `${err}`;
+      const errStr = `${err}`;
+      inputError = errStr;
+      if (errStr.includes("Could not detect")) {
+        showDelimiterPicker = true;
+      }
     }
   }
 </script>
@@ -110,6 +124,25 @@
   {#if inputError}
     <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400">
       {inputError}
+    </div>
+  {/if}
+
+  {#if showDelimiterPicker}
+    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+      <p class="text-sm font-medium text-gray-300 mb-2">Select CSV delimiter</p>
+      <div class="flex gap-2 flex-wrap">
+        {#each delimiters as d}
+          <button
+            onclick={() => { delimiter = d.value; }}
+            class="px-3 py-1.5 rounded-lg text-sm transition-colors
+                   {delimiter === d.value
+                     ? 'bg-amber-500 text-gray-950 font-medium'
+                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}"
+          >
+            {d.label}
+          </button>
+        {/each}
+      </div>
     </div>
   {/if}
 

@@ -267,14 +267,14 @@ fn csv_parser_unicode_currency_in_amount() {
 
 #[test]
 fn csv_parser_blank_lines_interspersed() {
-    // Blank lines in the middle of data confuse delimiter detection (it can't
-    // determine column consistency), causing parse errors. This documents
-    // current behavior — callers should strip blank lines before parsing.
+    // Blank lines are filtered out during parsing, so they don't affect results.
     let parser = CsvParser;
     let input = "date,title,amount\n\n2025-01-01,Coffee,4.50\n\n\n2025-01-02,Lunch,12.00\n\n";
-    assert!(parser.parse(input, &default_mapping()).is_err());
+    let expenses = parser.parse(input, &default_mapping()).unwrap();
+    assert_eq!(expenses.len(), 2);
+    assert_eq!(expenses[0].title, "Coffee");
 
-    // Without blank lines, same data parses fine
+    // Without blank lines, same result
     let clean = "date,title,amount\n2025-01-01,Coffee,4.50\n2025-01-02,Lunch,12.00\n";
     let expenses = parser.parse(clean, &default_mapping()).unwrap();
     assert_eq!(expenses.len(), 2);
