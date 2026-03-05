@@ -62,3 +62,67 @@ input[type="number"] {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Skeleton pulse */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.15; }
+}
+
+.animate-skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* Widget stagger entrance */
+@keyframes widget-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-widget-entrance {
+  animation: widget-entrance 250ms ease-out both;
+}
+
+/* Micro-interactions */
+@media (prefers-reduced-motion: no-preference) {
+  button {
+    transition: transform 100ms ease, background-color 150ms ease,
+                color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+  }
+
+  button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .card-hover {
+    transition: box-shadow 150ms ease, border-color 150ms ease, transform 100ms ease,
+                background-color 150ms ease;
+  }
+
+  .card-hover:hover {
+    box-shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 158, 11, 0.1);
+  }
+}
+
+/* Reduced motion — kill all animations/transitions */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Fallback for environments where media query doesn't work */
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

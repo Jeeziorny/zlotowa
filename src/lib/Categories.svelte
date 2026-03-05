@@ -4,6 +4,7 @@
   import ConfirmModal from "./ConfirmModal.svelte";
   import { focusTrap } from "./actions/focusTrap.js";
   import EmptyState from "./EmptyState.svelte";
+  import Skeleton from "./Skeleton.svelte";
 
   let categories = $state([]);
   let loaded = $state(false);
@@ -205,9 +206,8 @@
   </div>
 
   {#if !loaded}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <div class="w-8 h-8 border-4 border-gray-700 border-t-amber-500 rounded-full animate-spin mx-auto mb-3"></div>
-      <p class="text-sm">Loading categories...</p>
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden p-1">
+      <Skeleton variant="row" count={6} />
     </div>
   {:else if categories.length === 0}
     <EmptyState

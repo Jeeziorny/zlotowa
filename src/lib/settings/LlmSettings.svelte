@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { addToast } from "../stores/toast.svelte.js";
 
   let provider = $state("openai");
   let apiKey = $state("");
@@ -37,8 +38,8 @@
       await invoke("save_llm_config", {
         config: { provider, api_key: apiKey },
       });
-      message = "Configuration saved and validated.";
-      messageType = "success";
+      addToast("Configuration saved and validated.", "success");
+      message = "";
       isConfigured = true;
     } catch (err) {
       message = `${err}`;
@@ -60,8 +61,8 @@
       await invoke("validate_llm_config", {
         config: { provider, api_key: apiKey },
       });
-      message = "Connection successful!";
-      messageType = "success";
+      addToast("Connection successful!", "success");
+      message = "";
     } catch (err) {
       message = `Connection failed: ${err}`;
       messageType = "error";
@@ -75,8 +76,8 @@
       provider = "openai";
       apiKey = "";
       isConfigured = false;
-      message = "LLM configuration cleared.";
-      messageType = "success";
+      addToast("LLM configuration cleared.", "success");
+      message = "";
     } catch (err) {
       message = `Error: ${err}`;
       messageType = "error";

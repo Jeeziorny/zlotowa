@@ -3,6 +3,7 @@
   import { onMount, onDestroy } from "svelte";
   import DatePicker from "./DatePicker.svelte";
   import Autocomplete from "./Autocomplete.svelte";
+  import { addToast } from "./stores/toast.svelte.js";
 
   let title = $state("");
   let amount = $state("");
@@ -75,7 +76,7 @@
         },
       });
 
-      showMessage("Expense added successfully!", "success");
+      addToast("Expense added successfully!", "success");
       title = "";
       amount = "";
       category = "";
@@ -198,12 +199,8 @@
         {saving ? "Saving..." : "Add Expense"}
       </button>
 
-      {#if message}
-        <div
-          class="text-sm px-4 py-2 rounded-lg {messageType === 'success'
-            ? 'bg-emerald-900/50 text-emerald-400'
-            : 'bg-red-900/50 text-red-400'}"
-        >
+      {#if message && messageType === "error"}
+        <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400">
           {message}
         </div>
       {/if}

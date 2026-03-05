@@ -6,6 +6,15 @@
 
   let { expenses } = $props();
 
+  let chartReady = $state(false);
+  $effect(() => {
+    // Delay real data so Unovis renders zero state first, then transitions
+    if (!chartReady) {
+      const id = setTimeout(() => { chartReady = true; }, 100);
+      return () => clearTimeout(id);
+    }
+  });
+
   let monthlyData = $derived.by(() => {
     const months = {};
     for (const e of expenses) {
@@ -45,7 +54,7 @@
   <h3 class="text-lg font-semibold mb-4">Monthly Trend</h3>
 
   {#if monthlyData.length > 0}
-    <VisXYContainer data={monthlyData} height={180} padding={{ top: 10 }}>
+    <VisXYContainer data={chartReady ? monthlyData : monthlyData.map(d => ({ ...d, amount: 0 }))} height={180} padding={{ top: 10 }}>
       <VisGroupedBar
         {x}
         {y}

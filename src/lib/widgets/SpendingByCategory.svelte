@@ -6,6 +6,14 @@
 
   let { expenses, config = {}, onnavigate = () => {}, onconfigchange = () => {} } = $props();
 
+  let chartReady = $state(false);
+  $effect(() => {
+    if (!chartReady) {
+      const id = setTimeout(() => { chartReady = true; }, 100);
+      return () => clearTimeout(id);
+    }
+  });
+
   const PRESETS = [
     { label: "1M", months: 1 },
     { label: "3M", months: 3 },
@@ -56,7 +64,7 @@
 <button
   onclick={() => onnavigate("categories")}
   class="bg-gray-900 rounded-xl p-6 border border-gray-800 w-full text-left
-         cursor-pointer hover:border-amber-500/50 hover:bg-gray-900/80 transition-all"
+         cursor-pointer hover:border-amber-500/50 hover:bg-gray-900/80 transition-all card-hover"
 >
   <div class="flex items-center justify-between mb-4">
     <h3 class="text-lg font-semibold">Spending by Category</h3>
@@ -83,7 +91,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div onclick={(e) => e.stopPropagation()} style="pointer-events: auto;">
-      <VisSingleContainer data={sortedCategories} height={180}>
+      <VisSingleContainer data={chartReady ? sortedCategories : sortedCategories.map(d => ({ ...d, value: 0 }))} height={180}>
         <VisDonut
           value={(d) => d.value}
           color={(d) => d.color}

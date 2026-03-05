@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import { save, open } from "@tauri-apps/plugin-dialog";
+  import { addToast } from "../stores/toast.svelte.js";
 
   let backupMessage = $state("");
   let backupMessageType = $state("");
@@ -30,8 +31,8 @@
       }
       await invoke("backup_database", { path });
       const filename = path.split("/").pop() || path.split("\\").pop() || path;
-      backupMessage = `Backup saved to ${filename}`;
-      backupMessageType = "success";
+      addToast(`Backup saved to ${filename}`, "success");
+      backupMessage = "";
     } catch (err) {
       backupMessage = `Backup failed: ${err}`;
       backupMessageType = "error";
@@ -89,10 +90,11 @@
         if (summary.budgets_skipped > 0) s += ` (${summary.budgets_skipped} skipped)`;
         parts.push(s);
       }
-      restoreMessage = parts.length > 0
+      const msg = parts.length > 0
         ? `Restored: ${parts.join(", ")}`
         : "Nothing to restore — all data already exists.";
-      restoreMessageType = "success";
+      addToast(msg, "success");
+      restoreMessage = "";
       preview = null;
       restorePath = "";
       confirmed = false;

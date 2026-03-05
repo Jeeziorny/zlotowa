@@ -1,9 +1,13 @@
 <script>
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { flip } from "svelte/animate";
+  import { scale } from "svelte/transition";
   import { widgets, defaultWidgetInstances } from "./widgets/registry.js";
   import { focusTrap } from "./actions/focusTrap.js";
+  import { getPrefersReducedMotion } from "./stores/reduced-motion.svelte.js";
   import EmptyState from "./EmptyState.svelte";
+  import Skeleton from "./Skeleton.svelte";
 
   let { onnavigate = () => {} } = $props();
 
@@ -12,6 +16,7 @@
   let showPicker = $state(false);
   let editing = $state(false);
   let loaded = $state(false);
+  let entranceComplete = $state(false);
   let configDialog = $state(null); // { instanceId?, widgetId, chips[], input }
 
   // Drag-and-drop state
@@ -57,6 +62,9 @@
       activeInstances = [...defaultWidgetInstances];
     }
     loaded = true;
+    // Mark entrance animation complete after stagger finishes
+    const staggerTime = activeInstances.length * 60 + 250;
+    setTimeout(() => { entranceComplete = true; }, staggerTime);
   });
 
   function addWidget(widgetDef) {
@@ -339,9 +347,16 @@
 
   <!-- Widgets -->
   {#if !loaded}
-    <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">
-      <div class="w-8 h-8 border-4 border-gray-700 border-t-amber-500 rounded-full animate-spin mx-auto mb-3"></div>
-      <p class="text-sm">Loading dashboard...</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="md:col-span-2">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+        </div>
+      </div>
+      <Skeleton variant="card" />
+      <Skeleton variant="card" />
     </div>
   {:else if loaded && expenses.length === 0 && activeWidgets.length > 0}
     <EmptyState
@@ -352,10 +367,16 @@
   {:else if loaded}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       {#each activeWidgets as widget, i (widget.instanceId)}
+        {@const reduced = getPrefersReducedMotion()}
         <div
           class="{widget.size === 'full' ? 'md:col-span-2' : ''} flex flex-col relative transition-opacity
                  {dragIndex === i ? 'opacity-40' : 'opacity-100'}
-                 {editing ? 'cursor-grab active:cursor-grabbing' : ''}"
+                 {editing ? 'cursor-grab active:cursor-grabbing' : ''}
+                 {!entranceComplete && !reduced ? 'animate-widget-entrance' : ''}"
+          style={!entranceComplete && !reduced ? `animation-delay: ${i * 60}ms` : ""}
+          animate:flip={{ duration: dragIndex !== null || reduced ? 0 : 250 }}
+          in:scale={{ duration: reduced ? 0 : 200, start: 0.95 }}
+          out:scale={{ duration: reduced ? 0 : 150, start: 0.95 }}
           draggable={editing}
           ondragstart={(e) => editing && handleDragStart(e, i)}
           ondragover={(e) => editing && handleDragOver(e, i)}

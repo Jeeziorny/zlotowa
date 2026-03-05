@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from "svelte";
+  import { fade } from "svelte/transition";
   import { invoke } from "@tauri-apps/api/core";
   import Sidebar from "./lib/Sidebar.svelte";
   import Dashboard from "./lib/Dashboard.svelte";
@@ -10,6 +11,8 @@
   import Rules from "./lib/Rules.svelte";
   import ConfirmModal from "./lib/ConfirmModal.svelte";
   import KeyboardShortcuts from "./lib/KeyboardShortcuts.svelte";
+  import Toast from "./lib/Toast.svelte";
+  import { getPrefersReducedMotion } from "./lib/stores/reduced-motion.svelte.js";
 
   let currentPage = $state("dashboard");
   let expenseSubView = $state("list");
@@ -144,20 +147,26 @@
   <Sidebar {currentPage} {showRules} onnavigate={handleNavigate} onshowshortcuts={() => showShortcuts = true} />
 
   <main class="flex-1 overflow-y-auto p-8">
-    {#if currentPage === "dashboard"}
-      <Dashboard onnavigate={handleNavigate} />
-    {:else if currentPage === "expenses"}
-      <ExpenseList bind:subView={expenseSubView} onbulkdirtychange={(dirty) => { expensesBulkDirty = dirty; }} />
-    {:else if currentPage === "categories"}
-      <Categories />
-    {:else if currentPage === "budget"}
-      <BudgetPlanning />
-    {:else if currentPage === "rules"}
-      <Rules />
-    {:else if currentPage === "settings"}
-      <Settings onrulesvisibilitychange={handleRulesVisibilityChange} />
-    {/if}
+    {#key currentPage}
+      <div in:fade={{ duration: getPrefersReducedMotion() ? 0 : 150 }}>
+        {#if currentPage === "dashboard"}
+          <Dashboard onnavigate={handleNavigate} />
+        {:else if currentPage === "expenses"}
+          <ExpenseList bind:subView={expenseSubView} onbulkdirtychange={(dirty) => { expensesBulkDirty = dirty; }} />
+        {:else if currentPage === "categories"}
+          <Categories />
+        {:else if currentPage === "budget"}
+          <BudgetPlanning />
+        {:else if currentPage === "rules"}
+          <Rules />
+        {:else if currentPage === "settings"}
+          <Settings onrulesvisibilitychange={handleRulesVisibilityChange} />
+        {/if}
+      </div>
+    {/key}
   </main>
+
+  <Toast />
 
   {#if pendingNav}
     <ConfirmModal

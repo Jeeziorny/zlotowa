@@ -4,10 +4,13 @@
 
 | # | Task | Summary |
 |---|------|---------|
-| 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
 
 ## DONE
+
+| # | Task | Summary |
+|---|------|---------|
+| 23 | UI Polish & Animations | Page fade transitions, widget FLIP/scale/stagger entrance, skeleton loading (Dashboard + Categories), toast notifications (AddExpense, LLM, Backup), count-up animation on TotalStats, chart grow-in (MonthlyTrend + SpendingByCategory), button press feedback, card-hover utility, `prefers-reduced-motion` support (CSS global kill + JS reactive boolean). 4 new files, ~10 modified. |
 
 | # | Task | Summary |
 |---|------|---------|
