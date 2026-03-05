@@ -1,5 +1,5 @@
 <script>
-  let { currentPage, onnavigate, showRules = false } = $props();
+  let { currentPage, onnavigate, showRules = false, onshowshortcuts = () => {} } = $props();
 
   let items = $derived([
     { id: "expenses", label: "Expenses" },
@@ -60,6 +60,15 @@
     </button>
   </div>
 
+  <div class="px-3 mb-2">
+    <button
+      onclick={() => onnavigate("expenses:add")}
+      class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 rounded-lg py-2 text-sm font-medium transition-colors"
+    >
+      + Add
+    </button>
+  </div>
+
   <nav class="flex-1 px-3">
     {#each items as item}
       <button
@@ -92,7 +101,13 @@
     </button>
   </div>
 
-  <div class="p-4 border-t border-gray-800/50 pt-3 text-xs text-gray-600">
-    złotówa v0.1.0
+  <div class="p-4 border-t border-gray-800/50 pt-3 text-xs text-gray-600 flex items-center justify-between">
+    <span>złotówa v0.1.0</span>
+    <button
+      onclick={onshowshortcuts}
+      class="w-5 h-5 rounded border border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600 transition-colors text-xs leading-none flex items-center justify-center"
+      aria-label="Keyboard shortcuts"
+      title="Keyboard shortcuts"
+    >?</button>
   </div>
 </aside>

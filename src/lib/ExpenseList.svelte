@@ -9,10 +9,7 @@
   import ConfirmModal from "./ConfirmModal.svelte";
   import EmptyState from "./EmptyState.svelte";
 
-  let { onbulkdirtychange = () => {} } = $props();
-
-  // Sub-view: "list" | "add" | "bulk"
-  let subView = $state("list");
+  let { onbulkdirtychange = () => {}, subView = $bindable("list") } = $props();
   let bulkUploadDirty = $state(false);
   let showLeaveConfirm = $state(false);
 

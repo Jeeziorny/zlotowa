@@ -35,6 +35,7 @@
   </svg>
   <input
     type="text"
+    id="expense-search"
     value={searchText}
     oninput={onSearchInput}
     placeholder="Search by title..."

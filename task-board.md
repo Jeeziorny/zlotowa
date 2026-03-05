@@ -6,13 +6,13 @@
 |---|------|---------|
 | 23 | UI Polish & Animations | Page transitions, widget entrance animations, loading skeletons, toast notifications, micro-interactions (hover scale/shadow). Respect `prefers-reduced-motion`. |
 | 50 | Minor Polish | Shared constants (debounce, page sizes), version sourcing, date staleness fix, tighten `pub` visibility. |
-| 78 | Keyboard Shortcuts & Quick-Add | Global Cmd+N/U/K/1-4/Esc shortcuts, sidebar quick-add button, shortcut cheat sheet overlay. |
 | 81 | Safer Backup Restore | Two-step flow: preview backup contents, warning block, confirmation checkbox, "backup first" convenience. New `preview_backup` IPC. |
 
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 78 | Keyboard Shortcuts & Quick-Add | Global ⌘/Ctrl+N/U/K/1-4/Esc shortcuts. Sidebar `+ Add` button (1-click to add expense). `?` hint button opens cheat sheet overlay. ExpenseList subView bindable from App.svelte. Guards: skip in inputs (except Esc), skip if modal open, respect bulk upload dirty state. |
 | 80b | Input Validation: Character Limits | Title maxlength 200 with graduated counter (appears at 150+, amber at 175+, red at 190+). Pattern maxlength 500. Category maxlength 100 via Autocomplete `maxlength` prop. |
 | 77 | Accessibility Round 4 | Colorblind-safe budget bar labels (OK/80%+/Over), sign prefix on remaining (±), confidence badge icons (✓/~/!), aria-labels on all icon buttons, `.sr-only` live region for sort announcements in Categories. |
 | 79 | Remember Column Mappings | Saved to `column_mappings` config key on step 2→3. Exact header match (priority 1), filename pattern match (priority 2). Restore banner with Reset link. 10-entry FIFO cap. Zero backend changes. |
