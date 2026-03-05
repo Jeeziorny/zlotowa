@@ -63,6 +63,15 @@ pub struct BackupBudgetCategory {
     pub amount: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupPreview {
+    pub expense_count: usize,
+    pub rule_count: usize,
+    pub category_count: usize,
+    pub budget_count: usize,
+    pub created_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RestoreSummary {
     pub expenses_inserted: usize,
@@ -133,6 +142,37 @@ pub fn create_backup(db: &Database) -> Result<BackupData, BackupError> {
     );
 
     Ok(backup)
+}
+
+// ── Preview ──
+
+pub fn preview_backup(data: &BackupData) -> Result<BackupPreview, BackupError> {
+    if data.version > CURRENT_VERSION {
+        return Err(BackupError::UnsupportedVersion(data.version));
+    }
+
+    let mut categories = std::collections::HashSet::new();
+    for e in &data.expenses {
+        if let Some(cat) = &e.category {
+            categories.insert(cat.as_str());
+        }
+    }
+    for r in &data.classification_rules {
+        categories.insert(&r.category);
+    }
+    for b in &data.budgets {
+        for bc in &b.categories {
+            categories.insert(&bc.category);
+        }
+    }
+
+    Ok(BackupPreview {
+        expense_count: data.expenses.len(),
+        rule_count: data.classification_rules.len(),
+        category_count: categories.len(),
+        budget_count: data.budgets.len(),
+        created_at: Some(data.exported_at.clone()),
+    })
 }
 
 // ── Restore ──
@@ -380,6 +420,40 @@ mod tests {
         let json = serde_json::to_string_pretty(&backup).unwrap();
         let parsed: BackupData = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.version, 2);
+    }
+
+    #[test]
+    fn preview_backup_counts() {
+        let backup = sample_backup();
+        let preview = preview_backup(&backup).unwrap();
+        assert_eq!(preview.expense_count, 2);
+        assert_eq!(preview.rule_count, 2);
+        assert_eq!(preview.category_count, 2); // Drinks + Transport
+        assert_eq!(preview.budget_count, 1);
+        assert_eq!(preview.created_at.as_deref(), Some("2026-02-27T12:00:00Z"));
+    }
+
+    #[test]
+    fn preview_rejects_unsupported_version() {
+        let mut backup = sample_backup();
+        backup.version = 999;
+        let result = preview_backup(&backup);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn preview_deduplicates_categories() {
+        let mut backup = sample_backup();
+        // Add an expense with a category that already exists in rules
+        backup.expenses.push(BackupExpense {
+            title: "Latte".to_string(),
+            amount: 5.0,
+            date: "2025-01-17".to_string(),
+            category: Some("Drinks".to_string()), // same as existing
+            classification_source: None,
+        });
+        let preview = preview_backup(&backup).unwrap();
+        assert_eq!(preview.category_count, 2); // still 2, not 3
     }
 
     #[test]

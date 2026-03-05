@@ -580,6 +580,22 @@ fn backup_database(state: State<AppState>, path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn preview_backup(path: String) -> Result<accountant_core::backup::BackupPreview, String> {
+    use accountant_core::backup::preview_backup as do_preview;
+    info!("preview_backup: path='{path}'");
+
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let backup: accountant_core::backup::BackupData =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid backup file: {}", e))?;
+
+    let preview = do_preview(&backup).map_err(|e| e.to_string())?;
+    info!("preview_backup: {} expenses, {} rules, {} categories, {} budgets",
+        preview.expense_count, preview.rule_count, preview.category_count, preview.budget_count);
+    Ok(preview)
+}
+
+#[tauri::command]
 fn restore_database(
     state: State<AppState>,
     path: String,
@@ -1968,6 +1984,7 @@ pub fn run() {
             classify_expenses,
             parse_and_classify,
             backup_database,
+            preview_backup,
             restore_database,
             bulk_save_expenses,
             get_upload_batches,
