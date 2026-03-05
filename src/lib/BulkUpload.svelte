@@ -28,14 +28,16 @@
   let classifiedRows = $state([]);
   let allCategories = $state([]);
   let savedCount = $state(0);
+  let selectedDelimiter = $state(null);
 
-  async function handleFileInput({ text, filename }) {
+  async function handleFileInput({ text, filename, delimiter }) {
     error = "";
     inputText = text;
     batchFilename = filename;
+    selectedDelimiter = delimiter;
 
     try {
-      const result = await invoke("preview_csv", { input: text });
+      const result = await invoke("preview_csv", { input: text, delimiter });
       previewRows = result.rows;
       parserName = result.parser_name;
     } catch (err) {
@@ -95,6 +97,7 @@
       const rows = await invoke("parse_csv_data", {
         input: inputText,
         mapping,
+        delimiter: selectedDelimiter,
       });
       parsedRows = rows;
       await saveColumnMapping(mapping);
@@ -115,7 +118,6 @@
       classifiedRows = rows.map((r) => ({
         ...r,
         _editing: false,
-        rule_pattern: r.title,
         _autoApplied: 0,
         _originalSource: r.source,
       }));
@@ -144,7 +146,6 @@
       date: r.date,
       category: r.category,
       source: r.source,
-      rule_pattern: r.rule_pattern !== r.title ? r.rule_pattern : null,
     }));
 
     const count = await invoke("bulk_save_expenses", {
@@ -167,6 +168,7 @@
     classifiedRows = [];
     allCategories = [];
     savedCount = 0;
+    selectedDelimiter = null;
   }
 </script>
 

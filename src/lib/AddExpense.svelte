@@ -15,9 +15,6 @@
   let saving = $state(false);
   let messageClearTimer;
 
-  let rulePattern = $state("");
-  let showRulePattern = $state(false);
-
   let allCategories = $state([]);
   let suggestedCategory = $state("");
 
@@ -73,7 +70,6 @@
           amount: parsedAmount,
           date,
           category: category || null,
-          rule_pattern: (showRulePattern && rulePattern.trim()) ? rulePattern.trim() : null,
         },
       });
 
@@ -81,8 +77,6 @@
       title = "";
       amount = "";
       category = "";
-      rulePattern = "";
-      showRulePattern = false;
       suggestedCategory = "";
       date = new Date().toISOString().split("T")[0];
 
@@ -126,32 +120,6 @@
         />
         {#if title.length >= 150}
           <span class="text-xs mt-1 block text-right {title.length >= 190 ? 'text-red-400' : title.length >= 175 ? 'text-amber-400' : 'text-gray-500'}">{title.length}/200</span>
-        {/if}
-      </div>
-
-      <div>
-        {#if !showRulePattern}
-          <button
-            type="button"
-            onclick={() => { showRulePattern = true; rulePattern = title; }}
-            class="text-xs text-gray-500 hover:text-gray-400 transition-colors"
-          >
-            Set match keyword...
-          </button>
-        {:else}
-          <label class="block text-sm text-gray-400 mb-1" for="rule-pattern">Match keyword</label>
-          <input
-            id="rule-pattern"
-            type="text"
-            bind:value={rulePattern}
-            maxlength="500"
-            placeholder="e.g. LIDL"
-            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                   text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500 text-sm"
-          />
-          <p class="text-xs text-gray-600 mt-1">
-            Future expenses matching this keyword will be auto-categorized.
-          </p>
         {/if}
       </div>
 

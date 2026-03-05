@@ -25,7 +25,6 @@ pub(crate) struct ExpenseInput {
     pub amount: f64,
     pub date: String,
     pub category: Option<String>,
-    pub rule_pattern: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -72,7 +71,6 @@ pub(crate) struct BulkSaveExpense {
     pub date: String,
     pub category: Option<String>,
     pub source: Option<String>,
-    pub rule_pattern: Option<String>,
 }
 
 // ── Helpers ──
@@ -117,11 +115,7 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
         let id = db.insert_expense(&expense)?;
         if let Some(cat) = &input.category {
             if !cat.is_empty() {
-                let pattern_source = input.rule_pattern
-                    .as_deref()
-                    .filter(|p| !p.is_empty())
-                    .unwrap_or(&input.title);
-                db.insert_rule(&ClassificationRule::from_pattern(pattern_source, cat))?;
+                db.insert_rule(&ClassificationRule::from_pattern(&input.title, cat))?;
             }
         }
         Ok(id)
@@ -155,11 +149,7 @@ fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Resul
         db.update_expense(&expense)?;
         if let Some(cat) = &input.category {
             if !cat.is_empty() {
-                let pattern_source = input.rule_pattern
-                    .as_deref()
-                    .filter(|p| !p.is_empty())
-                    .unwrap_or(&input.title);
-                db.insert_rule(&ClassificationRule::from_pattern(pattern_source, cat))?;
+                db.insert_rule(&ClassificationRule::from_pattern(&input.title, cat))?;
             }
         }
         Ok(())
@@ -264,8 +254,21 @@ fn suggest_category(state: State<AppState>, title: String) -> Result<Option<Stri
 // ── Parsing Commands ──
 
 #[tauri::command]
-fn preview_csv(input: String) -> Result<PreviewResult, String> {
-    debug!("preview_csv: input length={}", input.len());
+fn preview_csv(input: String, delimiter: Option<String>) -> Result<PreviewResult, String> {
+    debug!("preview_csv: input length={} delimiter={:?}", input.len(), delimiter);
+
+    if let Some(ref d) = delimiter {
+        let delim_char = d.chars().next().ok_or("Invalid delimiter")?;
+        let parser = parsers::csv_parser::CsvParser;
+        let rows = parser.preview_rows_with_delimiter(&input, delim_char)
+            .map_err(|e| { warn!("preview_csv failed: {e}"); e.to_string() })?;
+        debug!("preview_csv: forced delimiter='{}' rows={}", delim_char, rows.len());
+        return Ok(PreviewResult {
+            parser_name: "CSV".to_string(),
+            rows,
+        });
+    }
+
     let parsers = parsers::builtin_parsers();
     let parser = parsers::detect_parser(&input, &parsers)
         .ok_or("Could not detect input format. Supported: CSV (comma, semicolon, tab delimited).")?;
@@ -284,12 +287,21 @@ fn parse_csv_data(
     state: State<AppState>,
     input: String,
     mapping: ColumnMapping,
+    delimiter: Option<String>,
 ) -> Result<Vec<ParsedExpenseRow>, String> {
-    info!("parse_csv_data: input length={}", input.len());
-    let parsers = parsers::builtin_parsers();
-    let parser = parsers::detect_parser(&input, &parsers)
-        .ok_or("Could not detect input format.")?;
-    let parsed = parser.parse(&input, &mapping).map_err(|e| { warn!("parse_csv_data parse failed: {e}"); e.to_string() })?;
+    info!("parse_csv_data: input length={} delimiter={:?}", input.len(), delimiter);
+
+    let parsed = if let Some(ref d) = delimiter {
+        let delim_char = d.chars().next().ok_or("Invalid delimiter")?;
+        let parser = parsers::csv_parser::CsvParser;
+        parser.parse_with_delimiter(&input, &mapping, delim_char)
+            .map_err(|e| { warn!("parse_csv_data parse failed: {e}"); e.to_string() })?
+    } else {
+        let parsers = parsers::builtin_parsers();
+        let parser = parsers::detect_parser(&input, &parsers)
+            .ok_or("Could not detect input format.")?;
+        parser.parse(&input, &mapping).map_err(|e| { warn!("parse_csv_data parse failed: {e}"); e.to_string() })?
+    };
     info!("parse_csv_data: parsed {} expenses", parsed.len());
 
     let dup_flags = {
@@ -398,23 +410,39 @@ fn classify_expenses(
                         })
                         .collect();
 
-                    match provider.classify_batch(&unclassified_expenses, &categories, &config) {
-                        Ok(llm_results) => {
-                            let llm_classified = llm_results.iter().filter(|r| r.is_some()).count();
-                            info!("classify_expenses: LLM classified {llm_classified}/{}", unclassified_expenses.len());
-                            for (idx, llm_result) in unclassified_indices.iter().zip(llm_results.into_iter()) {
-                                if let Some(classification) = llm_result {
-                                    if let Some(row) = result.get_mut(*idx) {
-                                        row.category = Some(classification.category);
-                                        row.source = Some(ClassificationSource::Llm.to_string());
-                                        row.confidence = Some(classification.confidence);
+                    // Chunk into batches of 30 to avoid LLM response truncation
+                    const CHUNK_SIZE: usize = 30;
+                    let mut llm_errors: Vec<String> = Vec::new();
+                    let mut total_classified = 0usize;
+
+                    for (chunk_idx, chunk) in unclassified_expenses.chunks(CHUNK_SIZE).enumerate() {
+                        let idx_offset = chunk_idx * CHUNK_SIZE;
+                        info!("classify_expenses: LLM chunk {}: {} expenses", chunk_idx + 1, chunk.len());
+
+                        match provider.classify_batch(chunk, &categories, &config) {
+                            Ok(llm_results) => {
+                                let classified = llm_results.iter().filter(|r| r.is_some()).count();
+                                total_classified += classified;
+                                for (j, llm_result) in llm_results.into_iter().enumerate() {
+                                    if let Some(classification) = llm_result {
+                                        let orig_idx = unclassified_indices[idx_offset + j];
+                                        if let Some(row) = result.get_mut(orig_idx) {
+                                            row.category = Some(classification.category);
+                                            row.source = Some(ClassificationSource::Llm.to_string());
+                                            row.confidence = Some(classification.confidence);
+                                        }
                                     }
                                 }
                             }
+                            Err(e) => {
+                                warn!("classify_expenses: LLM chunk {} failed: {e}", chunk_idx + 1);
+                                llm_errors.push(format!("{e}"));
+                            }
                         }
-                        Err(e) => {
-                            warn!("classify_expenses: LLM fallback failed: {e}");
-                        }
+                    }
+                    info!("classify_expenses: LLM classified {total_classified}/{}", unclassified_expenses.len());
+                    if !llm_errors.is_empty() && total_classified == 0 {
+                        return Err(format!("LLM classification failed: {}", llm_errors[0]));
                     }
                 }
             }
@@ -650,11 +678,7 @@ fn bulk_save_expenses(
 
         if let Some(ref cat) = e.category {
             if !cat.is_empty() {
-                let pattern_source = e.rule_pattern
-                    .as_deref()
-                    .filter(|p| !p.is_empty())
-                    .unwrap_or(&e.title);
-                rules.push(ClassificationRule::from_pattern(pattern_source, cat));
+                rules.push(ClassificationRule::from_pattern(&e.title, cat));
             }
         }
     }
@@ -1041,7 +1065,7 @@ mod tests {
                 amount: 3.50,
                 date: "2024-01-15".into(),
                 category: Some("Food".into()),
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1067,7 +1091,7 @@ mod tests {
                 amount: 1.0,
                 date: "not-a-date".into(),
                 category: None,
-                rule_pattern: None,
+
             },
         )
         .unwrap_err();
@@ -1086,7 +1110,7 @@ mod tests {
                 amount: 10.0,
                 date: "2024-02-01".into(),
                 category: None,
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1100,7 +1124,7 @@ mod tests {
                 amount: 20.0,
                 date: "2024-02-02".into(),
                 category: Some("Transport".into()),
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1123,7 +1147,7 @@ mod tests {
                 amount: 1.0,
                 date: "2024-01-01".into(),
                 category: None,
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1138,7 +1162,7 @@ mod tests {
                 amount: 1.0,
                 date: "bad".into(),
                 category: None,
-                rule_pattern: None,
+
             },
         )
         .unwrap_err();
@@ -1157,7 +1181,7 @@ mod tests {
                 amount: 5.0,
                 date: "2024-03-01".into(),
                 category: None,
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1190,7 +1214,7 @@ mod tests {
                     amount: 1.0,
                     date: "2024-01-01".into(),
                     category: None,
-                    rule_pattern: None,
+    
                 },
             )
             .unwrap();
@@ -1229,7 +1253,7 @@ mod tests {
                     amount,
                     date: "2024-01-15".into(),
                     category: Some(cat.into()),
-                    rule_pattern: None,
+    
                 },
             )
             .unwrap();
@@ -1308,7 +1332,7 @@ mod tests {
                 amount: 1.0,
                 date: "2024-01-01".into(),
                 category: Some("Food".into()),
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1353,7 +1377,7 @@ mod tests {
                     amount: 1.0,
                     date: "2024-01-01".into(),
                     category: Some(cat.into()),
-                    rule_pattern: None,
+    
                 },
             )
             .unwrap();
@@ -1403,7 +1427,7 @@ mod tests {
                 amount: 5.0,
                 date: "2024-01-01".into(),
                 category: Some("Coffee".into()),
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1441,7 +1465,7 @@ mod tests {
                 date: "2024-01-01".into(),
                 category: Some("Food".into()),
                 source: Some("Manual".into()),
-                rule_pattern: None,
+
 
             },
             BulkSaveExpense {
@@ -1450,7 +1474,7 @@ mod tests {
                 date: "2024-01-02".into(),
                 category: None,
                 source: None,
-                rule_pattern: None,
+
 
             },
         ];
@@ -1484,7 +1508,6 @@ mod tests {
             date: "nope".into(),
             category: None,
             source: None,
-            rule_pattern: None,
         }];
 
         let state: State<AppState> = app.state();
@@ -1541,7 +1564,7 @@ mod tests {
                 amount: 5.0,
                 date: "2024-06-01".into(),
                 category: Some("Drinks".into()),
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1572,7 +1595,7 @@ mod tests {
                 amount: 3.50,
                 date: "2024-01-01".into(),
                 category: None,
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1748,7 +1771,7 @@ mod tests {
                 amount: 85.0,
                 date: "2024-01-10".into(),
                 category: Some("Food".into()),
-                rule_pattern: None,
+
             },
         )
         .unwrap();
@@ -1781,7 +1804,7 @@ mod tests {
                     amount: 100.0,
                     date: date.clone(),
                     category: Some("Food".into()),
-                    rule_pattern: None,
+    
                 },
             )
             .unwrap();
@@ -1889,7 +1912,7 @@ mod tests {
                     amount: 10.0,
                     date: "2024-01-01".into(),
                     category: Some(cat.into()),
-                    rule_pattern: None,
+    
                 },
             )
             .unwrap();
@@ -1902,35 +1925,6 @@ mod tests {
         assert_eq!(food.expense_count, 2);
     }
 
-    // ── Add Expense with Rule Pattern ──
-
-    #[test]
-    fn add_expense_with_custom_rule_pattern() {
-        let app = app();
-        let state: State<AppState> = app.state();
-        add_expense(
-            state,
-            ExpenseInput {
-                title: "CARD*1234 Starbucks NYC".into(),
-
-                amount: 5.0,
-                date: "2024-01-01".into(),
-                category: Some("Coffee".into()),
-                rule_pattern: Some("Starbucks".into()),
-            },
-        )
-        .unwrap();
-
-        // The rule should match "Starbucks" not the full title
-        let state: State<AppState> = app.state();
-        let suggestion = suggest_category(state, "Starbucks Seattle".into()).unwrap();
-        assert_eq!(suggestion, Some("Coffee".to_string()));
-
-        // Full noisy title should also match (Starbucks is a substring)
-        let state: State<AppState> = app.state();
-        let suggestion = suggest_category(state, "Another Starbucks".into()).unwrap();
-        assert_eq!(suggestion, Some("Coffee".to_string()));
-    }
 }
 
 // ── App Entry ──
