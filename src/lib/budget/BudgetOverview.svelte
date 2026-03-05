@@ -80,6 +80,7 @@
     <button
       onclick={() => showDeleteBudgetModal = true}
       class="text-xs text-gray-600 hover:text-red-400 transition-colors"
+      aria-label="Delete budget"
     >
       Delete Budget
     </button>
@@ -108,7 +109,7 @@
             ? 'text-emerald-400'
             : 'text-red-400'}"
         >
-          {Math.abs(remaining).toFixed(2)}
+          {remaining >= 0 ? '+' : '−'}{Math.abs(remaining).toFixed(2)}
         </div>
       </div>
     </div>
@@ -139,11 +140,16 @@
                 {/if}
               </span>
             </div>
-            <div class="w-full bg-gray-800 rounded-full h-2.5">
-              <div
-                class="{barColor(cat.status)} h-2.5 rounded-full transition-all"
-                style="width: {barWidth(cat.spent, cat.budgeted)}%"
-              ></div>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 bg-gray-800 rounded-full h-2.5">
+                <div
+                  class="{barColor(cat.status)} h-2.5 rounded-full transition-all"
+                  style="width: {barWidth(cat.spent, cat.budgeted)}%"
+                ></div>
+              </div>
+              <span class="text-xs font-medium w-10 text-right {cat.status === 'over' ? 'text-red-400' : cat.status === 'approaching' ? 'text-amber-400' : 'text-emerald-400'}">
+                {cat.status === 'over' ? 'Over' : cat.status === 'approaching' ? '80%+' : 'OK'}
+              </span>
             </div>
           </div>
         {/each}

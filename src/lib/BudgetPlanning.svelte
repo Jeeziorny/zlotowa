@@ -124,6 +124,7 @@
           <button
             onclick={goPrev}
             disabled={currentIndex <= 0}
+            aria-label="Previous budget"
             class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
               {currentIndex <= 0
               ? 'text-gray-600 cursor-not-allowed'
@@ -137,6 +138,7 @@
           <button
             onclick={goNext}
             disabled={currentIndex >= allBudgets.length - 1}
+            aria-label="Next budget"
             class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
               {currentIndex >= allBudgets.length - 1
               ? 'text-gray-600 cursor-not-allowed'

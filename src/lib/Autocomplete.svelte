@@ -6,6 +6,7 @@
     onselect,
     class: className = "",
     inputClass = "",
+    maxlength = undefined,
   } = $props();
 
   let open = $state(false);
@@ -76,6 +77,7 @@
     onblur={handleBlur}
     onkeydown={handleKeydown}
     oninput={() => { open = true; highlighted = -1; }}
+    {maxlength}
     class={inputClass}
   />
   {#if open && filtered.length > 0}

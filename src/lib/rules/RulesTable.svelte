@@ -73,6 +73,7 @@
               <input
                 type="text"
                 bind:value={editPattern}
+                maxlength="500"
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
                        font-mono text-gray-200 focus:border-amber-500 focus:ring-1
                        focus:ring-amber-500 focus:outline-none"
@@ -82,6 +83,7 @@
               <Autocomplete
                 bind:value={editCategory}
                 options={categories}
+                maxlength={100}
                 class="w-full"
                 inputClass="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
                             text-gray-200 focus:border-amber-500 focus:ring-1

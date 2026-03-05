@@ -115,6 +115,7 @@
     <button
       onclick={onclear}
       class="text-gray-400 hover:text-gray-200 text-sm px-3 py-2 transition-colors"
+      aria-label="Clear all filters"
     >
       Clear filters
     </button>

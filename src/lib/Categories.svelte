@@ -21,6 +21,7 @@
   let editingIndex = $state(null);
   let editingName = $state("");
   let editSaving = $state(false);
+  let sortAnnouncement = $state("");
 
   // Delete modal
   let deleteTarget = $state(null);
@@ -63,6 +64,8 @@
       sortBy = col;
       sortAsc = col === "name";
     }
+    const colLabel = col === "name" ? "Name" : col === "expenses" ? "Expenses" : "Rules";
+    sortAnnouncement = `Sorted by ${colLabel}, ${sortAsc ? "ascending" : "descending"}`;
   }
 
   function sortIndicator(col) {
@@ -156,6 +159,7 @@
           type="text"
           bind:value={newName}
           placeholder="Category name"
+          maxlength="100"
           aria-label="New category name"
           onkeydown={(e) => e.key === "Enter" && handleCreate()}
           class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
@@ -220,6 +224,7 @@
             <th class="text-left px-4 py-3 cursor-pointer select-none hover:text-gray-200"
                 tabindex="0"
                 aria-sort={sortBy === "name" ? (sortAsc ? "ascending" : "descending") : "none"}
+                aria-label="Sort by Name"
                 onclick={() => toggleSort("name")}
                 onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("name"); } }}>
               Name{sortIndicator("name")}
@@ -227,6 +232,7 @@
             <th class="text-right px-4 py-3 cursor-pointer select-none hover:text-gray-200"
                 tabindex="0"
                 aria-sort={sortBy === "expenses" ? (sortAsc ? "ascending" : "descending") : "none"}
+                aria-label="Sort by Expenses"
                 onclick={() => toggleSort("expenses")}
                 onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("expenses"); } }}>
               Expenses{sortIndicator("expenses")}
@@ -234,6 +240,7 @@
             <th class="text-right px-4 py-3 cursor-pointer select-none hover:text-gray-200"
                 tabindex="0"
                 aria-sort={sortBy === "rules" ? (sortAsc ? "ascending" : "descending") : "none"}
+                aria-label="Sort by Rules"
                 onclick={() => toggleSort("rules")}
                 onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("rules"); } }}>
               Rules{sortIndicator("rules")}
@@ -250,6 +257,7 @@
                   <input
                     type="text"
                     bind:value={editingName}
+                    maxlength="100"
                     onkeydown={(e) => {
                       if (e.key === "Enter") saveEdit(cat.name);
                       if (e.key === "Escape") cancelEdit();
@@ -330,6 +338,9 @@
           {/each}
         </tbody>
       </table>
+      <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {sortAnnouncement}
+      </div>
     </div>
   {/if}
 </div>
@@ -389,6 +400,7 @@
         id="merge-target-name"
         type="text"
         bind:value={mergeTarget}
+        maxlength="100"
         onkeydown={(e) => e.key === "Enter" && confirmMerge()}
         class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2
                text-gray-100 text-sm focus:outline-none focus:border-amber-500 mb-4"

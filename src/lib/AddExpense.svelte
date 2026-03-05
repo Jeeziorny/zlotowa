@@ -117,10 +117,14 @@
           type="text"
           value={title}
           oninput={onTitleInput}
+          maxlength="200"
           placeholder="e.g. Grocery store"
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
                  text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"
         />
+        {#if title.length >= 150}
+          <span class="text-xs mt-1 block text-right {title.length >= 190 ? 'text-red-400' : title.length >= 175 ? 'text-amber-400' : 'text-gray-500'}">{title.length}/200</span>
+        {/if}
       </div>
 
       <div>
@@ -138,6 +142,7 @@
             id="rule-pattern"
             type="text"
             bind:value={rulePattern}
+            maxlength="500"
             placeholder="e.g. LIDL"
             class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
                    text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500 text-sm"
@@ -167,6 +172,7 @@
         <Autocomplete
           bind:value={category}
           options={allCategories}
+          maxlength={100}
           placeholder="e.g. Groceries"
           inputClass="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
                       text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500"

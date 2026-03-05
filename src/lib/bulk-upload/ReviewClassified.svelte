@@ -49,11 +49,11 @@
           {#if showSource && row.confidence != null}
             <span class="inline-flex items-center gap-1.5 shrink-0">
               {#if row.confidence >= 0.8}
-                <span class="px-2 py-0.5 rounded text-xs bg-emerald-900/50 text-emerald-400">High</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-emerald-900/50 text-emerald-400">✓ High</span>
               {:else if row.confidence >= 0.5}
-                <span class="px-2 py-0.5 rounded text-xs bg-yellow-900/50 text-yellow-400">Medium</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-yellow-900/50 text-yellow-400">~ Medium</span>
               {:else}
-                <span class="px-2 py-0.5 rounded text-xs bg-red-900/50 text-red-400">Low</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-red-900/50 text-red-400">! Low</span>
               {/if}
             </span>
           {/if}
@@ -73,6 +73,7 @@
           {:else}
             <Autocomplete
               options={allCategories}
+              maxlength={100}
               placeholder="Type category..."
               onselect={(cat) => selectCategory(origIndex, cat)}
               inputClass="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5

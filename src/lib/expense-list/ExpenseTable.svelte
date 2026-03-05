@@ -111,9 +111,13 @@
               <input
                 type="text"
                 bind:value={editTitle}
+                maxlength="200"
                 class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
                        text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
               />
+              {#if editTitle.length >= 150}
+                <span class="text-xs mt-0.5 block text-right {editTitle.length >= 190 ? 'text-red-400' : editTitle.length >= 175 ? 'text-amber-400' : 'text-gray-500'}">{editTitle.length}/200</span>
+              {/if}
             </td>
             <td class="px-4 py-2">
               <input
@@ -129,6 +133,7 @@
               <Autocomplete
                 bind:value={editCategory}
                 options={categories}
+                maxlength={100}
                 class="w-full"
                 inputClass="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm
                             text-gray-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
@@ -141,7 +146,7 @@
                   disabled={saving}
                   class="text-amber-400 hover:text-amber-300 disabled:opacity-50 p-1 transition-colors"
                   title="Save"
-                  aria-label="Save edit"
+                  aria-label="Save changes"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -151,7 +156,7 @@
                   onclick={cancelEdit}
                   class="text-gray-400 hover:text-gray-300 p-1 transition-colors"
                   title="Cancel"
-                  aria-label="Cancel edit"
+                  aria-label="Cancel editing"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -171,6 +176,7 @@
                 type="checkbox"
                 checked={selected.has(expense.id)}
                 onchange={() => onselect(expense.id)}
+                aria-label="Select expense"
                 class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
               />
             </td>
