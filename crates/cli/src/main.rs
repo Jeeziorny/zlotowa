@@ -252,7 +252,8 @@ fn cmd_bulk_insert(path: PathBuf) {
         vec![false; classified.len()]
     });
 
-    let mut results: Vec<(String, f64, String, Option<String>, Option<String>, bool)> = Vec::new();
+    type ClassifyRow = (String, f64, String, Option<String>, Option<String>, bool);
+    let mut results: Vec<ClassifyRow> = Vec::new();
     for ((expense, result), &is_dup) in classified.iter().zip(dup_flags.iter()) {
         let (cat, source) = match result {
             Some(cr) => (Some(cr.category.clone()), Some(cr.source.to_string())),

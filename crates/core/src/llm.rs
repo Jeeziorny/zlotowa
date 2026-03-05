@@ -43,17 +43,22 @@ pub struct LlmClassification {
     pub confidence: f64,
 }
 
+const DEFAULT_CATEGORIES: &[&str] = &[
+    "Groceries", "Transport", "Dining", "Entertainment",
+    "Shopping", "Housing", "Utilities", "Health", "Subscriptions",
+];
+
 /// Build the classification prompt for all providers.
 fn build_classification_prompt(expenses: &[ParsedExpense], existing_categories: &[String]) -> String {
-    let category_instruction = if existing_categories.is_empty() {
-        "No existing categories yet — suggest appropriate short category names.".to_string()
+    let cats: Vec<&str> = if existing_categories.is_empty() {
+        DEFAULT_CATEGORIES.to_vec()
     } else {
-        format!(
-            "Known categories: [{}]\n\
-             Choose from the known categories whenever possible. Only invent a new category if the expense genuinely doesn't fit ANY existing one.",
-            existing_categories.join(", ")
-        )
+        existing_categories.iter().map(|s| s.as_str()).collect()
     };
+    let category_instruction = format!(
+        "You MUST only use these categories: [{}]. Do not invent new categories.",
+        cats.join(", ")
+    );
 
     let mut expense_list = String::new();
     for (i, e) in expenses.iter().enumerate() {
@@ -632,18 +637,24 @@ mod tests {
     }
 
     #[test]
-    fn test_build_prompt_without_categories() {
+    fn test_build_prompt_without_categories_uses_defaults() {
         let expenses = sample_expenses();
         let prompt = build_classification_prompt(&expenses, &[]);
-        assert!(prompt.contains("No existing categories"));
+        // Should use default categories when none provided
+        for cat in DEFAULT_CATEGORIES {
+            assert!(prompt.contains(cat), "prompt should contain default category '{cat}'");
+        }
+        assert!(prompt.contains("MUST only use these categories"));
     }
 
     #[test]
-    fn test_build_prompt_constrains_invention() {
+    fn test_build_prompt_strict_closed_set() {
         let expenses = sample_expenses();
         let categories = vec!["Food".to_string()];
         let prompt = build_classification_prompt(&expenses, &categories);
-        assert!(prompt.contains("Only invent a new category"));
+        assert!(prompt.contains("MUST only use these categories"));
+        assert!(prompt.contains("Do not invent new categories"));
+        assert!(prompt.contains("Food"));
     }
 
     // ── Ollama endpoint parsing ──

@@ -347,7 +347,7 @@ fn classify_expenses(
         })
         .collect();
 
-    let (rules, llm_provider_name, llm_api_key, categories) = {
+    let (rules, llm_provider_name, llm_api_key, mut categories) = {
         let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
         let rules = db.get_all_rules().map_err(|e| e.to_string())?;
         let llm_provider_name = db.get_config("llm_provider").map_err(|e| e.to_string())?;
@@ -427,6 +427,9 @@ fn classify_expenses(
                                     if let Some(classification) = llm_result {
                                         let orig_idx = unclassified_indices[idx_offset + j];
                                         if let Some(row) = result.get_mut(orig_idx) {
+                                            if !categories.contains(&classification.category) {
+                                                categories.push(classification.category.clone());
+                                            }
                                             row.category = Some(classification.category);
                                             row.source = Some(ClassificationSource::Llm.to_string());
                                             row.confidence = Some(classification.confidence);
@@ -1520,14 +1523,14 @@ mod tests {
     #[test]
     fn preview_csv_happy_path() {
         let csv = "date,title,amount\n2024-01-01,Coffee,3.50\n2024-01-02,Bus,2.00\n";
-        let result = preview_csv(csv.into()).unwrap();
+        let result = preview_csv(csv.into(), None).unwrap();
         assert_eq!(result.parser_name, "CSV");
         assert!(!result.rows.is_empty());
     }
 
     #[test]
     fn preview_csv_unrecognized_format() {
-        let err = preview_csv("not a csv at all".into()).unwrap_err();
+        let err = preview_csv("not a csv at all".into(), None).unwrap_err();
         assert!(err.contains("Could not detect"));
     }
 
