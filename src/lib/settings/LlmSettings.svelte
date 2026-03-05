@@ -4,6 +4,8 @@
   import { addToast } from "../stores/toast.svelte.js";
   import { API_KEY_MASK_MIN_LENGTH, API_KEY_MASK_PREFIX, API_KEY_MASK_SUFFIX } from "../constants.js";
 
+  const PROVIDER_NAMES = { openai: "OpenAI", anthropic: "Anthropic", ollama: "Ollama (local)" };
+
   let provider = $state("openai");
   let apiKey = $state("");
   let message = $state("");
@@ -85,11 +87,21 @@
     }
   }
 
-  function maskKey(key) {
-    if (!key || key.length < API_KEY_MASK_MIN_LENGTH) return key;
-    return key.slice(0, API_KEY_MASK_PREFIX) + "..." + key.slice(-API_KEY_MASK_SUFFIX);
+  function handleKeydown(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      save();
+    }
   }
 </script>
+
+<!-- Privacy notice -->
+<div class="bg-yellow-900/30 rounded-xl p-4 border border-yellow-800/50 flex gap-3 items-start">
+  <span class="text-yellow-400 text-lg leading-none mt-0.5">!</span>
+  <p class="text-sm text-yellow-300/90">
+    When LLM classification is enabled, expense titles and amounts are sent to your configured provider for categorization. No other financial data leaves this device.
+  </p>
+</div>
 
 <!-- LLM Configuration -->
 <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
@@ -99,7 +111,8 @@
     This is optional — you can always classify manually.
   </p>
 
-  <div class="space-y-4">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <form onsubmit={(e) => { e.preventDefault(); save(); }} onkeydown={handleKeydown} class="space-y-4">
     <div>
       <label class="block text-sm text-gray-400 mb-1" for="provider">Provider</label>
       <select
@@ -108,9 +121,9 @@
         class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
                text-gray-100 focus:outline-none focus:border-amber-500"
       >
-        <option value="openai">OpenAI</option>
-        <option value="anthropic">Anthropic</option>
-        <option value="ollama">Ollama (local)</option>
+        {#each Object.entries(PROVIDER_NAMES) as [value, label]}
+          <option {value}>{label}</option>
+        {/each}
       </select>
     </div>
 
@@ -142,7 +155,7 @@
 
     <div class="flex gap-3">
       <button
-        onclick={save}
+        type="submit"
         disabled={saving || testing}
         class="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950
                font-medium py-2.5 rounded-lg transition-colors"
@@ -155,6 +168,7 @@
         {/if}
       </button>
       <button
+        type="button"
         onclick={testConnection}
         disabled={saving || testing}
         class="px-4 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300
@@ -169,6 +183,7 @@
       </button>
       {#if isConfigured}
         <button
+          type="button"
           onclick={clear}
           class="px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium
                  py-2.5 rounded-lg transition-colors"
@@ -187,30 +202,5 @@
         {message}
       </div>
     {/if}
-  </div>
+  </form>
 </div>
-
-{#if isConfigured}
-  <div class="bg-yellow-900/30 rounded-xl p-4 border border-yellow-800/50 flex gap-3 items-start">
-    <span class="text-yellow-400 text-lg leading-none mt-0.5">!</span>
-    <p class="text-sm text-yellow-300/90">
-      When LLM classification is enabled, expense titles and amounts are sent to
-      <strong class="text-yellow-200">{provider === "openai" ? "OpenAI" : provider === "anthropic" ? "Anthropic" : "your Ollama instance"}</strong>
-      for categorization. No other financial data leaves this device.
-    </p>
-  </div>
-
-  <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-    <h3 class="text-lg font-semibold mb-2">Current Configuration</h3>
-    <div class="text-sm space-y-1">
-      <div class="flex justify-between">
-        <span class="text-gray-400">Provider</span>
-        <span class="text-gray-200">{provider}</span>
-      </div>
-      <div class="flex justify-between">
-        <span class="text-gray-400">Key</span>
-        <span class="text-gray-200 font-mono text-xs">{maskKey(apiKey)}</span>
-      </div>
-    </div>
-  </div>
-{/if}

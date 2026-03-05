@@ -1,12 +1,11 @@
 <script>
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { addToast } from "../stores/toast.svelte.js";
   import EmptyState from "../EmptyState.svelte";
 
   let batches = $state([]);
   let confirmingBatchId = $state(null);
-  let batchMessage = $state("");
-  let batchMessageType = $state("");
 
   onMount(async () => {
     try {
@@ -31,17 +30,14 @@
     }
   }
 
-  async function confirmDeleteBatch(batchId) {
-    batchMessage = "";
+  async function confirmDeleteBatch(batchId, count) {
     try {
       const deleted = await invoke("delete_batch", { batchId });
       batches = batches.filter((b) => b.id !== batchId);
       confirmingBatchId = null;
-      batchMessage = `Deleted ${deleted} expense${deleted !== 1 ? "s" : ""}.`;
-      batchMessageType = "success";
+      addToast(`Deleted ${deleted} expense${deleted !== 1 ? "s" : ""}.`, "success");
     } catch (err) {
-      batchMessage = `Error: ${err}`;
-      batchMessageType = "error";
+      addToast(`Failed to delete batch: ${err}`, "error");
     }
   }
 </script>
@@ -50,13 +46,13 @@
 <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
   <h3 class="text-lg font-semibold mb-1">Upload History</h3>
   <p class="text-sm text-gray-400 mb-4">
-    View past bulk uploads. Undo an upload to delete all its expenses.
+    View past bulk uploads. Delete an upload to remove all its expenses.
   </p>
 
   {#if batches.length === 0}
     <EmptyState title="No bulk uploads yet." variant="widget" />
   {:else}
-    <div class="space-y-3">
+    <div class="space-y-3 max-h-80 overflow-y-auto pr-1">
       {#each batches as batch}
         <div class="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 border border-gray-700">
           <div class="min-w-0 flex-1">
@@ -72,7 +68,7 @@
               <div class="flex items-center gap-2">
                 <span class="text-xs text-red-400">Delete {batch.expense_count} expenses?</span>
                 <button
-                  onclick={() => confirmDeleteBatch(batch.id)}
+                  onclick={() => confirmDeleteBatch(batch.id, batch.expense_count)}
                   class="px-2 py-1 rounded text-xs bg-red-900/50 text-red-400
                          hover:bg-red-800/50 transition-colors"
                 >
@@ -92,22 +88,12 @@
                 class="px-3 py-1 rounded text-xs bg-gray-700 text-gray-400
                        hover:bg-red-900/50 hover:text-red-400 transition-colors"
               >
-                Undo
+                Delete
               </button>
             {/if}
           </div>
         </div>
       {/each}
-    </div>
-  {/if}
-
-  {#if batchMessage}
-    <div
-      class="text-sm px-4 py-2 rounded-lg mt-3 {batchMessageType === 'success'
-        ? 'bg-emerald-900/50 text-emerald-400'
-        : 'bg-red-900/50 text-red-400'}"
-    >
-      {batchMessage}
     </div>
   {/if}
 </div>

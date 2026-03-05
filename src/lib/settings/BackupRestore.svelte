@@ -193,18 +193,19 @@
         </div>
       </div>
 
-      <div class="bg-red-900/20 border border-red-800/50 rounded-lg p-4">
-        <p class="text-red-300 font-medium text-sm">This will replace ALL current data</p>
-        <p class="text-red-400/80 text-xs mt-1">
-          This action cannot be undone. Your current expenses, rules, categories, and budgets will be permanently replaced.
+      <div class="bg-amber-900/20 border border-amber-800/50 rounded-lg p-4">
+        <p class="text-amber-300 font-medium text-sm">Restore merges data into your database</p>
+        <p class="text-amber-400/80 text-xs mt-1">
+          Existing data is preserved — duplicate expenses are skipped and rules are updated in place.
+          Creating a backup first is still recommended.
         </p>
       </div>
 
       <button
         onclick={backupFirst}
         disabled={backingUp}
-        class="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300
-               text-sm py-2 rounded-lg transition-colors"
+        class="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950
+               font-medium text-sm py-2.5 rounded-lg transition-colors"
       >
         {backingUp ? "Backing up..." : "Back up current data first"}
       </button>
@@ -215,7 +216,7 @@
           bind:checked={confirmed}
           class="rounded bg-gray-800 border-gray-600 text-amber-500 focus:ring-amber-500"
         />
-        <span class="text-sm text-gray-300">I understand this will replace all my data</span>
+        <span class="text-sm text-gray-300">I want to proceed with the restore</span>
       </label>
 
       <div class="flex gap-3">
