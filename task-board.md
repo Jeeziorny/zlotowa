@@ -4,12 +4,18 @@
 
 | # | Task |
 |---|------|
-| 85 | Settings Page Redesign — Grouped Tabs |
+| 87 | Widget — Daily Spending |
+| 89 | Widget — Spending by Day of Week |
+| 90 | Widget — Month-over-Month Comparison |
+| 91 | Open Source Files & Package Metadata |
 
 ## DONE
 
 | # | Task | Summary |
+| 92 | CI Pipeline & GitHub Issue Templates | `.github/workflows/ci.yml` — Linux + macOS matrix, clippy (deny warnings), cargo test, frontend build. Bug report + feature request issue templates. Fixed pre-existing clippy warning (type_complexity in CLI) and 2 broken test calls (missing delimiter param from task 84). |
 |---|------|---------|
+| 88 | Widget — Category Trend | Stacked bar chart (top 5 categories + "Other") over time with DATE_RANGE_PRESETS pills, color legend, tooltips showing category amount and % of month. |
+| 85 | Settings Page Redesign — Grouped Tabs | Tabbed layout (General / LLM / Data) replaces flat card stack. Widened to max-w-2xl. Rules toggle demoted to inline preference. LLM: removed redundant config card, privacy warning always visible, Enter-to-submit, display provider names. Upload History: "Undo" → "Delete", scroll-constrained list, toast notifications. Backup: restore warning corrected to describe merge behavior, "backup first" promoted to primary. |
 | 86 | Sidebar Button — Promote Import Over Single Add | Sidebar button renamed "+ Add" → "+ Import", targets bulk upload. ExpenseList buttons swapped: "+ Import CSV" is primary (amber), "+ Add manually" is secondary (gray). `expenses:bulk` route added to App.svelte. Keyboard shortcuts reordered: Import first. |
 | 84 | CSV Delimiter Chooser | Fixed `detect_delimiter` to use consistency ratio (>60%) instead of exact unanimity, defaults to `,` on tie. Added `preview_rows_with_delimiter`/`parse_with_delimiter` methods. Tauri commands accept optional `delimiter` param. FileInput shows delimiter picker on auto-detect failure. |
 | 83 | GitHub Releases Distribution | `.github/workflows/release.yml` — triggers on `v*` tags, builds macOS (ARM+Intel), Linux, Windows via `tauri-action`, uploads artifacts to draft GitHub Release. `.gitignore` updated to exclude personal files (PDFs, CSVs, etc.). |

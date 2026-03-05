@@ -5,6 +5,8 @@ import MonthlyTrend from "./MonthlyTrend.svelte";
 import MostFrequent from "./MostFrequent.svelte";
 import BudgetStatus from "./BudgetStatus.svelte";
 import KeywordTracker from "./KeywordTracker.svelte";
+import DailySpending from "./DailySpending.svelte";
+import CategoryTrend from "./CategoryTrend.svelte";
 
 /**
  * Widget registry.
@@ -61,6 +63,20 @@ export const widgets = [
     component: BudgetStatus,
   },
   {
+    id: "daily-spending",
+    name: "Daily Spending",
+    description: "Day-by-day spending for a month with average line.",
+    size: "half",
+    component: DailySpending,
+  },
+  {
+    id: "category-trend",
+    name: "Category Trend",
+    description: "Stacked bar chart showing per-category spending over time.",
+    size: "half",
+    component: CategoryTrend,
+  },
+  {
     id: "keyword-tracker",
     name: "Keyword Tracker",
     description: "Monthly spending for expenses matching a keyword.",
@@ -76,4 +92,5 @@ export const defaultWidgetInstances = [
   { widgetId: "total-stats", instanceId: "total-stats" },
   { widgetId: "spending-by-category", instanceId: "spending-by-category" },
   { widgetId: "biggest-expense", instanceId: "biggest-expense" },
+  { widgetId: "daily-spending", instanceId: "daily-spending" },
 ];
