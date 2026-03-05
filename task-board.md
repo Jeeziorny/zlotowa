@@ -5,12 +5,12 @@
 | # | Task |
 |---|------|
 | 85 | Settings Page Redesign — Grouped Tabs |
-| 86 | Sidebar Button — Promote Import Over Single Add |
 
 ## DONE
 
 | # | Task | Summary |
 |---|------|---------|
+| 86 | Sidebar Button — Promote Import Over Single Add | Sidebar button renamed "+ Add" → "+ Import", targets bulk upload. ExpenseList buttons swapped: "+ Import CSV" is primary (amber), "+ Add manually" is secondary (gray). `expenses:bulk` route added to App.svelte. Keyboard shortcuts reordered: Import first. |
 | 84 | CSV Delimiter Chooser | Fixed `detect_delimiter` to use consistency ratio (>60%) instead of exact unanimity, defaults to `,` on tie. Added `preview_rows_with_delimiter`/`parse_with_delimiter` methods. Tauri commands accept optional `delimiter` param. FileInput shows delimiter picker on auto-detect failure. |
 | 83 | GitHub Releases Distribution | `.github/workflows/release.yml` — triggers on `v*` tags, builds macOS (ARM+Intel), Linux, Windows via `tauri-action`, uploads artifacts to draft GitHub Release. `.gitignore` updated to exclude personal files (PDFs, CSVs, etc.). |
 | 50 | Minor Polish | Shared `constants.js` (debounce, page sizes, trend window, top-N, API key mask thresholds). Sidebar version sourced from `package.json`. IPC DTOs + `AppState` narrowed to `pub(crate)`. Date staleness already fixed (items 7-8). LLM providers already private (item 11). |

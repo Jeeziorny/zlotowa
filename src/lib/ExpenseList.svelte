@@ -220,17 +220,17 @@
       {/if}
       <button
         onclick={() => subView = "add"}
-        class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg
-               text-sm font-medium transition-colors"
+        class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg
+               text-sm font-medium transition-colors border border-gray-700"
       >
-        + Add
+        + Add manually
       </button>
       <button
         onclick={() => subView = "bulk"}
-        class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg
-               text-sm font-medium transition-colors border border-gray-700"
+        class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg
+               text-sm font-medium transition-colors"
       >
-        Upload CSV
+        + Import CSV
       </button>
     </div>
   </div>

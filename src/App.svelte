@@ -115,6 +115,18 @@
       navigateTo("expenses", "add");
       return;
     }
+    if (page === "expenses:bulk") {
+      navigateTo("expenses", "bulk");
+      return;
+    }
+    if (page === "expenses" && currentPage === "expenses") {
+      if (expensesBulkDirty) {
+        pendingNav = page;
+      } else {
+        expenseSubView = "list";
+      }
+      return;
+    }
     if (page === currentPage) return;
     if (currentPage === "expenses" && expensesBulkDirty) {
       pendingNav = page;

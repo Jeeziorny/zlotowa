@@ -115,7 +115,7 @@
             LLM confidence
             <span class="relative group">
               <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-600 text-[10px] text-gray-500 cursor-help">i</span>
-              <span class="absolute bottom-full right-0 mb-1.5 w-56 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-300 leading-relaxed shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-40">
+              <span class="absolute top-full right-0 mt-1.5 w-56 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-300 leading-relaxed shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
                 How confident the AI is in its category pick.
                 <strong class="text-emerald-400">High</strong> — clear, unambiguous title.
                 <strong class="text-yellow-400">Medium</strong> — reasonable guess, worth checking.

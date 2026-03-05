@@ -63,10 +63,10 @@
 
   <div class="px-3 mb-2">
     <button
-      onclick={() => onnavigate("expenses:add")}
+      onclick={() => onnavigate("expenses:bulk")}
       class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 rounded-lg py-2 text-sm font-medium transition-colors"
     >
-      + Add
+      + Import
     </button>
   </div>
 

@@ -39,15 +39,39 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Indeterminate progress bar animation */
-@keyframes progress-indeterminate {
-  0% { transform: translateX(-100%); width: 40%; }
-  50% { width: 60%; }
-  100% { transform: translateX(250%); width: 40%; }
+/* Coin bounce animation for classification overlay */
+@keyframes coin-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(-28px) rotate(15deg); }
+  50% { transform: translateY(-32px) rotate(-5deg); }
+  70% { transform: translateY(-28px) rotate(10deg); }
 }
 
-.animate-progress {
-  animation: progress-indeterminate 1.8s ease-in-out infinite;
+.coin-bounce {
+  animation: coin-bounce 1.4s ease-in-out infinite;
+}
+
+@keyframes coin-shadow-pulse {
+  0%, 100% { transform: scaleX(1); opacity: 0.3; }
+  50% { transform: scaleX(0.5); opacity: 0.1; }
+}
+
+.coin-shadow {
+  width: 40px;
+  height: 6px;
+  border-radius: 50%;
+  background: theme(--color-amber-500);
+  margin-top: -12px;
+  animation: coin-shadow-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes coin-dot-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.coin-dot {
+  animation: coin-dot-pulse 1.2s ease-in-out infinite;
 }
 
 /* Screen reader only — visually hidden but accessible */

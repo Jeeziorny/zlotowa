@@ -6,8 +6,8 @@
   let mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
   let shortcuts = [
-    { keys: `${mod}N`, label: "Add expense" },
-    { keys: `${mod}U`, label: "Bulk upload" },
+    { keys: `${mod}U`, label: "Import CSV" },
+    { keys: `${mod}N`, label: "Add manually" },
     { keys: `${mod}K`, label: "Search expenses" },
     { keys: `${mod}1`, label: "Dashboard" },
     { keys: `${mod}2`, label: "Expenses" },

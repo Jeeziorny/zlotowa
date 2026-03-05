@@ -24,6 +24,30 @@
   let parserName = $state("");
   let llmWarning = $state("");
   let classifying = $state(false);
+  let classifyQuip = $state("");
+  let classifyQuipInterval = $state(null);
+  const quips = [
+    "Shaking the coin jar...",
+    "Counting every penny...",
+    "Asking the AI nicely...",
+    "Bribing the classifier...",
+    "Sorting receipts by vibe...",
+    "Teaching AI about your spending habits...",
+    "Pretending to understand your finances...",
+    "Consulting the oracle of expenses...",
+    "Making cents of it all...",
+    "Running the numbers... literally...",
+  ];
+  function startQuips() {
+    classifyQuip = quips[Math.floor(Math.random() * quips.length)];
+    classifyQuipInterval = setInterval(() => {
+      classifyQuip = quips[Math.floor(Math.random() * quips.length)];
+    }, 2800);
+  }
+  function stopQuips() {
+    if (classifyQuipInterval) clearInterval(classifyQuipInterval);
+    classifyQuipInterval = null;
+  }
   let parsedRows = $state([]);
   let classifiedRows = $state([]);
   let allCategories = $state([]);
@@ -110,6 +134,7 @@
   async function handleCleanupDone() {
     error = "";
     classifying = true;
+    startQuips();
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       const rows = await invoke("classify_expenses", {
@@ -127,6 +152,7 @@
       error = `Classification failed: ${err}`;
     } finally {
       classifying = false;
+      stopQuips();
     }
   }
 
@@ -174,12 +200,24 @@
 
 {#if classifying}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-10 flex flex-col items-center gap-4 shadow-2xl max-w-sm w-full mx-4">
-      <div class="w-10 h-10 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div>
-      <p class="text-lg font-semibold text-gray-100">Classifying expenses...</p>
-      <p class="text-sm text-gray-400">{parsedRows.length} expenses — matching rules, then calling AI for the rest</p>
-      <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-        <div class="h-full bg-amber-500 rounded-full animate-progress"></div>
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-10 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4">
+      <div class="coin-bounce">
+        <svg class="w-16 h-16" version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+          <defs>
+            <image width="26" height="26" id="coin-img1" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAaCAMAAACelLz8AAAAAXNSR0IB2cksfwAAADlQTFRF8Y8G8Y8GAAAAAAAAAAAAAAAA/+yO8Y8GAAAA/+yO8Y8G8ZAH8Y8G/+yN8ZEK+cNS8Y8G8Y8G8Y8GaKutPwAAABN0Uk5TAP9w10DThHFm/9v/mf//WzpoLCJ55BIAAAB+SURBVHicrdLZCoAgEAXQri0QEdX/f6QEFUHLZFZommLRPLjMUQdkEJ2BaxGRmXEQtITa+QlaWjGFE1udFC863Z9LZvWkQenkoAwYH0gUpRyDnK1boJz1YoRFKLoSaFG1JsmzqDkabtFeA/Rcy/wqH/3w8y/oW2+oxBEBfbgBN0c9JXwDi5AAAAAASUVORK5CYII="/>
+            <image width="22" height="22" id="coin-img2" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWBAMAAAA2mnEIAAAAAXNSR0IB2cksfwAAABJQTFRF/+yO/+yO8pUP8ZIK8ZAH8ZILecShyQAAAAZ0Uk5TAP//////enng/gAAAEtJREFUeJxjZGBgEARihvcMDIwobDALzCOKDWcC9eJhv2dk5H/PKAAR/8Bkd4ABwv7P+F7wA5T9QcD+IIz9npGfEa4em5mkuhOHfwFD6RjBvhO95AAAAABJRU5ErkJggg=="/>
+          </defs>
+          <use href="#coin-img1" x="3" y="3"/>
+          <use href="#coin-img2" x="5" y="5"/>
+        </svg>
+      </div>
+      <div class="coin-shadow"></div>
+      <p class="text-lg font-semibold text-gray-100">Classifying {parsedRows.length} expenses</p>
+      <p class="text-sm text-gray-400 h-5 transition-opacity duration-300">{classifyQuip}</p>
+      <div class="flex gap-1.5">
+        <div class="w-2 h-2 rounded-full bg-amber-500 coin-dot" style="animation-delay: 0s"></div>
+        <div class="w-2 h-2 rounded-full bg-amber-500 coin-dot" style="animation-delay: 0.2s"></div>
+        <div class="w-2 h-2 rounded-full bg-amber-500 coin-dot" style="animation-delay: 0.4s"></div>
       </div>
     </div>
   </div>
