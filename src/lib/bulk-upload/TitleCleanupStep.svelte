@@ -4,6 +4,10 @@
 
   let { parsedRows = $bindable(), onback, onnext } = $props();
 
+  // Mode: "findReplace" or "extract"
+  let mode = $state("findReplace");
+  let showHelp = $state(false);
+
   // Find-and-replace inputs
   let findText = $state("");
   let replaceText = $state("");
@@ -69,18 +73,54 @@
     return count;
   }
 
+  function applyExtract(find, regex) {
+    applyError = "";
+    if (!find) {
+      applyError = "Field cannot be empty";
+      return 0;
+    }
+
+    let re;
+    try {
+      re = regex ? new RegExp(find) : new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    } catch (e) {
+      applyError = `Invalid regex: ${e.message}`;
+      return 0;
+    }
+
+    let count = 0;
+    for (let i = 0; i < parsedRows.length; i++) {
+      const current = parsedRows[i].title;
+      const match = current.match(re);
+      if (match) {
+        const extracted = normalizeWhitespace(match[0]);
+        if (extracted !== current) {
+          parsedRows[i] = { ...parsedRows[i], title: extracted };
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
   function handleApply() {
-    const count = applyFindReplace(findText, replaceText, isRegex);
+    let count;
+    if (mode === "extract") {
+      count = applyExtract(findText, isRegex);
+    } else {
+      count = applyFindReplace(findText, replaceText, isRegex);
+    }
     if (applyError) return;
     lastApplyCount = count;
-    appliedOps = [...appliedOps, { find: findText, replace: replaceText, is_regex: isRegex }];
+    appliedOps = [...appliedOps, { find: findText, replace: replaceText, is_regex: isRegex, mode }];
     findText = "";
     replaceText = "";
   }
 
   function handleRecentClick(pair) {
+    mode = pair.mode || "findReplace";
     findText = pair.find;
-    replaceText = pair.replace;
+    replaceText = pair.replace || "";
     isRegex = pair.is_regex;
   }
 
@@ -89,11 +129,16 @@
     lastApplyCount = null;
     let totalCount = 0;
     for (const pair of recentCleanups) {
-      const count = applyFindReplace(pair.find, pair.replace, pair.is_regex);
+      let count;
+      if (pair.mode === "extract") {
+        count = applyExtract(pair.find, pair.is_regex);
+      } else {
+        count = applyFindReplace(pair.find, pair.replace, pair.is_regex);
+      }
       if (applyError) return;
       totalCount += count;
       if (count > 0) {
-        appliedOps = [...appliedOps, { find: pair.find, replace: pair.replace, is_regex: pair.is_regex }];
+        appliedOps = [...appliedOps, { find: pair.find, replace: pair.replace, is_regex: pair.is_regex, mode: pair.mode || "findReplace" }];
       }
     }
     lastApplyCount = totalCount;
@@ -116,7 +161,7 @@
         const seen = new Set();
         const merged = [];
         for (const op of [...appliedOps.reverse(), ...recentCleanups]) {
-          const key = JSON.stringify([op.find, op.replace, op.is_regex]);
+          const key = JSON.stringify([op.find, op.replace, op.is_regex, op.mode || "findReplace"]);
           if (!seen.has(key)) {
             seen.add(key);
             merged.push(op);
@@ -136,33 +181,86 @@
 </script>
 
 <div>
-  <!-- Find-and-replace bar -->
+  <!-- Mode toggle + help -->
   <div class="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex rounded-lg bg-gray-800 p-0.5">
+        <button
+          onclick={() => mode = "findReplace"}
+          class="px-3 py-1 rounded-md text-sm font-medium transition-colors
+                 {mode === 'findReplace' ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'}"
+        >
+          Find & Replace
+        </button>
+        <button
+          onclick={() => mode = "extract"}
+          class="px-3 py-1 rounded-md text-sm font-medium transition-colors
+                 {mode === 'extract' ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'}"
+        >
+          Extract
+        </button>
+      </div>
+      <button
+        onclick={() => showHelp = !showHelp}
+        class="w-6 h-6 rounded-full border text-xs font-bold transition-colors
+               {showHelp ? 'border-amber-500 text-amber-400' : 'border-gray-600 text-gray-500 hover:border-gray-400 hover:text-gray-300'}"
+        title="How does this work?"
+      >?</button>
+    </div>
+
+    {#if showHelp}
+      <div class="mb-3 bg-gray-800 rounded-lg border border-gray-700 p-3 text-sm text-gray-300 space-y-3">
+        <div>
+          <p class="font-medium text-gray-200 mb-1">Find & Replace</p>
+          <p class="text-gray-400 mb-1.5">Finds text in titles and replaces it. Leave "Replace" empty to remove the matched text.</p>
+          <div class="font-mono text-xs bg-gray-900 rounded px-2 py-1.5 space-y-0.5">
+            <p><span class="text-gray-500">Before:</span> Payment LIDL 18,99PLN</p>
+            <p><span class="text-gray-500">Find:</span> Payment <span class="text-gray-600">→</span> <span class="text-gray-500">Replace:</span> <span class="text-gray-600 italic">(empty)</span></p>
+            <p><span class="text-gray-500">After:</span> <span class="text-emerald-400">LIDL 18,99PLN</span></p>
+          </div>
+        </div>
+        <div>
+          <p class="font-medium text-gray-200 mb-1">Extract</p>
+          <p class="text-gray-400 mb-1.5">Keeps only the matched text, removing everything else. Titles without a match are left unchanged.</p>
+          <div class="font-mono text-xs bg-gray-900 rounded px-2 py-1.5 space-y-0.5">
+            <p><span class="text-gray-500">Before:</span> Payment twoja stara LIDL zaplacono 18,99PLN</p>
+            <p><span class="text-gray-500">Keep only:</span> LIDL</p>
+            <p><span class="text-gray-500">After:</span> <span class="text-emerald-400">LIDL</span></p>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Input fields -->
     <div class="flex items-end gap-3 flex-wrap">
       <div class="flex-1 min-w-48">
-        <label for="cleanup-find" class="block text-xs text-gray-400 mb-1">Find</label>
+        <label for="cleanup-find" class="block text-xs text-gray-400 mb-1">
+          {mode === "extract" ? "Keep only" : "Find"}
+        </label>
         <input
           id="cleanup-find"
           type="text"
           bind:value={findText}
-          placeholder="Text to find..."
+          placeholder={mode === "extract" ? "Text to keep (e.g. LIDL)..." : "Text to find..."}
           class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
                  text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
           onkeydown={(e) => e.key === "Enter" && handleApply()}
         />
       </div>
-      <div class="flex-1 min-w-48">
-        <label for="cleanup-replace" class="block text-xs text-gray-400 mb-1">Replace</label>
-        <input
-          id="cleanup-replace"
-          type="text"
-          bind:value={replaceText}
-          placeholder="Leave empty to remove"
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
-                 text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
-          onkeydown={(e) => e.key === "Enter" && handleApply()}
-        />
-      </div>
+      {#if mode === "findReplace"}
+        <div class="flex-1 min-w-48">
+          <label for="cleanup-replace" class="block text-xs text-gray-400 mb-1">Replace</label>
+          <input
+            id="cleanup-replace"
+            type="text"
+            bind:value={replaceText}
+            placeholder="Leave empty to remove"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
+                   text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
+            onkeydown={(e) => e.key === "Enter" && handleApply()}
+          />
+        </div>
+      {/if}
       <label class="flex items-center gap-1.5 text-sm text-gray-400 cursor-pointer pb-2">
         <input type="checkbox" bind:checked={isRegex}
           class="accent-amber-500" />
@@ -181,7 +279,9 @@
       <p class="mt-2 text-sm text-red-400">{applyError}</p>
     {/if}
     {#if lastApplyCount !== null && !applyError}
-      <p class="mt-2 text-sm text-emerald-400">Replaced in {lastApplyCount} title{lastApplyCount !== 1 ? "s" : ""}</p>
+      <p class="mt-2 text-sm text-emerald-400">
+        {mode === "extract" ? "Extracted" : "Replaced"} in {lastApplyCount} title{lastApplyCount !== 1 ? "s" : ""}
+      </p>
     {/if}
   </div>
 
@@ -206,9 +306,14 @@
               class="w-full text-left px-4 py-2.5 hover:bg-gray-800/50 transition-colors
                      flex items-center gap-2 text-sm"
             >
-              <span class="font-mono text-gray-300">{pair.find}</span>
-              <span class="text-gray-600">&rarr;</span>
-              <span class="font-mono text-gray-400">{pair.replace || "(remove)"}</span>
+              {#if pair.mode === "extract"}
+                <span class="text-xs bg-gray-800 text-amber-500/70 px-1.5 py-0.5 rounded">extract</span>
+                <span class="font-mono text-gray-300">{pair.find}</span>
+              {:else}
+                <span class="font-mono text-gray-300">{pair.find}</span>
+                <span class="text-gray-600">&rarr;</span>
+                <span class="font-mono text-gray-400">{pair.replace || "(remove)"}</span>
+              {/if}
               {#if pair.is_regex}
                 <span class="text-xs bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">regex</span>
               {/if}

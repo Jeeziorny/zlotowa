@@ -7,6 +7,8 @@ import BudgetStatus from "./BudgetStatus.svelte";
 import KeywordTracker from "./KeywordTracker.svelte";
 import DailySpending from "./DailySpending.svelte";
 import CategoryTrend from "./CategoryTrend.svelte";
+import DayOfWeek from "./DayOfWeek.svelte";
+import MonthOverMonth from "./MonthOverMonth.svelte";
 
 /**
  * Widget registry.
@@ -75,6 +77,20 @@ export const widgets = [
     description: "Stacked bar chart showing per-category spending over time.",
     size: "half",
     component: CategoryTrend,
+  },
+  {
+    id: "day-of-week",
+    name: "Day of Week",
+    description: "Aggregate spending per weekday to reveal habitual patterns.",
+    size: "half",
+    component: DayOfWeek,
+  },
+  {
+    id: "month-over-month",
+    name: "Month over Month",
+    description: "Compare spending by category between current and previous month.",
+    size: "half",
+    component: MonthOverMonth,
   },
   {
     id: "keyword-tracker",
