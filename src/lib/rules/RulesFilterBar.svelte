@@ -9,7 +9,7 @@
     onclear,
   } = $props();
 
-  let debounceTimer = $state(null);
+  let debounceTimer = null;
 
   function handleSearchInput(e) {
     const value = e.target.value;

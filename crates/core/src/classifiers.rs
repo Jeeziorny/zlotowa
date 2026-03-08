@@ -169,8 +169,8 @@ mod tests {
         let classifier = RegexClassifier::from_rules(&rules);
 
         let result = classifier.classify(&parsed("coffee shop")).unwrap().unwrap();
-        // "shop" matches first since rules are iterated in order
-        assert_eq!(result.category, "Shopping");
+        // "coffee shop" is longer/more specific, so it wins over "shop"
+        assert_eq!(result.category, "Coffee");
     }
 
     #[test]

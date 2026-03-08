@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { MAX_RECENT_CLEANUPS } from "../constants.js";
 
   let { parsedRows = $bindable(), onback, onnext } = $props();
 
@@ -167,7 +168,7 @@
             merged.push(op);
           }
         }
-        const capped = merged.slice(0, 20);
+        const capped = merged.slice(0, MAX_RECENT_CLEANUPS);
         await invoke("save_config", { key: "recent_title_cleanups", value: JSON.stringify(capped) });
       } catch { /* best-effort */ }
     }

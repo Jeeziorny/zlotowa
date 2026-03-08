@@ -6,6 +6,7 @@
   import ReviewClassified from "./bulk-upload/ReviewClassified.svelte";
   import ReviewRules from "./bulk-upload/ReviewRules.svelte";
   import BulkDone from "./bulk-upload/BulkDone.svelte";
+  import { QUIP_INTERVAL_MS } from "./constants.js";
 
   let { ondirtychange = () => {} } = $props();
 
@@ -43,7 +44,7 @@
     classifyQuip = quips[Math.floor(Math.random() * quips.length)];
     classifyQuipInterval = setInterval(() => {
       classifyQuip = quips[Math.floor(Math.random() * quips.length)];
-    }, 2800);
+    }, QUIP_INTERVAL_MS);
   }
   function stopQuips() {
     if (classifyQuipInterval) clearInterval(classifyQuipInterval);

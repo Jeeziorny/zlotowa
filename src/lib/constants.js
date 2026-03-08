@@ -17,3 +17,6 @@ export const DATE_RANGE_PRESETS = [
 export const API_KEY_MASK_MIN_LENGTH = 8;
 export const API_KEY_MASK_PREFIX = 4;
 export const API_KEY_MASK_SUFFIX = 4;
+
+export const QUIP_INTERVAL_MS = 2800;
+export const MAX_RECENT_CLEANUPS = 20;

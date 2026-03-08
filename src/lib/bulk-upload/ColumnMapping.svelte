@@ -184,8 +184,7 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="space-y-6" onclick={(e) => { if (!e.target.closest('[data-popover]')) activePopover = null; }}>
+<div class="space-y-6" role="presentation" onclick={(e) => { if (!e.target.closest('[data-popover]')) activePopover = null; }}>
   <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
     <h3 class="text-lg font-semibold mb-1">
       Detected format: {parserName}

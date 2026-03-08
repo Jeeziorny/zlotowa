@@ -2,11 +2,10 @@
   import { VisXYContainer, VisArea, VisLine, VisAxis, VisTooltip } from "@unovis/svelte";
   import { Area } from "@unovis/ts";
   import { CHART_PALETTE, formatAmount } from "./chart-theme.js";
+  import { formatMonthLabel } from "../utils/dateFormat.js";
   import EmptyState from "../EmptyState.svelte";
 
   let { expenses, config = {}, onconfigchange = () => {} } = $props();
-
-  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
   function today() {
     return new Date().toISOString().slice(0, 7);
@@ -36,10 +35,6 @@
     if (next) onconfigchange({ ...config, month: next });
   }
 
-  function formatMonthLabel(ym) {
-    const [y, m] = ym.split("-");
-    return `${MONTH_NAMES[parseInt(m) - 1]} ${y}`;
-  }
 
   function daysInMonth(ym) {
     const [y, m] = ym.split("-").map(Number);
@@ -97,17 +92,19 @@
       <button
         onclick={() => navigate(-1)}
         disabled={!canPrev}
+        aria-label="Previous month"
         class="p-1 rounded transition-colors {canPrev ? 'text-gray-400 hover:text-gray-200' : 'text-gray-700 cursor-not-allowed'}"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <span class="text-sm text-gray-300 min-w-[5rem] text-center">{formatMonthLabel(selectedMonth)}</span>
       <button
         onclick={() => navigate(1)}
         disabled={!canNext}
+        aria-label="Next month"
         class="p-1 rounded transition-colors {canNext ? 'text-gray-400 hover:text-gray-200' : 'text-gray-700 cursor-not-allowed'}"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
     </div>
   </div>

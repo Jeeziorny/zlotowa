@@ -4,6 +4,7 @@
   import { CHART_PALETTE, formatAmount } from "./chart-theme.js";
   import EmptyState from "../EmptyState.svelte";
   import { DATE_RANGE_PRESETS } from "../constants.js";
+  import { formatMonthFull, formatMonthSmart } from "../utils/dateFormat.js";
 
   let { expenses, config = {}, onconfigchange = () => {} } = $props();
 
@@ -65,21 +66,6 @@
     matchingExpenses.reduce((sum, e) => sum + Math.abs(e.amount), 0)
   );
 
-  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  function formatMonthFull(ym) {
-    const [y, m] = ym.split("-");
-    return `${MONTH_NAMES[parseInt(m) - 1]} ${y.slice(2)}`;
-  }
-
-  function formatMonthSmart(ym, i) {
-    const [y, m] = ym.split("-");
-    const name = MONTH_NAMES[parseInt(m) - 1];
-    if (i === 0) return `${name} ${y.slice(2)}`;
-    const prevYm = monthlyData[i - 1]?.ym;
-    if (prevYm && prevYm.slice(0, 4) !== y) return `${name} ${y.slice(2)}`;
-    return name;
-  }
 
   const x = (d) => d.index;
   const y = [(d) => d.amount];
@@ -87,7 +73,7 @@
 
   const xTickFormat = (i) => {
     const item = monthlyData[i];
-    return item ? formatMonthSmart(item.ym, i) : "";
+    return item ? formatMonthSmart(item.ym, i, monthlyData) : "";
   };
 
   const triggers = {

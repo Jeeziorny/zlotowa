@@ -1849,6 +1849,37 @@ mod tests {
         assert_eq!(food.months_with_data, 3);
     }
 
+    #[test]
+    fn get_category_averages_empty_db() {
+        let db = test_db();
+        let avgs = db.get_category_averages(6).unwrap();
+        assert!(avgs.is_empty());
+    }
+
+    #[test]
+    fn get_category_averages_zero_months() {
+        let db = test_db();
+        let mut expense = make_expense("Food", 100.0, "2026-01-01");
+        expense.category = Some("Food".into());
+        db.insert_expense(&expense).unwrap();
+        // 0 months lookback — should return nothing
+        let avgs = db.get_category_averages(0).unwrap();
+        assert!(avgs.is_empty());
+    }
+
+    #[test]
+    fn get_category_averages_excludes_uncategorized() {
+        let db = test_db();
+        // Expense with no category
+        db.insert_expense(&make_expense("Thing", 50.0, "2026-01-01")).unwrap();
+        // Expense with empty category
+        let mut e = make_expense("Other", 50.0, "2026-01-01");
+        e.category = Some("".into());
+        db.insert_expense(&e).unwrap();
+        let avgs = db.get_category_averages(6).unwrap();
+        assert!(avgs.is_empty());
+    }
+
     // ── Upload Batch tests ──
 
     #[test]

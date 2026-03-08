@@ -2,11 +2,11 @@
   import { VisXYContainer, VisGroupedBar, VisAxis, VisTooltip } from "@unovis/svelte";
   import { GroupedBar } from "@unovis/ts";
   import { CHART_PALETTE, formatAmount } from "./chart-theme.js";
+  import { formatMonthLabel, formatMonthShort } from "../utils/dateFormat.js";
   import EmptyState from "../EmptyState.svelte";
 
   let { expenses, config = {}, onconfigchange = () => {} } = $props();
 
-  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const BAR_COLORS = [CHART_PALETTE[0], "#6b7280"]; // amber = current, gray = previous
 
   function todayYM() {
@@ -46,15 +46,6 @@
     if (next) onconfigchange({ ...config, month: next });
   }
 
-  function formatMonthLabel(ym) {
-    const [y, m] = ym.split("-");
-    return `${MONTH_NAMES[parseInt(m) - 1]} ${y}`;
-  }
-
-  function formatMonthShort(ym) {
-    const [y, m] = ym.split("-");
-    return `${MONTH_NAMES[parseInt(m) - 1]} '${y.slice(2)}`;
-  }
 
   const TOP_N = 6;
 

@@ -290,17 +290,20 @@
            role="dialog" aria-modal="true" aria-labelledby="config-dialog-title"
            tabindex="-1"
            use:focusTrap
-           onclick={(e) => e.stopPropagation()}>
+           onclick={(e) => e.stopPropagation()}
+           onkeydown={(e) => e.stopPropagation()}>
         <h3 id="config-dialog-title" class="text-lg font-semibold mb-4">
           {configDialog.instanceId ? "Edit" : "Add"} Keyword Tracker
         </h3>
         <label for="keyword-config-input" class="block text-sm text-gray-400 mb-2">Keywords</label>
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="flex flex-wrap items-center gap-1.5 w-full px-2 py-1.5 bg-gray-800 border border-gray-700
                  rounded-lg focus-within:border-amber-500 min-h-[38px] cursor-text"
+          role="textbox"
+          tabindex="-1"
+          aria-label="Keyword chips"
           onclick={() => document.getElementById("keyword-config-input")?.focus()}
+          onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); document.getElementById("keyword-config-input")?.focus(); } }}
         >
           {#each configDialog.chips as chip}
             <span class="flex items-center gap-1 text-sm text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">

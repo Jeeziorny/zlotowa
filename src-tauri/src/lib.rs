@@ -102,21 +102,23 @@ fn add_expense(state: State<AppState>, input: ExpenseInput) -> Result<i64, Strin
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let date = parse_date(&input.date)?;
 
-    db.with_transaction(|| {
-        let expense = Expense {
-            id: None,
-            title: input.title.clone(),
-            amount: input.amount,
-            date,
-            category: input.category.clone(),
-            classification_source: Some(ClassificationSource::Manual),
-        };
+    let rule = input.category.as_ref()
+        .filter(|c| !c.is_empty())
+        .map(|cat| ClassificationRule::from_pattern(&input.title, cat));
 
+    let expense = Expense {
+        id: None,
+        title: input.title,
+        amount: input.amount,
+        date,
+        category: input.category,
+        classification_source: Some(ClassificationSource::Manual),
+    };
+
+    db.with_transaction(|| {
         let id = db.insert_expense(&expense)?;
-        if let Some(cat) = &input.category {
-            if !cat.is_empty() {
-                db.insert_rule(&ClassificationRule::from_pattern(&input.title, cat))?;
-            }
+        if let Some(r) = &rule {
+            db.insert_rule(r)?;
         }
         Ok(id)
     })
@@ -136,21 +138,23 @@ fn update_expense(state: State<AppState>, id: i64, input: ExpenseInput) -> Resul
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let date = parse_date(&input.date)?;
 
-    db.with_transaction(|| {
-        let expense = Expense {
-            id: Some(id),
-            title: input.title.clone(),
-            amount: input.amount,
-            date,
-            category: input.category.clone(),
-            classification_source: Some(ClassificationSource::Manual),
-        };
+    let rule = input.category.as_ref()
+        .filter(|c| !c.is_empty())
+        .map(|cat| ClassificationRule::from_pattern(&input.title, cat));
 
+    let expense = Expense {
+        id: Some(id),
+        title: input.title,
+        amount: input.amount,
+        date,
+        category: input.category,
+        classification_source: Some(ClassificationSource::Manual),
+    };
+
+    db.with_transaction(|| {
         db.update_expense(&expense)?;
-        if let Some(cat) = &input.category {
-            if !cat.is_empty() {
-                db.insert_rule(&ClassificationRule::from_pattern(&input.title, cat))?;
-            }
+        if let Some(r) = &rule {
+            db.insert_rule(r)?;
         }
         Ok(())
     })
@@ -693,17 +697,19 @@ fn bulk_save_expenses(
             .and_then(ClassificationSource::from_str_opt)
             .unwrap_or(ClassificationSource::Manual);
 
+        let is_db_source = source == ClassificationSource::Database;
+
         to_insert.push(Expense {
             id: None,
             title: e.title.clone(),
             amount: e.amount,
             date,
             category: e.category.clone(),
-            classification_source: Some(source.clone()),
+            classification_source: Some(source),
         });
 
         // Collect pending rules from non-Database sources with a category
-        if source != ClassificationSource::Database {
+        if !is_db_source {
             if let Some(ref cat) = e.category {
                 if !cat.is_empty() {
                     let key = (e.title.clone(), cat.clone());

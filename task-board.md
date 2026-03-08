@@ -5,14 +5,14 @@
 | # | Task |
 |---|------|
 | 96 | Docs Drift Cleanup |
-| 98 | Remove Unnecessary Clones |
-| 99 | Test Coverage Gaps |
-| 100 | Frontend Constants & Minor Cleanup |
-| 101 | Accessibility Suppressions |
 | 102 | CI/CD Pipeline |
 ## DONE
 
 | # | Task | Summary |
+| 101 | Accessibility Suppressions | Removed/fixed 3 svelte-ignore suppressions: LlmSettings form (kept justified suppression), ColumnMapping wrapper (→ `role="presentation"`), Dashboard chip input (→ `role="textbox"` + keyboard handler). Added `aria-label` to DailySpending nav buttons. Fixed Dashboard dialog click propagation a11y. |
+| 100 | Frontend Constants & Minor Cleanup | Extracted shared `MONTH_NAMES`/`formatMonthFull`/`formatMonthSmart`/`formatMonthLabel`/`formatMonthShort` into `src/lib/utils/dateFormat.js` (removed from 5 widgets). Added `QUIP_INTERVAL_MS`, `MAX_RECENT_CLEANUPS` constants. Fixed `$state` misuse for non-reactive timer ID in RulesFilterBar. |
+| 99 | Test Coverage Gaps | 7 new tests: `BudgetStatus::from_ratio()` boundary conditions (under/approaching/over/negative), `get_category_averages` edge cases (empty DB, zero months, uncategorized exclusion). |
+| 98 | Remove Unnecessary Clones | Eliminated 6 clones: `add_expense`/`update_expense` restructured to extract rule before moving `input` fields (4 clones), `bulk_save_expenses` reordered source check before move (1 clone), CLI `cmd_llm_conf` uses `&config.api_key` after move (1 clone). Fixed pre-existing broken `regex_classifier_first_match_wins` test. |
 |---|------|---------|
 | 103 | Bulk Upload Rule Review Step | Added Rule Review step (step 6) to bulk upload wizard — shows auto-generated rules for non-DB-classified expenses, lets users edit patterns (trim to merchant name), remove unwanted rules, or skip all. Decoupled rule creation from expense saving: `bulk_save_expenses` no longer creates rules, new `bulk_save_rules` IPC command. Added optional `rule_pattern` param to `add_expense`/`update_expense` for inline pattern editing. Navigation guard on step 6. Rules tab tooltip explains substring matching. New `ReviewRules.svelte`. |
 | 97 | DB Indices & Schema Tightening | Added `idx_classification_rules_category` index for WHERE/GROUP BY/UPDATE on category. Tightened `upload_batches.filename` to `NOT NULL DEFAULT ''` (backfills existing NULLs). `UploadBatch.filename` model changed from `Option<String>` to `String`. Documented `query_rules()` O(rules×titles) match counting as acceptable for desktop scale. 3 new tests. |

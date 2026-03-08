@@ -4,6 +4,7 @@
   import { CHART_PALETTE, formatAmount } from "./chart-theme.js";
   import EmptyState from "../EmptyState.svelte";
   import { DATE_RANGE_PRESETS } from "../constants.js";
+  import { formatMonthFull, formatMonthSmart } from "../utils/dateFormat.js";
 
   const TOP_N = 3;
   const LINE_COLORS = [CHART_PALETTE[0], CHART_PALETTE[2], CHART_PALETTE[4]];
@@ -54,21 +55,6 @@
       .map(([ym, cats], index) => ({ index, ym, ...cats }));
   });
 
-  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  function formatMonthFull(ym) {
-    const [y, m] = ym.split("-");
-    return `${MONTH_NAMES[parseInt(m) - 1]} ${y.slice(2)}`;
-  }
-
-  function formatMonthSmart(ym, i) {
-    const [y, m] = ym.split("-");
-    const name = MONTH_NAMES[parseInt(m) - 1];
-    if (i === 0) return `${name} ${y.slice(2)}`;
-    const prevYm = monthlyData[i - 1]?.ym;
-    if (prevYm && prevYm.slice(0, 4) !== y) return `${name} ${y.slice(2)}`;
-    return name;
-  }
 
   const x = (d) => d.index;
 
@@ -80,7 +66,7 @@
 
   const xTickFormat = (i) => {
     const item = monthlyData[i];
-    return item ? formatMonthSmart(item.ym, i) : "";
+    return item ? formatMonthSmart(item.ym, i, monthlyData) : "";
   };
 
   const triggers = {

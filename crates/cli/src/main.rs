@@ -104,13 +104,13 @@ fn cmd_llm_conf() {
         Some(provider) => {
             let config = LlmConfig {
                 provider: provider_name.to_string(),
-                api_key: key.clone(),
+                api_key: key,
             };
             match provider.validate(&config) {
                 Ok(()) => {
                     println!("{}", "OK".green().bold());
                     db.set_config("llm_provider", provider_name).unwrap();
-                    db.set_config("llm_api_key", &key).unwrap();
+                    db.set_config("llm_api_key", &config.api_key).unwrap();
                     println!("{}", "Configuration saved.".green());
                 }
                 Err(e) => {

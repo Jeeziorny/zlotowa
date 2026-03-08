@@ -257,4 +257,31 @@ mod tests {
             assert_eq!(source, restored);
         }
     }
+
+    #[test]
+    fn budget_status_from_ratio_under() {
+        assert_eq!(BudgetStatus::from_ratio(0.0), BudgetStatus::Under);
+        assert_eq!(BudgetStatus::from_ratio(0.5), BudgetStatus::Under);
+        assert_eq!(BudgetStatus::from_ratio(0.79), BudgetStatus::Under);
+    }
+
+    #[test]
+    fn budget_status_from_ratio_approaching() {
+        assert_eq!(BudgetStatus::from_ratio(0.8), BudgetStatus::Approaching);
+        assert_eq!(BudgetStatus::from_ratio(0.9), BudgetStatus::Approaching);
+        assert_eq!(BudgetStatus::from_ratio(1.0), BudgetStatus::Approaching);
+    }
+
+    #[test]
+    fn budget_status_from_ratio_over() {
+        assert_eq!(BudgetStatus::from_ratio(1.001), BudgetStatus::Over);
+        assert_eq!(BudgetStatus::from_ratio(1.5), BudgetStatus::Over);
+        assert_eq!(BudgetStatus::from_ratio(2.0), BudgetStatus::Over);
+    }
+
+    #[test]
+    fn budget_status_from_ratio_negative() {
+        // Negative ratio (no spending) should be Under
+        assert_eq!(BudgetStatus::from_ratio(-0.5), BudgetStatus::Under);
+    }
 }
