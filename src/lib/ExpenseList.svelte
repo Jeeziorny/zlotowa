@@ -14,9 +14,9 @@
   let bulkUploadDirty = $state(false);
   let showLeaveConfirm = $state(false);
 
-  function handleBulkDirtyChange(dirty) {
+  function handleBulkDirtyChange(dirty, rules) {
     bulkUploadDirty = dirty;
-    onbulkdirtychange(dirty);
+    onbulkdirtychange(dirty, rules);
   }
 
   function handleBackToExpenses() {

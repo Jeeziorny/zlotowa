@@ -153,7 +153,15 @@
 
 <div>
   <div class="flex items-center justify-between mb-4">
-    <h2 class="text-2xl font-bold">Classification Rules</h2>
+    <div class="flex items-center gap-2">
+      <h2 class="text-2xl font-bold">Classification Rules</h2>
+      <span class="relative group">
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-600 text-xs text-gray-500 cursor-help hover:border-gray-400 hover:text-gray-300 transition-colors">?</span>
+        <span class="absolute top-full left-0 mt-1.5 w-72 px-3 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-300 leading-relaxed shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+          Rules auto-categorize expenses whose title <strong class="text-gray-100">contains</strong> the pattern text — it's not an exact match. For example, a pattern <span class="font-mono text-amber-400/80">APTEKA</span> will match any title that has "APTEKA" anywhere in it.
+        </span>
+      </span>
+    </div>
     <button
       onclick={() => { showAddForm = !showAddForm; addError = ""; }}
       class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-4 py-2 rounded-lg

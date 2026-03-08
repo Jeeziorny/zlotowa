@@ -17,6 +17,7 @@
   let currentPage = $state("dashboard");
   let expenseSubView = $state("list");
   let expensesBulkDirty = $state(false);
+  let bulkPendingRules = $state(null);
   let pendingNav = $state(null);
   let showRules = $state(false);
   let showShortcuts = $state(false);
@@ -138,6 +139,7 @@
 
   function confirmNavigation() {
     expensesBulkDirty = false;
+    bulkPendingRules = null;
     if (pendingNav === "__back") {
       expenseSubView = "list";
     } else {
@@ -164,7 +166,7 @@
         {#if currentPage === "dashboard"}
           <Dashboard onnavigate={handleNavigate} />
         {:else if currentPage === "expenses"}
-          <ExpenseList bind:subView={expenseSubView} onbulkdirtychange={(dirty) => { expensesBulkDirty = dirty; }} />
+          <ExpenseList bind:subView={expenseSubView} onbulkdirtychange={(dirty, rules) => { expensesBulkDirty = dirty; bulkPendingRules = rules; }} />
         {:else if currentPage === "categories"}
           <Categories />
         {:else if currentPage === "budget"}
@@ -181,14 +183,44 @@
   <Toast />
 
   {#if pendingNav}
-    <ConfirmModal
-      title="Leave bulk upload?"
-      confirmLabel="Leave"
-      onconfirm={async () => { confirmNavigation(); }}
-      onclose={() => { pendingNav = null; }}
-    >
-      <p class="text-sm text-gray-400">You'll lose your upload progress.</p>
-    </ConfirmModal>
+    {#if bulkPendingRules?.length > 0}
+      <ConfirmModal
+        title="What about classification rules?"
+        confirmLabel="Save rules & leave"
+        onconfirm={async () => {
+          try {
+            await invoke("bulk_save_rules", {
+              rules: bulkPendingRules.map(r => ({ pattern_text: r.title, category: r.category })),
+            });
+          } catch (e) {
+            console.warn("Failed to save rules on nav:", e);
+          }
+          confirmNavigation();
+        }}
+        onclose={() => { pendingNav = null; }}
+      >
+        <p class="text-sm text-gray-400 mb-3">
+          You have {bulkPendingRules.length} unsaved classification {bulkPendingRules.length === 1 ? 'rule' : 'rules'}.
+        </p>
+        <div class="flex gap-2">
+          <button
+            onclick={() => confirmNavigation()}
+            class="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Skip rules & leave
+          </button>
+        </div>
+      </ConfirmModal>
+    {:else}
+      <ConfirmModal
+        title="Leave bulk upload?"
+        confirmLabel="Leave"
+        onconfirm={async () => { confirmNavigation(); }}
+        onclose={() => { pendingNav = null; }}
+      >
+        <p class="text-sm text-gray-400">You'll lose your upload progress.</p>
+      </ConfirmModal>
+    {/if}
   {/if}
 
   {#if showShortcuts}

@@ -37,7 +37,10 @@ pub struct RegexClassifier {
 
 impl RegexClassifier {
     pub fn from_rules(rules: &[ClassificationRule]) -> Self {
-        let compiled: Vec<(Regex, String)> = rules
+        // Sort: longest pattern first (more specific wins).
+        let mut sorted: Vec<&ClassificationRule> = rules.iter().collect();
+        sorted.sort_by(|a, b| b.pattern.len().cmp(&a.pattern.len()));
+        let compiled: Vec<(Regex, String)> = sorted
             .iter()
             .filter_map(|r| {
                 Regex::new(&r.pattern)

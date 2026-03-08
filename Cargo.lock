@@ -9,6 +9,7 @@ dependencies = [
  "accountant-core",
  "chrono",
  "log",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

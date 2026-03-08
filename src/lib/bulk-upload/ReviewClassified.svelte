@@ -14,8 +14,11 @@
   let unclassified = $derived(nonDuplicateRows.filter(r => !r._originalSource));
 
   function editCategory(index, newCategory) {
-    classifiedRows[index].category = newCategory;
-    classifiedRows[index].source = "Manual";
+    classifiedRows[index] = {
+      ...classifiedRows[index],
+      category: newCategory,
+      source: "Manual",
+    };
   }
 
   function selectCategory(index, cat) {

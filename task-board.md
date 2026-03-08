@@ -10,11 +10,11 @@
 | 100 | Frontend Constants & Minor Cleanup |
 | 101 | Accessibility Suppressions |
 | 102 | CI/CD Pipeline |
-| 103 | Bulk Upload Rule Review Step |
-
 ## DONE
 
 | # | Task | Summary |
+|---|------|---------|
+| 103 | Bulk Upload Rule Review Step | Added Rule Review step (step 6) to bulk upload wizard — shows auto-generated rules for non-DB-classified expenses, lets users edit patterns (trim to merchant name), remove unwanted rules, or skip all. Decoupled rule creation from expense saving: `bulk_save_expenses` no longer creates rules, new `bulk_save_rules` IPC command. Added optional `rule_pattern` param to `add_expense`/`update_expense` for inline pattern editing. Navigation guard on step 6. Rules tab tooltip explains substring matching. New `ReviewRules.svelte`. |
 | 97 | DB Indices & Schema Tightening | Added `idx_classification_rules_category` index for WHERE/GROUP BY/UPDATE on category. Tightened `upload_batches.filename` to `NOT NULL DEFAULT ''` (backfills existing NULLs). `UploadBatch.filename` model changed from `Option<String>` to `String`. Documented `query_rules()` O(rules×titles) match counting as acceptable for desktop scale. 3 new tests. |
 | 95 | Silent Error Swallowing in Frontend | Surfaced 5 silent catch blocks: Rules.svelte category refresh ×2 (uses `fetchError` banner), BulkUpload LLM config check (shows warning instead of hiding), BulkUpload category load (sets `error`), ColumnMapping saved mappings restore (new `loadError` amber banner). 5 other catches left as-is (graceful defaults for non-critical config). |
 | 94 | LLM Response Parsing Robustness | Replaced blind JSON indexing in `http_classify()` with `.get()` + descriptive error messages showing expected path and where traversal failed. 7 new tests. |

@@ -4,16 +4,17 @@
   import ColumnMapping from "./bulk-upload/ColumnMapping.svelte";
   import TitleCleanupStep from "./bulk-upload/TitleCleanupStep.svelte";
   import ReviewClassified from "./bulk-upload/ReviewClassified.svelte";
+  import ReviewRules from "./bulk-upload/ReviewRules.svelte";
   import BulkDone from "./bulk-upload/BulkDone.svelte";
 
   let { ondirtychange = () => {} } = $props();
 
-  // Steps: input -> column-mapping -> cleanup -> review -> done
+  // Steps: input -> column-mapping -> cleanup -> review -> rules -> done
   let step = $state("input");
   let isDirty = $derived(step !== "input" && step !== "done");
 
   $effect(() => {
-    ondirtychange(isDirty);
+    ondirtychange(isDirty, step === "rules" ? pendingRules : null);
   });
   let error = $state("");
 
@@ -52,6 +53,7 @@
   let classifiedRows = $state([]);
   let allCategories = $state([]);
   let savedCount = $state(0);
+  let pendingRules = $state([]);
   let selectedDelimiter = $state(null);
 
   async function handleFileInput({ text, filename, delimiter }) {
@@ -178,11 +180,23 @@
       source: r.source,
     }));
 
-    const count = await invoke("bulk_save_expenses", {
+    console.log("[BulkUpload] saving expenses, sources:", toSave.map(e => `${e.title}: ${e.source}`));
+    const result = await invoke("bulk_save_expenses", {
       expenses: toSave,
       filename: batchFilename,
     });
-    savedCount = count;
+    console.log("[BulkUpload] result:", JSON.stringify(result));
+    savedCount = result.saved_count;
+    pendingRules = result.pending_rules ?? [];
+    step = "rules";
+  }
+
+  async function handleSaveRules(rules) {
+    await invoke("bulk_save_rules", { rules });
+    step = "done";
+  }
+
+  function handleSkipRules() {
     step = "done";
   }
 
@@ -198,6 +212,7 @@
     classifiedRows = [];
     allCategories = [];
     savedCount = 0;
+    pendingRules = [];
     selectedDelimiter = null;
   }
 </script>
@@ -237,9 +252,10 @@
       { id: "column-mapping", label: "2. Columns" },
       { id: "cleanup", label: "3. Cleanup" },
       { id: "review", label: "4. Review" },
-      { id: "done", label: "5. Done" },
+      { id: "rules", label: "5. Rules" },
+      { id: "done", label: "6. Done" },
     ] as s, i}
-      {@const stepOrder = ["input", "column-mapping", "cleanup", "review", "done"]}
+      {@const stepOrder = ["input", "column-mapping", "cleanup", "review", "rules", "done"]}
       {@const currentIdx = stepOrder.indexOf(step)}
       {@const thisIdx = stepOrder.indexOf(s.id)}
       {#if i > 0}
@@ -287,6 +303,12 @@
       {allCategories}
       onback={() => step = "cleanup"}
       onsave={handleSave}
+    />
+  {:else if step === "rules"}
+    <ReviewRules
+      {pendingRules}
+      onsave={handleSaveRules}
+      onskip={handleSkipRules}
     />
   {:else if step === "done"}
     <BulkDone {savedCount} onreset={reset} />

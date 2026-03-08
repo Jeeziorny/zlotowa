@@ -8,7 +8,7 @@
   </div>
   <p class="text-lg font-semibold mb-2">Expenses saved</p>
   <p class="text-sm text-gray-400 mb-6">
-    Classification rules have been updated for future imports.
+    Ready for the next batch.
   </p>
   <button
     onclick={onreset}

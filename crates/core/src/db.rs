@@ -286,9 +286,8 @@ impl Database {
     ///
     /// **Note:** Do not nest `with_transaction` or call methods that internally
     /// use `unchecked_transaction()` (e.g. `save_budget_categories`,
-    /// `insert_expenses_bulk`) from within the closure — use the dedicated
-    /// combined methods instead (e.g. `create_budget_with_categories`,
-    /// `insert_expenses_bulk` with rules).
+    /// `insert_expenses_bulk`, `insert_rules_bulk`) from within the closure —
+    /// use the dedicated combined methods instead (e.g. `create_budget_with_categories`).
     pub fn with_transaction<T, F>(&self, f: F) -> Result<T, DbError>
     where
         F: FnOnce() -> Result<T, DbError>,
@@ -322,14 +321,13 @@ impl Database {
         Ok(self.conn.last_insert_rowid())
     }
 
-    /// Insert multiple expenses and classification rules atomically.
+    /// Insert multiple expenses atomically.
     /// Either all succeed or none are saved.
     /// When `batch_filename` is `Some`, creates an upload batch record and links expenses to it.
     pub fn insert_expenses_bulk(
         &self,
         expenses: &[Expense],
         batch_filename: Option<&str>,
-        rules: &[ClassificationRule],
     ) -> Result<usize, DbError> {
         info!("insert_expenses_bulk: {} expenses, filename={:?}", expenses.len(), batch_filename);
         let tx = self.conn.unchecked_transaction()?;
@@ -367,13 +365,6 @@ impl Database {
                 ],
             )?;
             count += 1;
-        }
-
-        for rule in rules {
-            tx.execute(
-                "INSERT OR REPLACE INTO classification_rules (pattern, category) VALUES (?1, ?2)",
-                params![rule.pattern, rule.category],
-            )?;
         }
 
         tx.commit()?;
@@ -1415,7 +1406,7 @@ mod tests {
             make_expense("B", 2.0, "2025-01-02"),
             make_expense("C", 3.0, "2025-01-03"),
         ];
-        let count = db.insert_expenses_bulk(&expenses, None, &[]).unwrap();
+        let count = db.insert_expenses_bulk(&expenses, None).unwrap();
         assert_eq!(count, 3);
         assert_eq!(db.get_all_expenses().unwrap().len(), 3);
     }
@@ -1427,7 +1418,7 @@ mod tests {
             make_expense("Good", 10.0, "2025-01-01"),
             make_expense("Bad", f64::NAN, "2025-01-02"),
         ];
-        assert!(db.insert_expenses_bulk(&expenses, None, &[]).is_err());
+        assert!(db.insert_expenses_bulk(&expenses, None).is_err());
         // Transaction rolled back — nothing inserted
         assert_eq!(db.get_all_expenses().unwrap().len(), 0);
     }
@@ -1868,7 +1859,7 @@ mod tests {
             make_expense("B", 2.0, "2025-01-02"),
             make_expense("C", 3.0, "2025-01-03"),
         ];
-        let count = db.insert_expenses_bulk(&expenses, Some("test.csv"), &[]).unwrap();
+        let count = db.insert_expenses_bulk(&expenses, Some("test.csv")).unwrap();
         assert_eq!(count, 3);
 
         let batches = db.get_upload_batches().unwrap();
@@ -1884,7 +1875,7 @@ mod tests {
             make_expense("A", 1.0, "2025-01-01"),
             make_expense("B", 2.0, "2025-01-02"),
         ];
-        db.insert_expenses_bulk(&expenses, None, &[]).unwrap();
+        db.insert_expenses_bulk(&expenses, None).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         assert!(batches.is_empty());
@@ -1899,7 +1890,7 @@ mod tests {
             make_expense("B", 2.0, "2025-01-02"),
             make_expense("C", 3.0, "2025-01-03"),
         ];
-        db.insert_expenses_bulk(&expenses, Some("test.csv"), &[]).unwrap();
+        db.insert_expenses_bulk(&expenses, Some("test.csv")).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         let batch_id = batches[0].id;
@@ -1918,13 +1909,13 @@ mod tests {
             make_expense("A1", 1.0, "2025-01-01"),
             make_expense("A2", 2.0, "2025-01-02"),
         ];
-        db.insert_expenses_bulk(&batch_a, Some("a.csv"), &[]).unwrap();
+        db.insert_expenses_bulk(&batch_a, Some("a.csv")).unwrap();
 
         // Batch B
         let batch_b = vec![
             make_expense("B1", 3.0, "2025-01-03"),
         ];
-        db.insert_expenses_bulk(&batch_b, Some("b.csv"), &[]).unwrap();
+        db.insert_expenses_bulk(&batch_b, Some("b.csv")).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         // batches are ordered by uploaded_at DESC, so batch B is first
@@ -1949,7 +1940,7 @@ mod tests {
 
         // Batch
         let batch = vec![make_expense("Batch1", 5.0, "2025-01-02")];
-        db.insert_expenses_bulk(&batch, Some("file.csv"), &[]).unwrap();
+        db.insert_expenses_bulk(&batch, Some("file.csv")).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         db.delete_batch(batches[0].id).unwrap();
@@ -2296,8 +2287,8 @@ mod tests {
     fn get_upload_batches_returns_all_batches() {
         let db = test_db();
         let expenses = vec![make_expense("A", 10.0, "2025-01-01")];
-        db.insert_expenses_bulk(&expenses, Some("file1.csv"), &[]).unwrap();
-        db.insert_expenses_bulk(&expenses, Some("file2.csv"), &[]).unwrap();
+        db.insert_expenses_bulk(&expenses, Some("file1.csv")).unwrap();
+        db.insert_expenses_bulk(&expenses, Some("file2.csv")).unwrap();
 
         let batches = db.get_upload_batches().unwrap();
         assert_eq!(batches.len(), 2);
@@ -2499,7 +2490,7 @@ mod tests {
         let expenses: Vec<Expense> = (0..160)
             .map(|i| make_expense(&format!("Item {}", i), i as f64, "2025-06-01"))
             .collect();
-        db.insert_expenses_bulk(&expenses, None, &[]).unwrap();
+        db.insert_expenses_bulk(&expenses, None).unwrap();
         let all = db.get_all_expenses().unwrap();
         assert_eq!(all.len(), 160);
 
@@ -2681,23 +2672,16 @@ mod tests {
     }
 
     #[test]
-    fn insert_expenses_bulk_with_rules_is_atomic() {
+    fn insert_rules_bulk_saves_all() {
         let db = test_db();
-        let expenses = vec![
-            make_expense("Coffee", 5.0, "2025-01-01"),
-            make_expense("Bus", 2.0, "2025-01-02"),
-        ];
         let rules = vec![
             ClassificationRule::from_pattern("Coffee", "Food"),
             ClassificationRule::from_pattern("Bus", "Transport"),
         ];
 
-        let count = db
-            .insert_expenses_bulk(&expenses, Some("test.csv"), &rules)
-            .unwrap();
+        let count = db.insert_rules_bulk(&rules).unwrap();
         assert_eq!(count, 2);
 
-        // Rules were saved in the same transaction
         let saved_rules = db.get_all_rules().unwrap();
         assert!(saved_rules.iter().any(|r| r.category == "Food"));
         assert!(saved_rules.iter().any(|r| r.category == "Transport"));

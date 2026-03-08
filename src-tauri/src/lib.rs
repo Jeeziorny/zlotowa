@@ -306,9 +306,11 @@ fn parse_csv_data(
 
     let dup_flags = {
         let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+        let abs_amounts: Vec<f64> = parsed.iter().map(|e| e.amount.abs()).collect();
         let dup_inputs: Vec<(&str, f64, &chrono::NaiveDate)> = parsed
             .iter()
-            .map(|e| (e.title.as_str(), e.amount, &e.date))
+            .zip(abs_amounts.iter())
+            .map(|(e, abs_amt)| (e.title.as_str(), *abs_amt, &e.date))
             .collect();
         db.check_duplicates_batch(&dup_inputs).map_err(|e| e.to_string())?
     };
@@ -479,9 +481,11 @@ fn parse_and_classify(
         let llm_provider_name = db.get_config("llm_provider").map_err(|e| e.to_string())?;
         let llm_api_key = db.get_config("llm_api_key").map_err(|e| e.to_string())?;
         let categories = db.get_all_categories().unwrap_or_default();
+        let abs_amounts: Vec<f64> = parsed.iter().map(|e| e.amount.abs()).collect();
         let dup_inputs: Vec<(&str, f64, &chrono::NaiveDate)> = parsed
             .iter()
-            .map(|e| (e.title.as_str(), e.amount, &e.date))
+            .zip(abs_amounts.iter())
+            .map(|(e, abs_amt)| (e.title.as_str(), *abs_amt, &e.date))
             .collect();
         let dup_flags = db.check_duplicates_batch(&dup_inputs).map_err(|e| e.to_string())?;
         (rules, llm_provider_name, llm_api_key, categories, dup_flags)
@@ -650,17 +654,36 @@ fn restore_database(
 
 // ── Bulk Save ──
 
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct BulkSaveResult {
+    pub saved_count: usize,
+    pub pending_rules: Vec<PendingRule>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct PendingRule {
+    pub title: String,
+    pub category: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct RuleInput {
+    pub pattern_text: String,
+    pub category: String,
+}
+
 #[tauri::command]
 fn bulk_save_expenses(
     state: State<AppState>,
     expenses: Vec<BulkSaveExpense>,
     filename: Option<String>,
-) -> Result<usize, String> {
+) -> Result<BulkSaveResult, String> {
     info!("bulk_save_expenses: count={} filename={:?}", expenses.len(), filename);
 
     // Build all expenses (pure computation, no lock needed), fail fast on invalid data
     let mut to_insert: Vec<Expense> = Vec::with_capacity(expenses.len());
-    let mut rules: Vec<ClassificationRule> = Vec::new();
+    let mut pending_rules: Vec<PendingRule> = Vec::new();
+    let mut seen_rules: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
 
     for e in &expenses {
         let date = parse_date(&e.date)?;
@@ -676,12 +699,21 @@ fn bulk_save_expenses(
             amount: e.amount,
             date,
             category: e.category.clone(),
-            classification_source: Some(source),
+            classification_source: Some(source.clone()),
         });
 
-        if let Some(ref cat) = e.category {
-            if !cat.is_empty() {
-                rules.push(ClassificationRule::from_pattern(&e.title, cat));
+        // Collect pending rules from non-Database sources with a category
+        if source != ClassificationSource::Database {
+            if let Some(ref cat) = e.category {
+                if !cat.is_empty() {
+                    let key = (e.title.clone(), cat.clone());
+                    if seen_rules.insert(key) {
+                        pending_rules.push(PendingRule {
+                            title: e.title.clone(),
+                            category: cat.clone(),
+                        });
+                    }
+                }
             }
         }
     }
@@ -689,10 +721,32 @@ fn bulk_save_expenses(
     // Acquire lock for the DB insert
     let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
     let saved = db
-        .insert_expenses_bulk(&to_insert, filename.as_deref(), &rules)
+        .insert_expenses_bulk(&to_insert, filename.as_deref())
         .map_err(|e| { warn!("bulk_save_expenses failed: {e}"); e.to_string() })?;
 
-    info!("bulk_save_expenses: saved {saved} expenses");
+    info!("bulk_save_expenses: saved {saved} expenses, {} pending rules", pending_rules.len());
+    Ok(BulkSaveResult { saved_count: saved, pending_rules })
+}
+
+#[tauri::command]
+fn bulk_save_rules(state: State<AppState>, rules: Vec<RuleInput>) -> Result<usize, String> {
+    let to_insert: Vec<ClassificationRule> = rules
+        .iter()
+        .filter(|r| !r.pattern_text.trim().is_empty() && !r.category.trim().is_empty())
+        .map(|r| ClassificationRule {
+            id: None,
+            pattern: format!("(?i){}", regex::escape(r.pattern_text.trim())),
+            category: r.category.clone(),
+        })
+        .collect();
+
+    info!("bulk_save_rules: {} rules (filtered from {})", to_insert.len(), rules.len());
+
+    let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+    let saved = db
+        .insert_rules_bulk(&to_insert)
+        .map_err(|e| { warn!("bulk_save_rules failed: {e}"); e.to_string() })?;
+
     Ok(saved)
 }
 
@@ -1483,8 +1537,8 @@ mod tests {
         ];
 
         let state: State<AppState> = app.state();
-        let saved = bulk_save_expenses(state, expenses, Some("test.csv".into())).unwrap();
-        assert_eq!(saved, 2);
+        let result = bulk_save_expenses(state, expenses, Some("test.csv".into())).unwrap();
+        assert_eq!(result.saved_count, 2);
 
         // Check batches
         let state: State<AppState> = app.state();
@@ -1516,6 +1570,76 @@ mod tests {
         let state: State<AppState> = app.state();
         let err = bulk_save_expenses(state, expenses, None).unwrap_err();
         assert!(err.contains("Invalid date"));
+    }
+
+    #[test]
+    fn bulk_save_expenses_returns_pending_rules() {
+        let app = app();
+        let expenses = vec![
+            BulkSaveExpense {
+                title: "Coffee Shop".into(),
+                amount: 5.0,
+                date: "2024-01-01".into(),
+                category: Some("Food".into()),
+                source: Some("Llm".into()),
+            },
+            BulkSaveExpense {
+                title: "Bus Ticket".into(),
+                amount: 2.0,
+                date: "2024-01-02".into(),
+                category: Some("Transport".into()),
+                source: Some("Database".into()),
+            },
+            BulkSaveExpense {
+                title: "Groceries".into(),
+                amount: 30.0,
+                date: "2024-01-03".into(),
+                category: Some("Food".into()),
+                source: Some("Manual".into()),
+            },
+        ];
+
+        let state: State<AppState> = app.state();
+        let result = bulk_save_expenses(state, expenses, None).unwrap();
+        assert_eq!(result.saved_count, 3);
+        // Only non-Database sources should appear as pending rules
+        assert_eq!(result.pending_rules.len(), 2);
+        assert!(result.pending_rules.iter().any(|r| r.title == "Coffee Shop" && r.category == "Food"));
+        assert!(result.pending_rules.iter().any(|r| r.title == "Groceries" && r.category == "Food"));
+        // Database-sourced should NOT appear
+        assert!(!result.pending_rules.iter().any(|r| r.title == "Bus Ticket"));
+    }
+
+    #[test]
+    fn bulk_save_rules_creates_patterns() {
+        let app = app();
+        let rules = vec![
+            RuleInput { pattern_text: "Coffee Shop".into(), category: "Food".into() },
+            RuleInput { pattern_text: "Bus".into(), category: "Transport".into() },
+        ];
+
+        let state: State<AppState> = app.state();
+        let saved = bulk_save_rules(state, rules).unwrap();
+        assert_eq!(saved, 2);
+
+        let state: State<AppState> = app.state();
+        let all_rules = query_rules(state, RuleQuery::default()).unwrap();
+        assert!(all_rules.rules.iter().any(|r| r.pattern.contains("(?i)") && r.category == "Food"));
+    }
+
+    #[test]
+    fn bulk_save_rules_filters_empty() {
+        let app = app();
+        let rules = vec![
+            RuleInput { pattern_text: "".into(), category: "Food".into() },
+            RuleInput { pattern_text: "  ".into(), category: "Transport".into() },
+            RuleInput { pattern_text: "Valid".into(), category: "".into() },
+            RuleInput { pattern_text: "Good".into(), category: "Other".into() },
+        ];
+
+        let state: State<AppState> = app.state();
+        let saved = bulk_save_rules(state, rules).unwrap();
+        assert_eq!(saved, 1); // Only "Good" -> "Other" should be saved
     }
 
     // ── CSV Preview + Parse ──
@@ -1632,6 +1756,36 @@ mod tests {
         assert!(!rows[0].is_duplicate, "first Coffee should be kept");
         assert!(rows[1].is_duplicate, "second Coffee should be flagged as intra-batch duplicate");
         assert!(!rows[2].is_duplicate, "Bus is unique");
+    }
+
+    #[test]
+    fn parse_and_classify_detects_duplicates_with_negative_amounts() {
+        // DB stores positive amounts (Math.abs in frontend), CSV has negative amounts
+        let app = app();
+        let state: State<AppState> = app.state();
+        add_expense(
+            state,
+            ExpenseInput {
+                title: "Coffee".into(),
+                amount: 3.50, // positive, as stored by bulk_save_expenses
+                date: "2024-01-01".into(),
+                category: None,
+            },
+        )
+        .unwrap();
+
+        // CSV has negative amount
+        let csv = "date,title,amount\n2024-01-01,Coffee,-3.50\n";
+        let mapping = ColumnMapping {
+            title_index: 1,
+            amount_index: 2,
+            date_index: 0,
+            date_format: "%Y-%m-%d".into(),
+        };
+
+        let state: State<AppState> = app.state();
+        let rows = parse_and_classify(state, csv.into(), mapping).unwrap();
+        assert!(rows[0].is_duplicate, "negative amount should match positive amount in DB");
     }
 
     // ── Budget Planning ──
@@ -1984,6 +2138,7 @@ pub fn run() {
             preview_backup,
             restore_database,
             bulk_save_expenses,
+            bulk_save_rules,
             get_upload_batches,
             delete_batch,
             get_category_stats,

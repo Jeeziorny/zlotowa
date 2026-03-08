@@ -69,7 +69,8 @@ fn parse_classify_save_query_roundtrip() {
         .collect();
 
     let db = Database::open_memory().unwrap();
-    let count = db.insert_expenses_bulk(&expenses, Some("test.csv"), &rules).unwrap();
+    let count = db.insert_expenses_bulk(&expenses, Some("test.csv")).unwrap();
+    db.insert_rules_bulk(&rules).unwrap();
     assert_eq!(count, 3);
 
     let all = db.get_all_expenses().unwrap();
@@ -369,7 +370,7 @@ fn ical_empty_calendar() {
 #[test]
 fn empty_bulk_insert_creates_batch_record() {
     let db = Database::open_memory().unwrap();
-    let count = db.insert_expenses_bulk(&[], Some("test.csv"), &[]).unwrap();
+    let count = db.insert_expenses_bulk(&[], Some("test.csv")).unwrap();
     assert_eq!(count, 0);
 
     let batches = db.get_upload_batches().unwrap();
@@ -381,7 +382,7 @@ fn empty_bulk_insert_creates_batch_record() {
 #[test]
 fn empty_bulk_insert_without_filename_creates_no_batch() {
     let db = Database::open_memory().unwrap();
-    let count = db.insert_expenses_bulk(&[], None, &[]).unwrap();
+    let count = db.insert_expenses_bulk(&[], None).unwrap();
     assert_eq!(count, 0);
 
     let batches = db.get_upload_batches().unwrap();
@@ -413,7 +414,7 @@ fn bulk_insert_batch_tracks_correct_count() {
     ];
 
     let count = db
-        .insert_expenses_bulk(&expenses, Some("upload.csv"), &[])
+        .insert_expenses_bulk(&expenses, Some("upload.csv"))
         .unwrap();
     assert_eq!(count, 2);
 

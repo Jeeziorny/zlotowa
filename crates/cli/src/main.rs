@@ -394,13 +394,23 @@ fn cmd_bulk_insert(path: PathBuf) {
     }
 
     let filename = path.file_name().map(|n| n.to_string_lossy().to_string());
-    match db.insert_expenses_bulk(&to_insert, filename.as_deref(), &rules_to_save) {
+    match db.insert_expenses_bulk(&to_insert, filename.as_deref()) {
         Ok(count) => {
             println!("{} {} expenses saved.", "OK".green().bold(), count);
         }
         Err(e) => {
             eprintln!("{} {}", "Error:".red().bold(), e);
             std::process::exit(1);
+        }
+    }
+    if !rules_to_save.is_empty() {
+        match db.insert_rules_bulk(&rules_to_save) {
+            Ok(count) => {
+                println!("{} {} classification rules saved.", "OK".green().bold(), count);
+            }
+            Err(e) => {
+                eprintln!("{} Failed to save rules: {}", "Warning:".yellow().bold(), e);
+            }
         }
     }
 }
