@@ -4,7 +4,7 @@ use crate::models::{
     RuleQueryResult, RuleWithMatchCount, UploadBatch,
 };
 use log::{error, info, warn};
-use rusqlite::{params, Connection, Result as SqlResult};
+use rusqlite::{params, Connection, Result as SqlResult, Transaction};
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -131,7 +131,7 @@ impl Database {
         self.conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS upload_batches (
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename       TEXT,
+                filename       TEXT NOT NULL DEFAULT '',
                 uploaded_at    TEXT NOT NULL,
                 expense_count  INTEGER NOT NULL
             );",
@@ -252,6 +252,30 @@ impl Database {
         // detection is handled at the application level by check_duplicates_batch.
         self.conn
             .execute_batch("DROP INDEX IF EXISTS idx_expenses_unique_dup;")?;
+
+        // Index on classification_rules.category — used in WHERE, GROUP BY, and UPDATE
+        // queries for category filtering, stats aggregation, and rename/merge operations.
+        self.conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_classification_rules_category ON classification_rules(category);",
+        )?;
+
+        // Tighten upload_batches.filename: backfill NULLs (from older schema) then rebuild
+        // with NOT NULL. The CREATE TABLE above already has NOT NULL for fresh installs;
+        // this migration handles existing databases that may have NULL filenames.
+        let has_null_filename: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM upload_batches WHERE filename IS NULL",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+        if has_null_filename {
+            self.conn.execute_batch(
+                "UPDATE upload_batches SET filename = '' WHERE filename IS NULL;",
+            )?;
+        }
 
         Ok(())
     }
@@ -762,7 +786,10 @@ impl Database {
         })?;
         let rules = rows.collect::<SqlResult<Vec<_>>>().map_err(DbError::from)?;
 
-        // Compute match counts: load all expense titles and test each rule's regex
+        // Compute match counts: load all expense titles and test each rule's regex.
+        // This is O(rules × titles) but acceptable for a desktop app with a few thousand
+        // expenses. SQLite lacks native REGEXP, so in-memory matching is the simplest
+        // correct approach. If this becomes a bottleneck, consider lazy/on-demand counting.
         let all_titles: Vec<String> = self
             .conn
             .prepare("SELECT DISTINCT title FROM expenses")?
@@ -1061,13 +1088,13 @@ impl Database {
             params![id],
         )?;
         let rows = tx.execute("DELETE FROM budgets WHERE id = ?1", params![id])?;
-        tx.commit()?;
         if rows == 0 {
             return Err(DbError::InvalidData(format!(
                 "Budget with id {} not found",
                 id
             )));
         }
+        tx.commit()?;
         Ok(())
     }
 
@@ -1077,24 +1104,24 @@ impl Database {
         categories: &[BudgetCategory],
     ) -> Result<(), DbError> {
         let tx = self.conn.unchecked_transaction()?;
-        self.save_budget_categories_inner(budget_id, categories)?;
+        self.save_budget_categories_inner(&tx, budget_id, categories)?;
         tx.commit()?;
         Ok(())
     }
 
-    /// Replace budget categories without managing a transaction.
-    /// Caller must ensure this runs inside a transaction.
+    /// Replace budget categories using the provided transaction handle.
     fn save_budget_categories_inner(
         &self,
+        tx: &Transaction,
         budget_id: i64,
         categories: &[BudgetCategory],
     ) -> Result<(), DbError> {
-        self.conn.execute(
+        tx.execute(
             "DELETE FROM budget_categories WHERE budget_id = ?1",
             params![budget_id],
         )?;
         for cat in categories {
-            self.conn.execute(
+            tx.execute(
                 "INSERT INTO budget_categories (budget_id, category, amount) VALUES (?1, ?2, ?3)",
                 params![budget_id, cat.category, cat.amount],
             )?;
@@ -1120,12 +1147,12 @@ impl Database {
             ));
         }
         let tx = self.conn.unchecked_transaction()?;
-        self.conn.execute(
+        tx.execute(
             "INSERT INTO budgets (start_date, end_date) VALUES (?1, ?2)",
             params![start_date.to_string(), end_date.to_string()],
         )?;
-        let budget_id = self.conn.last_insert_rowid();
-        self.save_budget_categories_inner(budget_id, categories)?;
+        let budget_id = tx.last_insert_rowid();
+        self.save_budget_categories_inner(&tx, budget_id, categories)?;
         tx.commit()?;
         Ok(budget_id)
     }
@@ -1263,7 +1290,7 @@ impl Database {
                 "INSERT INTO budgets (start_date, end_date) VALUES (?1, ?2)",
                 params![start.to_string(), end.to_string()],
             )?;
-            let budget_id = self.conn.last_insert_rowid();
+            let budget_id = tx.last_insert_rowid();
 
             for cat in &budget.categories {
                 tx.execute(
@@ -1846,7 +1873,7 @@ mod tests {
 
         let batches = db.get_upload_batches().unwrap();
         assert_eq!(batches.len(), 1);
-        assert_eq!(batches[0].filename.as_deref(), Some("test.csv"));
+        assert_eq!(batches[0].filename, "test.csv");
         assert_eq!(batches[0].expense_count, 3);
     }
 
@@ -1901,7 +1928,7 @@ mod tests {
 
         let batches = db.get_upload_batches().unwrap();
         // batches are ordered by uploaded_at DESC, so batch B is first
-        let batch_a_id = batches.iter().find(|b| b.filename.as_deref() == Some("a.csv")).unwrap().id;
+        let batch_a_id = batches.iter().find(|b| b.filename == "a.csv").unwrap().id;
 
         db.delete_batch(batch_a_id).unwrap();
 
@@ -1911,7 +1938,7 @@ mod tests {
 
         let batches = db.get_upload_batches().unwrap();
         assert_eq!(batches.len(), 1);
-        assert_eq!(batches[0].filename.as_deref(), Some("b.csv"));
+        assert_eq!(batches[0].filename, "b.csv");
     }
 
     #[test]
@@ -2275,8 +2302,8 @@ mod tests {
         let batches = db.get_upload_batches().unwrap();
         assert_eq!(batches.len(), 2);
         // Most recent first
-        assert_eq!(batches[0].filename.as_deref(), Some("file2.csv"));
-        assert_eq!(batches[1].filename.as_deref(), Some("file1.csv"));
+        assert_eq!(batches[0].filename, "file2.csv");
+        assert_eq!(batches[1].filename, "file1.csv");
     }
 
     #[test]
@@ -2814,5 +2841,92 @@ mod tests {
             })
             .unwrap();
         assert_eq!(result.rules.len(), 1);
+    }
+
+    #[test]
+    fn create_budget_with_duplicate_categories_rolls_back() {
+        let db = test_db();
+        let start = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 7, 31).unwrap();
+
+        // Two categories with the same name — violates UNIQUE(budget_id, category)
+        let cats = vec![
+            BudgetCategory { id: None, budget_id: 0, category: "Food".into(), amount: 300.0 },
+            BudgetCategory { id: None, budget_id: 0, category: "Food".into(), amount: 200.0 },
+        ];
+
+        let result = db.create_budget_with_categories(start, end, &cats);
+        assert!(result.is_err());
+
+        // Budget row must also be absent (rolled back)
+        let budgets = db.get_all_budgets().unwrap();
+        assert!(budgets.is_empty(), "budget should be rolled back on category failure");
+    }
+
+    #[test]
+    fn delete_budget_not_found_does_not_commit() {
+        let db = test_db();
+        // Create a budget with categories, then try deleting a non-existent one
+        let start = NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 8, 31).unwrap();
+        let cats = vec![
+            BudgetCategory { id: None, budget_id: 0, category: "Food".into(), amount: 100.0 },
+        ];
+        let bid = db.create_budget_with_categories(start, end, &cats).unwrap();
+
+        let err = db.delete_budget(999);
+        assert!(err.is_err());
+
+        // Original budget should still exist
+        assert!(db.get_budget_by_id(bid).unwrap().is_some());
+        assert_eq!(db.get_budget_categories(bid).unwrap().len(), 1);
+    }
+
+    // ── Task 97: DB Indices & Schema ──
+
+    #[test]
+    fn migration_creates_classification_rules_category_index() {
+        let db = test_db();
+        let exists: bool = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='index' AND name='idx_classification_rules_category'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "idx_classification_rules_category should exist after migration");
+    }
+
+    #[test]
+    fn upload_batches_filename_not_null_for_new_db() {
+        let db = test_db();
+        // Direct INSERT with NULL filename should fail on a fresh database
+        let result = db.conn.execute(
+            "INSERT INTO upload_batches (filename, uploaded_at, expense_count) VALUES (NULL, '2026-01-01', 1)",
+            [],
+        );
+        assert!(result.is_err(), "NULL filename should be rejected by NOT NULL constraint");
+    }
+
+    #[test]
+    fn upload_batches_default_filename_is_empty_string() {
+        let db = test_db();
+        // INSERT without filename column should use DEFAULT ''
+        db.conn
+            .execute(
+                "INSERT INTO upload_batches (uploaded_at, expense_count) VALUES ('2026-01-01', 1)",
+                [],
+            )
+            .unwrap();
+        let filename: String = db
+            .conn
+            .query_row(
+                "SELECT filename FROM upload_batches WHERE id = last_insert_rowid()",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(filename, "");
     }
 }

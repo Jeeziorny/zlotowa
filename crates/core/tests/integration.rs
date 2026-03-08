@@ -374,7 +374,7 @@ fn empty_bulk_insert_creates_batch_record() {
 
     let batches = db.get_upload_batches().unwrap();
     assert_eq!(batches.len(), 1);
-    assert_eq!(batches[0].filename, Some("test.csv".to_string()));
+    assert_eq!(batches[0].filename, "test.csv");
     assert_eq!(batches[0].expense_count, 0);
 }
 
@@ -420,5 +420,5 @@ fn bulk_insert_batch_tracks_correct_count() {
     let batches = db.get_upload_batches().unwrap();
     assert_eq!(batches.len(), 1);
     assert_eq!(batches[0].expense_count, 2);
-    assert_eq!(batches[0].filename, Some("upload.csv".to_string()));
+    assert_eq!(batches[0].filename, "upload.csv");
 }

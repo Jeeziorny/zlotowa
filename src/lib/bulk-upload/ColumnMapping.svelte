@@ -11,6 +11,7 @@
   let mappingError = $state("");
   let llmWarningDismissed = $state(false);
   let restoredBanner = $state(false);
+  let loadError = $state("");
 
   function extractFilenamePattern(name) {
     const base = name.replace(/\.[^.]+$/, "");
@@ -44,6 +45,7 @@
       restoredBanner = true;
     } catch (err) {
       console.warn("Failed to load column mappings:", err);
+      loadError = "Couldn't restore saved column mappings.";
     }
   });
 
@@ -191,6 +193,17 @@
     <p class="text-sm text-gray-400 mb-4">
       Click on column name to assign the data type.
     </p>
+
+    {#if loadError}
+      <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4 flex items-center justify-between gap-3">
+        <span>{loadError}</span>
+        <button
+          onclick={() => (loadError = "")}
+          class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
+          aria-label="Dismiss warning"
+        >&times;</button>
+      </div>
+    {/if}
 
     {#if llmWarning && !llmWarningDismissed}
       <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4 flex items-center justify-between gap-3">

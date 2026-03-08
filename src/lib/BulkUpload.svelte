@@ -77,7 +77,10 @@
       } else {
         llmWarning = "";
       }
-    } catch (err) { console.warn("Failed to check LLM config:", err); llmWarning = ""; }
+    } catch (err) {
+      console.warn("Failed to check LLM config:", err);
+      llmWarning = "Could not check LLM configuration. Expenses not matched by rules may need manual categorization.";
+    }
 
     step = "column-mapping";
   }
@@ -162,6 +165,7 @@
     } catch (err) {
       console.warn("Failed to load categories:", err);
       allCategories = [];
+      error = "Failed to load categories for autocomplete.";
     }
   }
 

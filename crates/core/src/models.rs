@@ -119,7 +119,7 @@ pub struct CategoryStats {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UploadBatch {
     pub id: i64,
-    pub filename: Option<String>,
+    pub filename: String,
     pub uploaded_at: String,
     pub expense_count: i64,
 }

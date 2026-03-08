@@ -1,7 +1,11 @@
 [package]
 name = "accountant-app"
-version = "0.1.0"
-edition = "2021"
+description = "Tauri IPC layer for złotówa desktop app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [lib]
 name = "accountant_app_lib"

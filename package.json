@@ -2,6 +2,13 @@
   "name": "zlotowa",
   "private": true,
   "version": "0.1.0",
+  "description": "Desktop expense tracking and classification app",
+  "license": "MIT",
+  "author": "Kamil Jeżiorny",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jeeziorny/4ccountant.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

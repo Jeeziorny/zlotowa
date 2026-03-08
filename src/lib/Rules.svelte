@@ -10,6 +10,7 @@
   let rules = $state([]);
   let totalCount = $state(0);
   let loading = $state(false);
+  let fetchError = $state("");
 
   // Filters
   let searchText = $state("");
@@ -59,8 +60,10 @@
       const result = await invoke("query_rules", { query });
       rules = result.rules;
       totalCount = result.total_count;
+      fetchError = "";
     } catch (err) {
       console.error("Failed to load rules:", err);
+      fetchError = "Failed to load rules. Please try again.";
     }
     loading = false;
   }
@@ -68,39 +71,39 @@
   function handleSearch(value) {
     searchText = value;
     currentPage = 1;
-    fetchRules().catch(() => {});
+    fetchRules();
   }
 
   function handleFilterChange(value) {
     filterCategory = value;
     currentPage = 1;
-    fetchRules().catch(() => {});
+    fetchRules();
   }
 
   function clearFilters() {
     searchText = "";
     filterCategory = "";
     currentPage = 1;
-    fetchRules().catch(() => {});
+    fetchRules();
   }
 
   function changePageSize(newSize) {
     pageSize = newSize;
     currentPage = 1;
-    fetchRules().catch(() => {});
+    fetchRules();
   }
 
   function prevPage() {
     if (currentPage > 1) {
       currentPage--;
-      fetchRules().catch(() => {});
+      fetchRules();
     }
   }
 
   function nextPage() {
     if (currentPage < totalPages) {
       currentPage++;
-      fetchRules().catch(() => {});
+      fetchRules();
     }
   }
 
@@ -124,7 +127,9 @@
       newCategory = "";
       showAddForm = false;
       // Refresh categories in case a new one was added
-      try { categories = await invoke("get_categories"); } catch {}
+      try { categories = await invoke("get_categories"); } catch {
+        fetchError = "Rule saved, but failed to refresh categories.";
+      }
       await fetchRules();
     } catch (err) {
       addError = `Failed to add rule: ${err}`;
@@ -139,7 +144,9 @@
 
   async function handleSaved() {
     // Refresh categories in case category was changed
-    try { categories = await invoke("get_categories"); } catch {}
+    try { categories = await invoke("get_categories"); } catch {
+      fetchError = "Rule saved, but failed to refresh categories.";
+    }
     await fetchRules();
   }
 </script>
@@ -213,6 +220,13 @@
     onfilterchange={handleFilterChange}
     onclear={clearFilters}
   />
+
+  {#if fetchError}
+    <div class="flex items-center justify-between bg-red-900/30 border border-red-800 text-red-300 rounded-lg px-4 py-2.5 mb-3 text-sm">
+      <span>{fetchError}</span>
+      <button onclick={() => fetchError = ""} class="text-red-400 hover:text-red-200 ml-4" aria-label="Dismiss error">×</button>
+    </div>
+  {/if}
 
   {#if loading && rules.length === 0}
     <div class="bg-gray-900 rounded-xl p-12 border border-gray-800 text-center text-gray-500">

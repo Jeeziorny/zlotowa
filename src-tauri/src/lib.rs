@@ -1490,7 +1490,7 @@ mod tests {
         let state: State<AppState> = app.state();
         let batches = get_upload_batches(state).unwrap();
         assert_eq!(batches.len(), 1);
-        assert_eq!(batches[0].filename, Some("test.csv".to_string()));
+        assert_eq!(batches[0].filename, "test.csv");
         assert_eq!(batches[0].expense_count, 2);
 
         // Delete batch (undo)

@@ -39,6 +39,7 @@
   let expenses = $state([]);
   let totalCount = $state(0);
   let loading = $state(false);
+  let fetchError = $state("");
 
   // Search & filters
   let searchText = $state("");
@@ -105,8 +106,10 @@
       expenses = result.expenses;
       totalCount = result.total_count;
       selected = new Set();
+      fetchError = "";
     } catch (err) {
       console.error("Failed to load expenses:", err);
+      fetchError = "Failed to load expenses. Please try again.";
     }
     loading = false;
   }
@@ -114,7 +117,7 @@
   function handleSearch(value) {
     searchText = value;
     currentPage = 1;
-    fetchExpenses().catch(() => {});
+    fetchExpenses();
   }
 
   function handleFilterChange(field, value) {
@@ -124,7 +127,7 @@
     else if (field === "filterAmountMin") filterAmountMin = value;
     else if (field === "filterAmountMax") filterAmountMax = value;
     currentPage = 1;
-    fetchExpenses().catch(() => {});
+    fetchExpenses();
   }
 
   function clearFilters() {
@@ -135,26 +138,26 @@
     filterAmountMin = "";
     filterAmountMax = "";
     currentPage = 1;
-    fetchExpenses().catch(() => {});
+    fetchExpenses();
   }
 
   function changePageSize(newSize) {
     pageSize = newSize;
     currentPage = 1;
-    fetchExpenses().catch(() => {});
+    fetchExpenses();
   }
 
   function prevPage() {
     if (currentPage > 1) {
       currentPage--;
-      fetchExpenses().catch(() => {});
+      fetchExpenses();
     }
   }
 
   function nextPage() {
     if (currentPage < totalPages) {
       currentPage++;
-      fetchExpenses().catch(() => {});
+      fetchExpenses();
     }
   }
 
@@ -298,6 +301,13 @@
           Clear all
         </button>
       {/if}
+    </div>
+  {/if}
+
+  {#if fetchError}
+    <div class="flex items-center justify-between bg-red-900/30 border border-red-800 text-red-300 rounded-lg px-4 py-2.5 mb-3 text-sm">
+      <span>{fetchError}</span>
+      <button onclick={() => fetchError = ""} class="text-red-400 hover:text-red-200 ml-4" aria-label="Dismiss error">×</button>
     </div>
   {/if}
 

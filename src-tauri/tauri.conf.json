@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/main/nicegui/static/tauri-v2.schema.json",
+  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/refs/heads/main/nicegui/static/tauri-v2.schema.json",
   "productName": "złotówa",
   "version": "0.1.0",
   "identifier": "com.zlotowa.app",

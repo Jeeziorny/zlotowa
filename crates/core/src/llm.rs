@@ -192,17 +192,34 @@ fn http_classify(
         .map_err(|e| LlmError::RequestFailed(format!("Failed to parse response: {}", e)))?;
 
     // Navigate the JSON path to extract text content
+    let full_path = content_path.join(" → ");
     let mut node = &body;
-    for key in content_path {
-        if let Ok(idx) = key.parse::<usize>() {
-            node = &node[idx];
+    for (i, key) in content_path.iter().enumerate() {
+        let next = if let Ok(idx) = key.parse::<usize>() {
+            node.get(idx)
         } else {
-            node = &node[*key];
-        }
+            node.get(*key)
+        };
+        node = match next {
+            Some(v) => v,
+            None => {
+                let traversed = if i == 0 {
+                    "(root)".to_string()
+                } else {
+                    content_path[..i].join(" → ")
+                };
+                return Err(LlmError::RequestFailed(format!(
+                    "Unexpected response structure: missing '{}' (expected path: {}, got as far as: {})",
+                    key, full_path, traversed
+                )));
+            }
+        };
     }
     let content = node
         .as_str()
-        .ok_or_else(|| LlmError::RequestFailed("No content in response".to_string()))?;
+        .ok_or_else(|| LlmError::RequestFailed(format!(
+            "Unexpected response structure: value at '{}' is not a string", full_path
+        )))?;
 
     let results = parse_classification_response(content, expenses.len())?;
     let classified_count = results.iter().filter(|r| r.is_some()).count();
@@ -788,6 +805,110 @@ mod tests {
             .classify_batch(&sample_expenses(), &["Groceries".to_string()], &config)
             .expect("Classification failed");
         assert_eq!(result.len(), 3);
+    }
+
+    // ── Path traversal error tests ──
+
+    /// Helper: simulate the path-traversal logic from http_classify on a raw JSON body.
+    fn traverse_content_path<'a>(
+        body: &'a serde_json::Value,
+        content_path: &[&str],
+    ) -> Result<&'a str, LlmError> {
+        let full_path = content_path.join(" → ");
+        let mut node = body;
+        for (i, key) in content_path.iter().enumerate() {
+            let next = if let Ok(idx) = key.parse::<usize>() {
+                node.get(idx)
+            } else {
+                node.get(*key)
+            };
+            node = match next {
+                Some(v) => v,
+                None => {
+                    let traversed = if i == 0 {
+                        "(root)".to_string()
+                    } else {
+                        content_path[..i].join(" → ")
+                    };
+                    return Err(LlmError::RequestFailed(format!(
+                        "Unexpected response structure: missing '{}' (expected path: {}, got as far as: {})",
+                        key, full_path, traversed
+                    )));
+                }
+            };
+        }
+        node.as_str().ok_or_else(|| {
+            LlmError::RequestFailed(format!(
+                "Unexpected response structure: value at '{}' is not a string",
+                full_path
+            ))
+        })
+    }
+
+    #[test]
+    fn test_path_traversal_openai_shape() {
+        let body = serde_json::json!({
+            "choices": [{"message": {"content": "hello"}}]
+        });
+        let result = traverse_content_path(&body, &["choices", "0", "message", "content"]);
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_path_traversal_anthropic_shape() {
+        let body = serde_json::json!({
+            "content": [{"text": "hello"}]
+        });
+        let result = traverse_content_path(&body, &["content", "0", "text"]);
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_path_traversal_ollama_shape() {
+        let body = serde_json::json!({
+            "message": {"content": "hello"}
+        });
+        let result = traverse_content_path(&body, &["message", "content"]);
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_path_traversal_missing_top_level_key() {
+        let body = serde_json::json!({});
+        let err = traverse_content_path(&body, &["choices", "0", "message", "content"])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("missing 'choices'"), "got: {err}");
+        assert!(err.contains("(root)"), "got: {err}");
+    }
+
+    #[test]
+    fn test_path_traversal_empty_array() {
+        let body = serde_json::json!({"choices": []});
+        let err = traverse_content_path(&body, &["choices", "0", "message", "content"])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("missing '0'"), "got: {err}");
+        assert!(err.contains("got as far as: choices"), "got: {err}");
+    }
+
+    #[test]
+    fn test_path_traversal_missing_nested_key() {
+        let body = serde_json::json!({"choices": [{"message": {}}]});
+        let err = traverse_content_path(&body, &["choices", "0", "message", "content"])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("missing 'content'"), "got: {err}");
+        assert!(err.contains("got as far as: choices → 0 → message"), "got: {err}");
+    }
+
+    #[test]
+    fn test_path_traversal_value_not_string() {
+        let body = serde_json::json!({"choices": [{"message": {"content": 42}}]});
+        let err = traverse_content_path(&body, &["choices", "0", "message", "content"])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("not a string"), "got: {err}");
     }
 
     #[test]

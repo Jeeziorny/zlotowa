@@ -4,11 +4,22 @@
 
 | # | Task |
 |---|------|
-| 91 | Open Source Files & Package Metadata |
+| 96 | Docs Drift Cleanup |
+| 98 | Remove Unnecessary Clones |
+| 99 | Test Coverage Gaps |
+| 100 | Frontend Constants & Minor Cleanup |
+| 101 | Accessibility Suppressions |
+| 102 | CI/CD Pipeline |
+| 103 | Bulk Upload Rule Review Step |
 
 ## DONE
 
 | # | Task | Summary |
+| 97 | DB Indices & Schema Tightening | Added `idx_classification_rules_category` index for WHERE/GROUP BY/UPDATE on category. Tightened `upload_batches.filename` to `NOT NULL DEFAULT ''` (backfills existing NULLs). `UploadBatch.filename` model changed from `Option<String>` to `String`. Documented `query_rules()` O(rules×titles) match counting as acceptable for desktop scale. 3 new tests. |
+| 95 | Silent Error Swallowing in Frontend | Surfaced 5 silent catch blocks: Rules.svelte category refresh ×2 (uses `fetchError` banner), BulkUpload LLM config check (shows warning instead of hiding), BulkUpload category load (sets `error`), ColumnMapping saved mappings restore (new `loadError` amber banner). 5 other catches left as-is (graceful defaults for non-critical config). |
+| 94 | LLM Response Parsing Robustness | Replaced blind JSON indexing in `http_classify()` with `.get()` + descriptive error messages showing expected path and where traversal failed. 7 new tests. |
+| 93 | Transaction Safety Fixes | Standardized `tx` handle usage in `create_budget_with_categories`, `save_budget_categories_inner` (now takes `&Transaction`), `restore_backup_data`. Fixed `delete_budget` post-commit error check. 2 new tests. |
+| 91 | Open Source Files & Package Metadata | MIT LICENSE file. Workspace-level Cargo.toml metadata (license, authors, repository, description) inherited by all 3 crates. package.json: license, author, description, repository. Fixed tauri.conf.json schema URL. |
 | 90 | Widget — Month-over-Month Comparison | Grouped bar chart comparing current vs previous month spending per category (top 6). Month navigation arrows, total delta summary with % change (green=down, amber=up), color legend, tooltips with per-category delta. Registered as half-size widget. |
 | 89 | Widget — Spending by Day of Week | Grouped bar chart showing total spending per weekday (Mon–Sun), today's bar highlighted in amber. DATE_RANGE_PRESETS pills for filtering, tooltips with total + transaction count. Registered in widget registry. |
 | 92 | CI Pipeline & GitHub Issue Templates | `.github/workflows/ci.yml` — Linux + macOS matrix, clippy (deny warnings), cargo test, frontend build. Bug report + feature request issue templates. Fixed pre-existing clippy warning (type_complexity in CLI) and 2 broken test calls (missing delimiter param from task 84). |

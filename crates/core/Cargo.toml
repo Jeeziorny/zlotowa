@@ -1,7 +1,11 @@
 [package]
 name = "accountant-core"
-version = "0.1.0"
-edition = "2021"
+description = "Core business logic for złotówa — parsers, classifiers, DB, models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 [dependencies]
 rusqlite = { version = "0.31", features = ["bundled"] }
