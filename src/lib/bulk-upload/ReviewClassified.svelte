@@ -3,6 +3,11 @@
 
   let { classifiedRows = $bindable(), allCategories, onback, onsave } = $props();
 
+  let sessionCategories = $state(new Set());
+  let combinedCategories = $derived(
+    [...new Set([...allCategories, ...sessionCategories])].sort((a, b) => a.localeCompare(b))
+  );
+
   let reviewError = $state("");
 
   let nonDuplicateRows = $derived(classifiedRows.filter((r) => !r.is_duplicate && r.amount < 0));
@@ -19,6 +24,7 @@
       category: newCategory,
       source: "Manual",
     };
+    if (newCategory) sessionCategories.add(newCategory);
   }
 
   function selectCategory(index, cat) {
@@ -52,7 +58,7 @@
           {#if showSource && row.confidence != null}
             <span class="inline-flex items-center gap-1.5 shrink-0">
               {#if row.confidence >= 0.8}
-                <span class="px-2 py-0.5 rounded text-xs bg-emerald-900/50 text-emerald-400">✓ High</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-emerald-900/50 text-emerald-400">High</span>
               {:else if row.confidence >= 0.5}
                 <span class="px-2 py-0.5 rounded text-xs bg-yellow-900/50 text-yellow-400">~ Medium</span>
               {:else}
@@ -75,7 +81,7 @@
             </span>
           {:else}
             <Autocomplete
-              options={allCategories}
+              options={combinedCategories}
               maxlength={100}
               placeholder="Type category..."
               onselect={(cat) => selectCategory(origIndex, cat)}
@@ -214,20 +220,19 @@
     </div>
   {/if}
 
-  <div class="flex gap-3 mt-4 shrink-0">
+  <div class="shrink-0 flex items-center justify-between border-t border-gray-800 pt-4 mt-4">
     <button
       onclick={onback}
-      class="px-6 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium
-             py-3 rounded-xl transition-colors"
+      class="px-6 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300
+             font-medium transition-colors"
     >
       Back
     </button>
     <button
       onclick={doSave}
       disabled={nonDuplicateRows.length === 0}
-      class="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
-             disabled:text-gray-500 text-gray-950 font-medium py-3 rounded-xl
-             transition-colors"
+      class="px-8 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
+             disabled:text-gray-500 text-gray-950 font-medium transition-colors"
     >
       Save {nonDuplicateRows.length} Expenses
     </button>

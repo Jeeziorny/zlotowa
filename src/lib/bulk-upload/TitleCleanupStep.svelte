@@ -181,202 +181,201 @@
   );
 </script>
 
-<div>
-  <!-- Mode toggle + help -->
-  <div class="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
-    <div class="flex items-center justify-between mb-3">
-      <div class="flex rounded-lg bg-gray-800 p-0.5">
+<div class="flex flex-col" style="height: calc(100vh - 12rem);">
+  <div class="flex-1 overflow-y-auto min-h-0">
+    <!-- Mode toggle + help -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex rounded-lg bg-gray-800 p-0.5">
+          <button
+            onclick={() => mode = "findReplace"}
+            class="px-3 py-1 rounded-md text-sm font-medium transition-colors
+                   {mode === 'findReplace' ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'}"
+          >
+            Find & Replace
+          </button>
+          <button
+            onclick={() => mode = "extract"}
+            class="px-3 py-1 rounded-md text-sm font-medium transition-colors
+                   {mode === 'extract' ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'}"
+          >
+            Extract
+          </button>
+        </div>
         <button
-          onclick={() => mode = "findReplace"}
-          class="px-3 py-1 rounded-md text-sm font-medium transition-colors
-                 {mode === 'findReplace' ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'}"
-        >
-          Find & Replace
-        </button>
-        <button
-          onclick={() => mode = "extract"}
-          class="px-3 py-1 rounded-md text-sm font-medium transition-colors
-                 {mode === 'extract' ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-gray-200'}"
-        >
-          Extract
-        </button>
+          onclick={() => showHelp = !showHelp}
+          class="w-6 h-6 rounded-full border text-xs font-bold transition-colors
+                 {showHelp ? 'border-amber-500 text-amber-400' : 'border-gray-600 text-gray-500 hover:border-gray-400 hover:text-gray-300'}"
+          title="How does this work?"
+        >?</button>
       </div>
-      <button
-        onclick={() => showHelp = !showHelp}
-        class="w-6 h-6 rounded-full border text-xs font-bold transition-colors
-               {showHelp ? 'border-amber-500 text-amber-400' : 'border-gray-600 text-gray-500 hover:border-gray-400 hover:text-gray-300'}"
-        title="How does this work?"
-      >?</button>
-    </div>
 
-    {#if showHelp}
-      <div class="mb-3 bg-gray-800 rounded-lg border border-gray-700 p-3 text-sm text-gray-300 space-y-3">
-        <div>
-          <p class="font-medium text-gray-200 mb-1">Find & Replace</p>
-          <p class="text-gray-400 mb-1.5">Finds text in titles and replaces it. Leave "Replace" empty to remove the matched text.</p>
-          <div class="font-mono text-xs bg-gray-900 rounded px-2 py-1.5 space-y-0.5">
-            <p><span class="text-gray-500">Before:</span> Payment LIDL 18,99PLN</p>
-            <p><span class="text-gray-500">Find:</span> Payment <span class="text-gray-600">→</span> <span class="text-gray-500">Replace:</span> <span class="text-gray-600 italic">(empty)</span></p>
-            <p><span class="text-gray-500">After:</span> <span class="text-emerald-400">LIDL 18,99PLN</span></p>
+      {#if showHelp}
+        <div class="mb-3 bg-gray-800 rounded-lg border border-gray-700 p-3 text-sm text-gray-300 space-y-3">
+          <div>
+            <p class="font-medium text-gray-200 mb-1">Find & Replace</p>
+            <p class="text-gray-400 mb-1.5">Finds text in titles and replaces it. Leave "Replace" empty to remove the matched text.</p>
+            <div class="font-mono text-xs bg-gray-900 rounded px-2 py-1.5 space-y-0.5">
+              <p><span class="text-gray-500">Before:</span> Payment LIDL 18,99PLN</p>
+              <p><span class="text-gray-500">Find:</span> Payment <span class="text-gray-600">&rarr;</span> <span class="text-gray-500">Replace:</span> <span class="text-gray-600 italic">(empty)</span></p>
+              <p><span class="text-gray-500">After:</span> <span class="text-emerald-400">LIDL 18,99PLN</span></p>
+            </div>
+          </div>
+          <div>
+            <p class="font-medium text-gray-200 mb-1">Extract</p>
+            <p class="text-gray-400 mb-1.5">Keeps only the matched text, removing everything else. Titles without a match are left unchanged.</p>
+            <div class="font-mono text-xs bg-gray-900 rounded px-2 py-1.5 space-y-0.5">
+              <p><span class="text-gray-500">Before:</span> Payment twoja stara LIDL zaplacono 18,99PLN</p>
+              <p><span class="text-gray-500">Keep only:</span> LIDL</p>
+              <p><span class="text-gray-500">After:</span> <span class="text-emerald-400">LIDL</span></p>
+            </div>
           </div>
         </div>
-        <div>
-          <p class="font-medium text-gray-200 mb-1">Extract</p>
-          <p class="text-gray-400 mb-1.5">Keeps only the matched text, removing everything else. Titles without a match are left unchanged.</p>
-          <div class="font-mono text-xs bg-gray-900 rounded px-2 py-1.5 space-y-0.5">
-            <p><span class="text-gray-500">Before:</span> Payment twoja stara LIDL zaplacono 18,99PLN</p>
-            <p><span class="text-gray-500">Keep only:</span> LIDL</p>
-            <p><span class="text-gray-500">After:</span> <span class="text-emerald-400">LIDL</span></p>
-          </div>
-        </div>
-      </div>
-    {/if}
+      {/if}
 
-    <!-- Input fields -->
-    <div class="flex items-end gap-3 flex-wrap">
-      <div class="flex-1 min-w-48">
-        <label for="cleanup-find" class="block text-xs text-gray-400 mb-1">
-          {mode === "extract" ? "Keep only" : "Find"}
-        </label>
-        <input
-          id="cleanup-find"
-          type="text"
-          bind:value={findText}
-          placeholder={mode === "extract" ? "Text to keep (e.g. LIDL)..." : "Text to find..."}
-          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
-                 text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
-          onkeydown={(e) => e.key === "Enter" && handleApply()}
-        />
-      </div>
-      {#if mode === "findReplace"}
+      <!-- Input fields -->
+      <div class="flex items-end gap-3 flex-wrap">
         <div class="flex-1 min-w-48">
-          <label for="cleanup-replace" class="block text-xs text-gray-400 mb-1">Replace</label>
+          <label for="cleanup-find" class="block text-xs text-gray-400 mb-1">
+            {mode === "extract" ? "Keep only" : "Find"}
+          </label>
           <input
-            id="cleanup-replace"
+            id="cleanup-find"
             type="text"
-            bind:value={replaceText}
-            placeholder="Leave empty to remove"
+            bind:value={findText}
+            placeholder={mode === "extract" ? "Text to keep (e.g. LIDL)..." : "Text to find..."}
             class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
                    text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
             onkeydown={(e) => e.key === "Enter" && handleApply()}
           />
         </div>
-      {/if}
-      <label class="flex items-center gap-1.5 text-sm text-gray-400 cursor-pointer pb-2">
-        <input type="checkbox" bind:checked={isRegex}
-          class="accent-amber-500" />
-        Regex
-      </label>
-      <button
-        onclick={handleApply}
-        disabled={!findText}
-        class="bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500
-               text-gray-950 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-      >
-        Apply
-      </button>
-    </div>
-    {#if applyError}
-      <p class="mt-2 text-sm text-red-400">{applyError}</p>
-    {/if}
-    {#if lastApplyCount !== null && !applyError}
-      <p class="mt-2 text-sm text-emerald-400">
-        {mode === "extract" ? "Extracted" : "Replaced"} in {lastApplyCount} title{lastApplyCount !== 1 ? "s" : ""}
-      </p>
-    {/if}
-  </div>
-
-  <!-- Recent cleanups -->
-  {#if recentCleanups.length > 0}
-    <div class="mb-4">
-      <button
-        onclick={() => showRecent = !showRecent}
-        class="text-sm text-gray-400 hover:text-gray-300 flex items-center gap-1 transition-colors"
-      >
-        <svg class="w-3.5 h-3.5 transition-transform {showRecent ? 'rotate-90' : ''}"
-          fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-        Recent cleanups ({recentCleanups.length})
-      </button>
-      {#if showRecent}
-        <div class="mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
-          {#each recentCleanups as pair}
-            <button
-              onclick={() => handleRecentClick(pair)}
-              class="w-full text-left px-4 py-2.5 hover:bg-gray-800/50 transition-colors
-                     flex items-center gap-2 text-sm"
-            >
-              {#if pair.mode === "extract"}
-                <span class="text-xs bg-gray-800 text-amber-500/70 px-1.5 py-0.5 rounded">extract</span>
-                <span class="font-mono text-gray-300">{pair.find}</span>
-              {:else}
-                <span class="font-mono text-gray-300">{pair.find}</span>
-                <span class="text-gray-600">&rarr;</span>
-                <span class="font-mono text-gray-400">{pair.replace || "(remove)"}</span>
-              {/if}
-              {#if pair.is_regex}
-                <span class="text-xs bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">regex</span>
-              {/if}
-            </button>
-          {/each}
-          <div class="px-4 py-2">
-            <button
-              onclick={handleReapplyAll}
-              class="text-sm text-amber-400 hover:text-amber-300 transition-colors"
-            >
-              Re-apply all
-            </button>
+        {#if mode === "findReplace"}
+          <div class="flex-1 min-w-48">
+            <label for="cleanup-replace" class="block text-xs text-gray-400 mb-1">Replace</label>
+            <input
+              id="cleanup-replace"
+              type="text"
+              bind:value={replaceText}
+              placeholder="Leave empty to remove"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm
+                     text-gray-100 font-mono placeholder-gray-600 focus:outline-none focus:border-amber-500"
+              onkeydown={(e) => e.key === "Enter" && handleApply()}
+            />
           </div>
-        </div>
+        {/if}
+        <label class="flex items-center gap-1.5 text-sm text-gray-400 cursor-pointer pb-2">
+          <input type="checkbox" bind:checked={isRegex}
+            class="accent-amber-500" />
+          Regex
+        </label>
+        <button
+          onclick={handleApply}
+          disabled={!findText}
+          class="bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500
+                 text-gray-950 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        >
+          Apply
+        </button>
+      </div>
+      {#if applyError}
+        <p class="mt-2 text-sm text-red-400">{applyError}</p>
+      {/if}
+      {#if lastApplyCount !== null && !applyError}
+        <p class="mt-2 text-sm text-emerald-400">
+          {mode === "extract" ? "Extracted" : "Replaced"} in {lastApplyCount} title{lastApplyCount !== 1 ? "s" : ""}
+        </p>
       {/if}
     </div>
-  {/if}
 
-  <!-- Expense table -->
-  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden mb-4">
-    <div class="max-h-96 overflow-y-auto">
-      <table class="w-full text-sm">
-        <thead class="sticky top-0 bg-gray-900 border-b border-gray-800">
-          <tr>
-            <th class="text-left px-4 py-2.5 text-gray-400 font-medium w-28">Date</th>
-            <th class="text-left px-4 py-2.5 text-gray-400 font-medium">Title</th>
-            <th class="text-right px-4 py-2.5 text-gray-400 font-medium w-28">Amount</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-800/50">
-          {#each parsedRows as row, i}
-            {@const isModified = row.title !== originalTitles[i]}
-            <tr class="{isModified ? 'bg-emerald-950/20' : ''}">
-              <td class="px-4 py-2 text-gray-400 tabular-nums">{row.date}</td>
-              <td class="px-4 py-2 text-gray-100" title={isModified ? `Original: ${originalTitles[i]}` : ""}>
-                {row.title}
-                {#if isModified}
-                  <span class="ml-1 text-emerald-500 text-xs" title="Original: {originalTitles[i]}">*</span>
+    <!-- Recent cleanups -->
+    {#if recentCleanups.length > 0}
+      <div class="mb-4">
+        <button
+          onclick={() => showRecent = !showRecent}
+          class="text-sm text-gray-400 hover:text-gray-300 flex items-center gap-1 transition-colors"
+        >
+          <svg class="w-3.5 h-3.5 transition-transform {showRecent ? 'rotate-90' : ''}"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+          Recent cleanups ({recentCleanups.length})
+        </button>
+        {#if showRecent}
+          <div class="mt-2 bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800">
+            {#each recentCleanups as pair}
+              <button
+                onclick={() => handleRecentClick(pair)}
+                class="w-full text-left px-4 py-2.5 hover:bg-gray-800/50 transition-colors
+                       flex items-center gap-2 text-sm"
+              >
+                {#if pair.mode === "extract"}
+                  <span class="text-xs bg-gray-800 text-amber-500/70 px-1.5 py-0.5 rounded">extract</span>
+                  <span class="font-mono text-gray-300">{pair.find}</span>
+                {:else}
+                  <span class="font-mono text-gray-300">{pair.find}</span>
+                  <span class="text-gray-600">&rarr;</span>
+                  <span class="font-mono text-gray-400">{pair.replace || "(remove)"}</span>
                 {/if}
-              </td>
-              <td class="px-4 py-2 text-right text-gray-300 tabular-nums">
-                {row.amount.toFixed(2)}
-              </td>
+                {#if pair.is_regex}
+                  <span class="text-xs bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">regex</span>
+                {/if}
+              </button>
+            {/each}
+            <div class="px-4 py-2">
+              <button
+                onclick={handleReapplyAll}
+                class="text-sm text-amber-400 hover:text-amber-300 transition-colors"
+              >
+                Re-apply all
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- Expense table -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+      <div class="max-h-96 overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-gray-900 border-b border-gray-800">
+            <tr>
+              <th class="text-left px-4 py-2.5 text-gray-400 font-medium w-28">Date</th>
+              <th class="text-left px-4 py-2.5 text-gray-400 font-medium">Title</th>
+              <th class="text-right px-4 py-2.5 text-gray-400 font-medium w-28">Amount</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody class="divide-y divide-gray-800/50">
+            {#each parsedRows as row, i}
+              {@const isModified = row.title !== originalTitles[i]}
+              <tr class="{isModified ? 'bg-emerald-950/20' : ''}">
+                <td class="px-4 py-2 text-gray-400 tabular-nums">{row.date}</td>
+                <td class="px-4 py-2 text-gray-100" title={isModified ? `Original: ${originalTitles[i]}` : ""}>
+                  {row.title}
+                  {#if isModified}
+                    <span class="ml-1 text-emerald-500 text-xs" title="Original: {originalTitles[i]}">*</span>
+                  {/if}
+                </td>
+                <td class="px-4 py-2 text-right text-gray-300 tabular-nums">
+                  {row.amount.toFixed(2)}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <!-- Footer -->
-  <div class="flex items-center justify-between">
+  <div class="shrink-0 flex items-center justify-between border-t border-gray-800 pt-4 mt-4">
     <button
       onclick={onback}
-      class="text-gray-400 hover:text-amber-400 text-sm inline-flex items-center gap-1 transition-colors"
+      class="px-6 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300
+             font-medium transition-colors"
     >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
       Back
     </button>
-
     <div class="flex items-center gap-3">
       {#if modifiedCount > 0}
         <span class="text-sm text-gray-400">{modifiedCount} modified</span>
@@ -389,8 +388,8 @@
       {/if}
       <button
         onclick={handleNext}
-        class="bg-amber-500 hover:bg-amber-400 text-gray-950 px-5 py-2 rounded-lg
-               text-sm font-medium transition-colors"
+        class="px-8 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-gray-950
+               font-medium transition-colors"
       >
         {appliedOps.length > 0 ? "Next" : "Skip"}
       </button>

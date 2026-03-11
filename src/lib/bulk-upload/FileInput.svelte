@@ -62,97 +62,101 @@
   }
 </script>
 
-<div class="max-w-2xl space-y-6">
-  <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-    <h3 class="text-lg font-semibold mb-3">Paste expense data</h3>
-    <p class="text-sm text-gray-400 mb-3">
-      Paste CSV content from your bank's export.
-    </p>
-    <textarea
-      bind:value={inputText}
-      rows="10"
-      placeholder="date,title,amount&#10;2024-01-15,Grocery Store,45.99&#10;2024-01-16,Gas Station,62.30"
-      class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3
-             text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500
-             font-mono text-sm resize-y"
-    ></textarea>
-  </div>
+<div class="flex flex-col" style="height: calc(100vh - 12rem);">
+  <div class="flex-1 overflow-y-auto min-h-0 space-y-6 max-w-2xl">
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+      <h3 class="text-lg font-semibold mb-3">Paste expense data</h3>
+      <p class="text-sm text-gray-400 mb-3">
+        Paste CSV content from your bank's export.
+      </p>
+      <textarea
+        bind:value={inputText}
+        rows="10"
+        placeholder="date,title,amount&#10;2024-01-15,Grocery Store,45.99&#10;2024-01-16,Gas Station,62.30"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3
+               text-gray-100 placeholder-gray-600 focus:outline-none focus:border-amber-500
+               font-mono text-sm resize-y"
+      ></textarea>
+    </div>
 
-  <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-    <h3 class="text-lg font-semibold mb-3">Or upload a file</h3>
-    <div
-      ondrop={handleFileDrop}
-      ondragover={handleDragOver}
-      onkeydown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          e.currentTarget.querySelector("input[type=file]")?.click();
-        }
-      }}
-      role="button"
-      tabindex="0"
-      aria-label="Upload CSV file"
-      class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center
-             hover:border-amber-500/50 transition-colors cursor-pointer"
-    >
-      {#if file}
-        <p class="text-amber-400">{file.name}</p>
-        <p class="text-xs text-gray-500 mt-1"
-          >{(file.size / 1024).toFixed(1)} KB</p
-        >
-      {:else}
-        <p class="text-gray-400 mb-2">
-          Drag & drop a .csv or .txt file here
-        </p>
-        <p class="text-sm text-gray-600">or</p>
-      {/if}
-      <label
-        class="inline-block mt-3 px-4 py-2 bg-gray-800 rounded-lg text-sm
-               text-gray-300 hover:bg-gray-700 cursor-pointer transition-colors"
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+      <h3 class="text-lg font-semibold mb-3">Or upload a file</h3>
+      <div
+        ondrop={handleFileDrop}
+        ondragover={handleDragOver}
+        onkeydown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.currentTarget.querySelector("input[type=file]")?.click();
+          }
+        }}
+        role="button"
+        tabindex="0"
+        aria-label="Upload CSV file"
+        class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center
+               hover:border-amber-500/50 transition-colors cursor-pointer"
       >
-        Browse files
-        <input
-          type="file"
-          accept=".csv,.txt"
-          onchange={handleFileSelect}
-          class="hidden"
-        />
-      </label>
-    </div>
-  </div>
-
-  {#if inputError}
-    <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400">
-      {inputError}
-    </div>
-  {/if}
-
-  {#if showDelimiterPicker}
-    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
-      <p class="text-sm font-medium text-gray-300 mb-2">Select CSV delimiter</p>
-      <div class="flex gap-2 flex-wrap">
-        {#each delimiters as d}
-          <button
-            onclick={() => { delimiter = d.value; }}
-            class="px-3 py-1.5 rounded-lg text-sm transition-colors
-                   {delimiter === d.value
-                     ? 'bg-amber-500 text-gray-950 font-medium'
-                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}"
+        {#if file}
+          <p class="text-amber-400">{file.name}</p>
+          <p class="text-xs text-gray-500 mt-1"
+            >{(file.size / 1024).toFixed(1)} KB</p
           >
-            {d.label}
-          </button>
-        {/each}
+        {:else}
+          <p class="text-gray-400 mb-2">
+            Drag & drop a .csv or .txt file here
+          </p>
+          <p class="text-sm text-gray-600">or</p>
+        {/if}
+        <label
+          class="inline-block mt-3 px-4 py-2 bg-gray-800 rounded-lg text-sm
+                 text-gray-300 hover:bg-gray-700 cursor-pointer transition-colors"
+        >
+          Browse files
+          <input
+            type="file"
+            accept=".csv,.txt"
+            onchange={handleFileSelect}
+            class="hidden"
+          />
+        </label>
       </div>
     </div>
-  {/if}
 
-  <button
-    onclick={submit}
-    disabled={!inputText.trim()}
-    class="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
-           disabled:text-gray-500 text-gray-950 font-medium py-3 rounded-xl
-           transition-colors"
-  >
-    Next: Map Columns
-  </button>
+    {#if inputError}
+      <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400">
+        {inputError}
+      </div>
+    {/if}
+
+    {#if showDelimiterPicker}
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <p class="text-sm font-medium text-gray-300 mb-2">Select CSV delimiter</p>
+        <div class="flex gap-2 flex-wrap">
+          {#each delimiters as d}
+            <button
+              onclick={() => { delimiter = d.value; }}
+              class="px-3 py-1.5 rounded-lg text-sm transition-colors
+                     {delimiter === d.value
+                       ? 'bg-amber-500 text-gray-950 font-medium'
+                       : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}"
+            >
+              {d.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <div class="shrink-0 flex items-center justify-between border-t border-gray-800 pt-4 mt-4 max-w-2xl">
+    <div></div>
+    <button
+      onclick={submit}
+      disabled={!inputText.trim()}
+      class="px-8 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
+             disabled:text-gray-500 text-gray-950 font-medium transition-colors"
+    >
+      Next: Map Columns
+    </button>
+  </div>
 </div>

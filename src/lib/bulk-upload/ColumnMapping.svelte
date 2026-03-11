@@ -184,181 +184,183 @@
   }
 </script>
 
-<div class="space-y-6" role="presentation" onclick={(e) => { if (!e.target.closest('[data-popover]')) activePopover = null; }}>
-  <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
-    <h3 class="text-lg font-semibold mb-1">
-      Detected format: {parserName}
-    </h3>
-    <p class="text-sm text-gray-400 mb-4">
-      Click on column name to assign the data type.
-    </p>
+<div class="flex flex-col" style="height: calc(100vh - 12rem);" role="presentation" onclick={(e) => { if (!e.target.closest('[data-popover]')) activePopover = null; }}>
+  <div class="flex-1 overflow-y-auto min-h-0 space-y-6">
+    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+      <h3 class="text-lg font-semibold mb-1">
+        Detected format: {parserName}
+      </h3>
+      <p class="text-sm text-gray-400 mb-4">
+        Click on column name to assign the data type.
+      </p>
 
-    {#if loadError}
-      <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4 flex items-center justify-between gap-3">
-        <span>{loadError}</span>
-        <button
-          onclick={() => (loadError = "")}
-          class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
-          aria-label="Dismiss warning"
-        >&times;</button>
-      </div>
-    {/if}
+      {#if loadError}
+        <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4 flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button
+            onclick={() => (loadError = "")}
+            class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
+            aria-label="Dismiss warning"
+          >&times;</button>
+        </div>
+      {/if}
 
-    {#if llmWarning && !llmWarningDismissed}
-      <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4 flex items-center justify-between gap-3">
-        <span>{llmWarning}</span>
-        <button
-          onclick={() => (llmWarningDismissed = true)}
-          class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
-          aria-label="Dismiss warning"
-        >&times;</button>
-      </div>
-    {/if}
+      {#if llmWarning && !llmWarningDismissed}
+        <div class="text-sm px-4 py-2 rounded-lg bg-amber-900/30 text-amber-400 border border-amber-800/50 mb-4 flex items-center justify-between gap-3">
+          <span>{llmWarning}</span>
+          <button
+            onclick={() => (llmWarningDismissed = true)}
+            class="text-amber-400 hover:text-amber-300 shrink-0 text-lg leading-none"
+            aria-label="Dismiss warning"
+          >&times;</button>
+        </div>
+      {/if}
 
-    {#if restoredBanner}
-      <div class="text-sm px-4 py-2 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 mb-4 flex items-center justify-between gap-3">
-        <span>Column mapping restored from a previous upload.</span>
-        <button
-          onclick={resetMapping}
-          class="text-amber-400 hover:text-amber-300 shrink-0 underline underline-offset-2"
-        >Reset</button>
-      </div>
-    {/if}
+      {#if restoredBanner}
+        <div class="text-sm px-4 py-2 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 mb-4 flex items-center justify-between gap-3">
+          <span>Column mapping restored from a previous upload.</span>
+          <button
+            onclick={resetMapping}
+            class="text-amber-400 hover:text-amber-300 shrink-0 underline underline-offset-2"
+          >Reset</button>
+        </div>
+      {/if}
 
-    <!-- Preview table with click-to-assign headers -->
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-gray-700">
-            {#each headerRow as _col, i}
-              <th class="text-left px-3 py-2 relative" data-popover>
-                <button
-                  onclick={(e) => { e.stopPropagation(); activePopover = activePopover === i ? null : i; }}
-                  class="flex items-center gap-1.5 hover:text-gray-200 transition-colors
-                    {columnRoles[i] === 'title' ? 'text-amber-400' :
-                     columnRoles[i] === 'amount' ? 'text-blue-400' :
-                     columnRoles[i] === 'date' ? 'text-purple-400' : 'text-gray-400'}"
-                >
-                  Column {i + 1}
-                  {#if columnRoles[i] === "title"}
-                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-900/50 text-amber-400">Title</span>
-                  {:else if columnRoles[i] === "amount"}
-                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-900/50 text-blue-400">Amount</span>
-                  {:else if columnRoles[i] === "date"}
-                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/50 text-purple-400">Date</span>
-                  {/if}
-                </button>
-                {#if activePopover === i}
-                  <div class="absolute z-20 mt-1 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-1 flex gap-1" data-popover>
-                    <button onclick={(e) => { e.stopPropagation(); assignRole(i, "title"); }}
-                      class="px-2 py-1 rounded text-xs hover:bg-amber-900/50 text-amber-400 whitespace-nowrap">
-                      Title
-                    </button>
-                    <button onclick={(e) => { e.stopPropagation(); assignRole(i, "amount"); }}
-                      class="px-2 py-1 rounded text-xs hover:bg-blue-900/50 text-blue-400 whitespace-nowrap">
-                      Amount
-                    </button>
-                    <button onclick={(e) => { e.stopPropagation(); assignRole(i, "date"); }}
-                      class="px-2 py-1 rounded text-xs hover:bg-purple-900/50 text-purple-400 whitespace-nowrap">
-                      Date
-                    </button>
-                    {#if columnRoles[i]}
-                      <button onclick={(e) => { e.stopPropagation(); unassignRole(i); }}
-                        class="px-2 py-1 rounded text-xs hover:bg-gray-700 text-gray-400 whitespace-nowrap">
-                        Clear
+      <!-- Preview table with click-to-assign headers -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-700">
+              {#each headerRow as _col, i}
+                <th class="text-left px-3 py-2 relative" data-popover>
+                  <button
+                    onclick={(e) => { e.stopPropagation(); activePopover = activePopover === i ? null : i; }}
+                    class="flex items-center gap-1.5 hover:text-gray-200 transition-colors
+                      {columnRoles[i] === 'title' ? 'text-amber-400' :
+                       columnRoles[i] === 'amount' ? 'text-blue-400' :
+                       columnRoles[i] === 'date' ? 'text-purple-400' : 'text-gray-400'}"
+                  >
+                    Column {i + 1}
+                    {#if columnRoles[i] === "title"}
+                      <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-900/50 text-amber-400">Title</span>
+                    {:else if columnRoles[i] === "amount"}
+                      <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-900/50 text-blue-400">Amount</span>
+                    {:else if columnRoles[i] === "date"}
+                      <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/50 text-purple-400">Date</span>
+                    {/if}
+                  </button>
+                  {#if activePopover === i}
+                    <div class="absolute z-20 mt-1 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-1 flex gap-1" data-popover>
+                      <button onclick={(e) => { e.stopPropagation(); assignRole(i, "title"); }}
+                        class="px-2 py-1 rounded text-xs hover:bg-amber-900/50 text-amber-400 whitespace-nowrap">
+                        Title
                       </button>
-                    {/if}
-                  </div>
-                {/if}
-              </th>
-            {/each}
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="border-b border-gray-800/50">
-            {#each headerRow as cell, i}
-              <td class="px-3 py-2 text-gray-500 italic text-xs">{cell}</td>
-            {/each}
-          </tr>
-          {#each dataRows.slice(0, 1) as row}
-            <tr class="border-b border-gray-800/50">
-              {#each row as cell, i}
-                <td class="px-3 py-2">
-                  {#if columnRoles[i] === "title"}
-                    <span class="text-amber-300">{cell}</span>
-                  {:else if columnRoles[i] === "amount"}
-                    {@const parsed = tryParseAmount(cell)}
-                    <span class="text-blue-300">{cell}</span>
-                    {#if parsed !== null}
-                      <span class="text-xs text-blue-500 ml-1">({parsed.toFixed(2)})</span>
-                    {:else}
-                      <span class="text-xs text-red-400 ml-1">?</span>
-                    {/if}
-                  {:else if columnRoles[i] === "date"}
-                    {@const valid = testDateFormat(cell, dateFormat)}
-                    <span class="text-purple-300">{cell}</span>
-                    {#if !valid}
-                      <span class="text-xs text-red-400 ml-1">?</span>
-                    {/if}
-                  {:else}
-                    <span class="text-gray-400">{cell}</span>
+                      <button onclick={(e) => { e.stopPropagation(); assignRole(i, "amount"); }}
+                        class="px-2 py-1 rounded text-xs hover:bg-blue-900/50 text-blue-400 whitespace-nowrap">
+                        Amount
+                      </button>
+                      <button onclick={(e) => { e.stopPropagation(); assignRole(i, "date"); }}
+                        class="px-2 py-1 rounded text-xs hover:bg-purple-900/50 text-purple-400 whitespace-nowrap">
+                        Date
+                      </button>
+                      {#if columnRoles[i]}
+                        <button onclick={(e) => { e.stopPropagation(); unassignRole(i); }}
+                          class="px-2 py-1 rounded text-xs hover:bg-gray-700 text-gray-400 whitespace-nowrap">
+                          Clear
+                        </button>
+                      {/if}
+                    </div>
                   {/if}
-                </td>
+                </th>
               {/each}
             </tr>
-          {/each}
-        </tbody>
-      </table>
-      {#if dataRows.length > 1}
-        <p class="text-xs text-gray-500 mt-2 px-3">
-          ...and {dataRows.length - 1} more rows
-        </p>
-      {/if}
+          </thead>
+          <tbody>
+            <tr class="border-b border-gray-800/50">
+              {#each headerRow as cell, i}
+                <td class="px-3 py-2 text-gray-500 italic text-xs">{cell}</td>
+              {/each}
+            </tr>
+            {#each dataRows.slice(0, 1) as row}
+              <tr class="border-b border-gray-800/50">
+                {#each row as cell, i}
+                  <td class="px-3 py-2">
+                    {#if columnRoles[i] === "title"}
+                      <span class="text-amber-300">{cell}</span>
+                    {:else if columnRoles[i] === "amount"}
+                      {@const parsed = tryParseAmount(cell)}
+                      <span class="text-blue-300">{cell}</span>
+                      {#if parsed !== null}
+                        <span class="text-xs text-blue-500 ml-1">({parsed.toFixed(2)})</span>
+                      {:else}
+                        <span class="text-xs text-red-400 ml-1">?</span>
+                      {/if}
+                    {:else if columnRoles[i] === "date"}
+                      {@const valid = testDateFormat(cell, dateFormat)}
+                      <span class="text-purple-300">{cell}</span>
+                      {#if !valid}
+                        <span class="text-xs text-red-400 ml-1">?</span>
+                      {/if}
+                    {:else}
+                      <span class="text-gray-400">{cell}</span>
+                    {/if}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+        {#if dataRows.length > 1}
+          <p class="text-xs text-gray-500 mt-2 px-3">
+            ...and {dataRows.length - 1} more rows
+          </p>
+        {/if}
+      </div>
     </div>
+
+    <!-- Date format selector (only when date column assigned) -->
+    {#if dateCol != null}
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-center gap-3">
+        <span class="text-sm text-gray-400">Date format:</span>
+        <select
+          bind:value={dateFormat}
+          class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5
+                 text-gray-100 text-sm focus:outline-none focus:border-amber-500"
+        >
+          {#each dateFormats as fmt}
+            <option value={fmt.value}>{fmt.label}</option>
+          {/each}
+        </select>
+        <span class="text-xs text-gray-500">(auto-detected)</span>
+      </div>
+    {/if}
+
+    {#if !mappingComplete}
+      <div class="text-sm px-4 py-2 rounded-lg bg-gray-800 text-gray-400">
+        Assign all three columns (Title, Amount, Date) to continue.
+      </div>
+    {/if}
+
+    {#if mappingError}
+      <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400">
+        {mappingError}
+      </div>
+    {/if}
   </div>
 
-  <!-- Date format selector (only when date column assigned) -->
-  {#if dateCol != null}
-    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-center gap-3">
-      <span class="text-sm text-gray-400">Date format:</span>
-      <select
-        bind:value={dateFormat}
-        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5
-               text-gray-100 text-sm focus:outline-none focus:border-amber-500"
-      >
-        {#each dateFormats as fmt}
-          <option value={fmt.value}>{fmt.label}</option>
-        {/each}
-      </select>
-      <span class="text-xs text-gray-500">(auto-detected)</span>
-    </div>
-  {/if}
-
-  {#if !mappingComplete}
-    <div class="text-sm px-4 py-2 rounded-lg bg-gray-800 text-gray-400">
-      Assign all three columns (Title, Amount, Date) to continue.
-    </div>
-  {/if}
-
-  {#if mappingError}
-    <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400">
-      {mappingError}
-    </div>
-  {/if}
-
-  <div class="flex gap-3">
+  <div class="shrink-0 flex items-center justify-between border-t border-gray-800 pt-4 mt-4">
     <button
       onclick={onback}
-      class="px-6 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium
-             py-3 rounded-xl transition-colors"
+      class="px-6 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300
+             font-medium transition-colors"
     >
       Back
     </button>
     <button
       onclick={submit}
       disabled={!mappingComplete}
-      class="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-950 font-medium
-             py-3 rounded-xl transition-colors"
+      class="px-8 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700
+             disabled:text-gray-500 text-gray-950 font-medium transition-colors"
     >
       Next
     </button>

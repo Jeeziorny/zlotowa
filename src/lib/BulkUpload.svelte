@@ -308,6 +308,7 @@
   {:else if step === "rules"}
     <ReviewRules
       {pendingRules}
+      onback={() => step = "review"}
       onsave={handleSaveRules}
       onskip={handleSkipRules}
     />

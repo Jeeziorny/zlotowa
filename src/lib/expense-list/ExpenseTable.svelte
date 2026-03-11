@@ -75,7 +75,7 @@
 </script>
 
 <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden {loading ? 'opacity-60' : ''}">
-  <table class="w-full">
+  <table class="w-full table-fixed">
     <thead>
       <tr class="border-b border-gray-800 text-sm text-gray-400">
         <th class="px-4 py-3 w-10">
@@ -87,11 +87,11 @@
             class="rounded bg-gray-800 border-gray-700 text-amber-500 focus:ring-amber-500"
           />
         </th>
-        <th class="text-left px-4 py-3">Date</th>
+        <th class="text-left px-4 py-3 w-28">Date</th>
         <th class="text-left px-4 py-3">Title</th>
-        <th class="text-right px-4 py-3">Amount</th>
-        <th class="text-left px-4 py-3">Category</th>
-        <th class="px-4 py-3 w-24"></th>
+        <th class="text-right px-4 py-3 w-28">Amount</th>
+        <th class="text-left px-4 py-3 w-36">Category</th>
+        <th class="px-4 py-3 w-20"></th>
       </tr>
     </thead>
     <tbody>
@@ -182,7 +182,7 @@
               />
             </td>
             <td class="px-4 py-3 text-sm text-gray-400">{expense.date}</td>
-            <td class="px-4 py-3">{expense.title}</td>
+            <td class="px-4 py-3 break-words">{expense.title}</td>
             <td class="px-4 py-3 text-right font-mono">{expense.amount.toFixed(2)}</td>
             <td class="px-4 py-3">
               {#if expense.category}
