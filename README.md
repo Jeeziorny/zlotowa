@@ -41,3 +41,5 @@ biased?
    that's a niche that matters deeply to a small audience, not a mass-market
   advantage. If you don't actively distrust cloud services, a mature competitor
   will likely serve you better today.
+
+I'd be happy if you decide to use this application and even more happy if you give me your feedback. Hapinnes will never end if you contribute to it :).
