@@ -11,7 +11,7 @@ use accountant_core::parsers::{self, ColumnMapping};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
 
 pub(crate) struct AppState {
     pub(crate) db: Mutex<Database>,
@@ -595,6 +595,44 @@ fn parse_and_classify(
     let final_classified = rows.iter().filter(|r| r.category.is_some()).count();
     info!("parse_and_classify: complete — {final_classified}/{} classified total", rows.len());
     Ok(rows)
+}
+
+// ── Export ──
+
+#[tauri::command]
+fn export_csv(state: State<AppState>, path: String) -> Result<usize, String> {
+    info!("export_csv: path='{path}'");
+
+    let expenses = {
+        let db = state.db.lock().map_err(|e| { error!("Mutex poisoned: {e}"); e.to_string() })?;
+        db.get_all_expenses().map_err(|e| e.to_string())?
+    };
+
+    fn escape_csv(s: &str) -> String {
+        if s.contains(',') || s.contains('"') || s.contains('\n') {
+            format!("\"{}\"", s.replace('"', "\"\""))
+        } else {
+            s.to_string()
+        }
+    }
+
+    let mut lines = Vec::with_capacity(expenses.len() + 1);
+    lines.push("Date,Title,Amount,Category".to_string());
+    for e in &expenses {
+        lines.push(format!(
+            "{},{},{:.2},{}",
+            e.date,
+            escape_csv(&e.title),
+            e.amount,
+            escape_csv(e.category.as_deref().unwrap_or("")),
+        ));
+    }
+
+    let csv = lines.join("\n");
+    std::fs::write(&path, csv).map_err(|e| { warn!("export_csv write failed: {e}"); format!("Failed to write file: {}", e) })?;
+
+    info!("export_csv: complete — {} expenses", expenses.len());
+    Ok(expenses.len())
 }
 
 // ── Backup & Restore ──
@@ -1673,6 +1711,7 @@ mod tests {
             amount_index: 2,
             date_index: 0,
             date_format: "%Y-%m-%d".into(),
+            has_header: true,
         };
 
         let state: State<AppState> = app.state();
@@ -1708,6 +1747,7 @@ mod tests {
             amount_index: 2,
             date_index: 0,
             date_format: "%Y-%m-%d".into(),
+            has_header: true,
         };
 
         let state: State<AppState> = app.state();
@@ -1739,6 +1779,7 @@ mod tests {
             amount_index: 2,
             date_index: 0,
             date_format: "%Y-%m-%d".into(),
+            has_header: true,
         };
 
         let state: State<AppState> = app.state();
@@ -1755,6 +1796,7 @@ mod tests {
             amount_index: 2,
             date_index: 0,
             date_format: "%Y-%m-%d".into(),
+            has_header: true,
         };
 
         let state: State<AppState> = app.state();
@@ -1787,6 +1829,7 @@ mod tests {
             amount_index: 2,
             date_index: 0,
             date_format: "%Y-%m-%d".into(),
+            has_header: true,
         };
 
         let state: State<AppState> = app.state();
@@ -2119,8 +2162,11 @@ pub fn run() {
         .manage(AppState {
             db: Mutex::new(db),
         })
-        .setup(|_app| {
+        .setup(|app| {
             info!("złotówa started — log plugin loaded");
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.maximize();
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -2140,6 +2186,7 @@ pub fn run() {
             parse_csv_data,
             classify_expenses,
             parse_and_classify,
+            export_csv,
             backup_database,
             preview_backup,
             restore_database,

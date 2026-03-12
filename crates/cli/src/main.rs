@@ -220,11 +220,18 @@ fn cmd_bulk_insert(path: PathBuf) {
         .interact_text()
         .unwrap_or_else(|_| "%Y-%m-%d".to_string());
 
+    let has_header = dialoguer::Confirm::new()
+        .with_prompt("First row is a header?")
+        .default(true)
+        .interact()
+        .unwrap_or(true);
+
     let mapping = ColumnMapping {
         title_index: title_idx,
         amount_index: amount_idx,
         date_index: date_idx,
         date_format,
+        has_header,
     };
 
     // Parse

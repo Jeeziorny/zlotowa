@@ -89,7 +89,7 @@
   <!-- Total summary -->
   <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
     <h3 class="text-lg font-semibold mb-4">Summary</h3>
-    <div class="grid grid-cols-3 gap-4 text-center">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
       <div>
         <div class="text-xs text-gray-500 mb-1">Budgeted</div>
         <div class="text-xl font-bold font-mono">

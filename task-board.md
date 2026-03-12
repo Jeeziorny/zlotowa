@@ -4,11 +4,17 @@
 
 | # | Task |
 |---|------|
+| 104 | E2E Playwright Tests |
 | 96 | Docs Drift Cleanup |
-| 102 | CI/CD Pipeline |
+
 ## DONE
 
 | # | Task | Summary |
+|---|------|---------|
+| 105 | Desktop Full-Size Layout | Added `minWidth: 900`/`minHeight: 600` to window config. AddExpense: widened to `max-w-2xl`, Date+Amount 2-col grid at `lg:`. Settings: widened to `max-w-4xl`. BudgetPlanning: capped at `max-w-4xl`. |
+
+| # | Task | Summary |
+| 102 | CI/CD Pipeline | Already implemented by task 92 — GitHub Actions CI with clippy, cargo test, npm build, Linux+macOS matrix, Cargo caching. |
 | 101 | Accessibility Suppressions | Removed/fixed 3 svelte-ignore suppressions: LlmSettings form (kept justified suppression), ColumnMapping wrapper (→ `role="presentation"`), Dashboard chip input (→ `role="textbox"` + keyboard handler). Added `aria-label` to DailySpending nav buttons. Fixed Dashboard dialog click propagation a11y. |
 | 100 | Frontend Constants & Minor Cleanup | Extracted shared `MONTH_NAMES`/`formatMonthFull`/`formatMonthSmart`/`formatMonthLabel`/`formatMonthShort` into `src/lib/utils/dateFormat.js` (removed from 5 widgets). Added `QUIP_INTERVAL_MS`, `MAX_RECENT_CLEANUPS` constants. Fixed `$state` misuse for non-reactive timer ID in RulesFilterBar. |
 | 99 | Test Coverage Gaps | 7 new tests: `BudgetStatus::from_ratio()` boundary conditions (under/approaching/over/negative), `get_category_averages` edge cases (empty DB, zero months, uncategorized exclusion). |

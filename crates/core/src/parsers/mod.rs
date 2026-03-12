@@ -18,6 +18,14 @@ pub struct ColumnMapping {
     pub amount_index: usize,
     pub date_index: usize,
     pub date_format: String,
+    /// Whether the first row is a header (should be skipped during parsing).
+    /// Defaults to true for backwards compatibility.
+    #[serde(default = "default_has_header")]
+    pub has_header: bool,
+}
+
+fn default_has_header() -> bool {
+    true
 }
 
 /// A parser that can handle a specific bank's data format.

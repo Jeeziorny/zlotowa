@@ -63,7 +63,8 @@
 </script>
 
 <div class="flex flex-col" style="height: calc(100vh - 12rem);">
-  <div class="flex-1 overflow-y-auto min-h-0 space-y-6 max-w-2xl">
+  <div class="flex-1 overflow-y-auto min-h-0">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
       <h3 class="text-lg font-semibold mb-3">Paste expense data</h3>
       <p class="text-sm text-gray-400 mb-3">
@@ -121,15 +122,16 @@
         </label>
       </div>
     </div>
+    </div>
 
     {#if inputError}
-      <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400">
+      <div class="text-sm px-4 py-2 rounded-lg bg-red-900/50 text-red-400 mt-6">
         {inputError}
       </div>
     {/if}
 
     {#if showDelimiterPicker}
-      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+      <div class="bg-gray-900 rounded-xl p-4 border border-gray-800 mt-6 max-w-md">
         <p class="text-sm font-medium text-gray-300 mb-2">Select CSV delimiter</p>
         <div class="flex gap-2 flex-wrap">
           {#each delimiters as d}
@@ -148,7 +150,7 @@
     {/if}
   </div>
 
-  <div class="shrink-0 flex items-center justify-between border-t border-gray-800 pt-4 mt-4 max-w-2xl">
+  <div class="shrink-0 flex items-center justify-between border-t border-gray-800 pt-4 mt-4">
     <div></div>
     <button
       onclick={submit}

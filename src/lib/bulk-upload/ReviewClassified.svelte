@@ -4,8 +4,11 @@
   let { classifiedRows = $bindable(), allCategories, onback, onsave } = $props();
 
   let sessionCategories = $state(new Set());
+  let rowCategories = $derived(
+    classifiedRows.map(r => r.category).filter(Boolean)
+  );
   let combinedCategories = $derived(
-    [...new Set([...allCategories, ...sessionCategories])].sort((a, b) => a.localeCompare(b))
+    [...new Set([...allCategories, ...rowCategories, ...sessionCategories])].sort((a, b) => a.localeCompare(b))
   );
 
   let reviewError = $state("");
@@ -24,7 +27,7 @@
       category: newCategory,
       source: "Manual",
     };
-    if (newCategory) sessionCategories.add(newCategory);
+    if (newCategory) sessionCategories = new Set([...sessionCategories, newCategory]);
   }
 
   function selectCategory(index, cat) {
@@ -33,6 +36,10 @@
 
   function removeCategory(index) {
     editCategory(index, "");
+  }
+
+  function removeRow(index) {
+    classifiedRows = classifiedRows.filter((_, i) => i !== index);
   }
 
   async function doSave() {
@@ -49,9 +56,22 @@
   <div class="space-y-3">
     {#each rows as row}
       {@const origIndex = classifiedRows.indexOf(row)}
-      <div class="bg-gray-800/40 rounded-lg p-4 border border-gray-800/50">
+      <div class="group/card bg-gray-800/40 rounded-lg p-4 border border-gray-800/50 relative">
+        <!-- Remove button -->
+        <button
+          onclick={() => removeRow(origIndex)}
+          class="absolute top-2 right-2 text-gray-600 hover:text-red-400 p-1 transition-colors
+                 opacity-0 group-hover/card:opacity-100"
+          title="Remove"
+          aria-label="Remove expense"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
         <!-- Top row: Date | Title | Amount + confidence -->
-        <div class="flex items-center gap-3 mb-3">
+        <div class="flex items-center gap-3 mb-3 pr-6">
           <span class="text-sm text-gray-400 shrink-0">{row.date}</span>
           <span class="text-sm truncate flex-1">{row.title}</span>
           <span class="text-sm font-mono text-gray-100 shrink-0">{row.amount.toFixed(2)}</span>

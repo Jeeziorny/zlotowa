@@ -4,6 +4,7 @@
   import LlmSettings from "./settings/LlmSettings.svelte";
   import UploadHistory from "./settings/UploadHistory.svelte";
   import BackupRestore from "./settings/BackupRestore.svelte";
+  import DataExport from "./settings/DataExport.svelte";
 
   let { onrulesvisibilitychange = () => {} } = $props();
 
@@ -37,7 +38,7 @@
 <div>
   <h2 class="text-2xl font-bold mb-6">Settings</h2>
 
-  <div class="max-w-2xl">
+  <div class="max-w-4xl">
     <!-- Tab bar -->
     <div class="flex gap-1 mb-6 border-b border-gray-800">
       {#each tabs as tab}
@@ -87,6 +88,7 @@
     <!-- Data tab -->
     {#if activeTab === "data"}
       <div class="space-y-6">
+        <DataExport />
         <UploadHistory />
         <BackupRestore />
       </div>

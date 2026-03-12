@@ -18,6 +18,7 @@ fn default_mapping() -> ColumnMapping {
         title_index: 1,
         amount_index: 2,
         date_format: "%Y-%m-%d".to_string(),
+        has_header: true,
     }
 }
 

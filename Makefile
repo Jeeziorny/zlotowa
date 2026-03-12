@@ -1,4 +1,4 @@
-.PHONY: up purge-data
+.PHONY: up purge-data fresh-expenses
 
 up:
 	npm run tauri dev
@@ -17,3 +17,12 @@ purge-data:
 		VACUUM; \
 	"
 	@echo "All data purged from $(DB_PATH)"
+
+## Wipe expenses and batches only, keep categories, rules, config, budgets
+fresh-expenses:
+	sqlite3 "$(DB_PATH)" " \
+		DELETE FROM expenses; \
+		DELETE FROM upload_batches; \
+		VACUUM; \
+	"
+	@echo "Expenses cleared, rules & categories kept in $(DB_PATH)"

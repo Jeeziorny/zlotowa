@@ -95,6 +95,7 @@
     <h2 class="text-2xl font-bold">Budget Planning</h2>
   </div>
 
+  <div class="max-w-4xl">
   <!-- Tabs -->
   <div class="flex gap-1 mb-6">
     {#each tabs as tab}
@@ -175,4 +176,5 @@
       oncreated={onBudgetCreated}
     />
   {/if}
+  </div>
 </div>

@@ -176,6 +176,36 @@
     onnext();
   }
 
+  // Inline edit state
+  let editingIndex = $state(null);
+  let editingTitle = $state("");
+
+  function startEdit(index) {
+    editingIndex = index;
+    editingTitle = parsedRows[index].title;
+  }
+
+  function saveEdit() {
+    if (editingIndex == null) return;
+    const cleaned = normalizeWhitespace(editingTitle);
+    if (cleaned) {
+      parsedRows[editingIndex] = { ...parsedRows[editingIndex], title: cleaned };
+    }
+    editingIndex = null;
+    editingTitle = "";
+  }
+
+  function cancelEdit() {
+    editingIndex = null;
+    editingTitle = "";
+  }
+
+  function removeRow(index) {
+    if (editingIndex === index) cancelEdit();
+    parsedRows = parsedRows.filter((_, i) => i !== index);
+    originalTitles = originalTitles.filter((_, i) => i !== index);
+  }
+
   let modifiedCount = $derived(
     parsedRows.filter((r, i) => r.title !== originalTitles[i]).length
   );
@@ -343,23 +373,82 @@
               <th class="text-left px-4 py-2.5 text-gray-400 font-medium w-28">Date</th>
               <th class="text-left px-4 py-2.5 text-gray-400 font-medium">Title</th>
               <th class="text-right px-4 py-2.5 text-gray-400 font-medium w-28">Amount</th>
+              <th class="w-10"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-800/50">
             {#each parsedRows as row, i}
               {@const isModified = row.title !== originalTitles[i]}
-              <tr class="{isModified ? 'bg-emerald-950/20' : ''}">
-                <td class="px-4 py-2 text-gray-400 tabular-nums">{row.date}</td>
-                <td class="px-4 py-2 text-gray-100" title={isModified ? `Original: ${originalTitles[i]}` : ""}>
-                  {row.title}
-                  {#if isModified}
-                    <span class="ml-1 text-emerald-500 text-xs" title="Original: {originalTitles[i]}">*</span>
-                  {/if}
-                </td>
-                <td class="px-4 py-2 text-right text-gray-300 tabular-nums">
-                  {row.amount.toFixed(2)}
-                </td>
-              </tr>
+              {#if editingIndex === i}
+                <tr class="bg-gray-800/20">
+                  <td class="px-4 py-2 text-gray-400 tabular-nums">{row.date}</td>
+                  <td class="px-4 py-1.5" colspan="2">
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="text"
+                        bind:value={editingTitle}
+                        class="flex-1 bg-gray-800 border border-amber-500 rounded-lg px-3 py-1.5 text-sm
+                               text-gray-100 font-mono focus:outline-none"
+                        onkeydown={(e) => {
+                          if (e.key === "Enter") saveEdit();
+                          if (e.key === "Escape") cancelEdit();
+                        }}
+                      />
+                      <!-- svelte-ignore element_invalid_self_closing_tag -->
+                      <button onclick={saveEdit} class="text-amber-400 hover:text-amber-300 p-1 transition-colors" title="Save" aria-label="Save edit">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      <button onclick={cancelEdit} class="text-gray-500 hover:text-gray-300 p-1 transition-colors" title="Cancel" aria-label="Cancel edit">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                  <td></td>
+                </tr>
+              {:else}
+                <tr class="group {isModified ? 'bg-emerald-950/20' : ''}">
+                  <td class="px-4 py-2 text-gray-400 tabular-nums">{row.date}</td>
+                  <td class="px-4 py-2 text-gray-100" title={isModified ? `Original: ${originalTitles[i]}` : ""}>
+                    {row.title}
+                    {#if isModified}
+                      <span class="ml-1 text-emerald-500 text-xs" title="Original: {originalTitles[i]}">*</span>
+                    {/if}
+                  </td>
+                  <td class="px-4 py-2 text-right text-gray-300 tabular-nums">
+                    {row.amount.toFixed(2)}
+                  </td>
+                  <td class="px-4 py-2">
+                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onclick={() => startEdit(i)}
+                        class="text-gray-500 hover:text-gray-300 p-1 transition-colors"
+                        title="Edit title"
+                        aria-label="Edit title"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onclick={() => removeRow(i)}
+                        class="text-gray-500 hover:text-red-400 p-1 transition-colors"
+                        title="Remove"
+                        aria-label="Remove expense"
+                      >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              {/if}
             {/each}
           </tbody>
         </table>

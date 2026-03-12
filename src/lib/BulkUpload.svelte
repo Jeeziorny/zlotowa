@@ -6,6 +6,7 @@
   import ReviewClassified from "./bulk-upload/ReviewClassified.svelte";
   import ReviewRules from "./bulk-upload/ReviewRules.svelte";
   import BulkDone from "./bulk-upload/BulkDone.svelte";
+  import StepIndicator from "./StepIndicator.svelte";
   import { QUIP_INTERVAL_MS } from "./constants.js";
 
   let { ondirtychange = () => {} } = $props();
@@ -110,6 +111,7 @@
         headers,
         mapping: { title: mapping.title_index, amount: mapping.amount_index, date: mapping.date_index },
         dateFormat: mapping.date_format,
+        hasHeader: mapping.has_header,
         savedAt: new Date().toISOString(),
       });
       // Keep 10 most recent
@@ -246,34 +248,17 @@
 <div>
   <h2 class="text-2xl font-bold mb-2">Expense Bulk Upload</h2>
 
-  <!-- Progress bar -->
-  <div class="flex items-center gap-2 mb-6 text-sm">
-    {#each [
+  <StepIndicator
+    steps={[
       { id: "input", label: "1. Input" },
       { id: "column-mapping", label: "2. Columns" },
       { id: "cleanup", label: "3. Cleanup" },
       { id: "review", label: "4. Review" },
       { id: "rules", label: "5. Rules" },
       { id: "done", label: "6. Done" },
-    ] as s, i}
-      {@const stepOrder = ["input", "column-mapping", "cleanup", "review", "rules", "done"]}
-      {@const currentIdx = stepOrder.indexOf(step)}
-      {@const thisIdx = stepOrder.indexOf(s.id)}
-      {#if i > 0}
-        <div class="h-px flex-1 max-w-8 {thisIdx <= currentIdx ? 'bg-amber-500' : 'bg-gray-700'}"></div>
-      {/if}
-      <span
-        class="px-3 py-1 rounded-full text-xs font-medium
-          {step === s.id
-          ? 'bg-amber-500 text-gray-950'
-          : thisIdx < currentIdx
-            ? 'bg-amber-900/50 text-amber-400'
-            : 'bg-gray-800 text-gray-500'}"
-      >
-        {s.label}
-      </span>
-    {/each}
-  </div>
+    ]}
+    currentStep={step}
+  />
 
   {#if error}
     <div class="mb-4 px-4 py-3 rounded-xl bg-red-900/50 border border-red-800/50 text-red-400 text-sm">

@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import DatePicker from "../DatePicker.svelte";
+  import StepIndicator from "../StepIndicator.svelte";
 
   let { allCategories, averages, oncreated } = $props();
 
@@ -175,32 +176,14 @@
 </script>
 
 <div class="space-y-6">
-  <!-- Step indicator -->
-  <div class="flex items-center gap-2 mb-2">
-    {#each [1, 2, 3] as s}
-      <div
-        class="flex items-center gap-2 {s <= step ? 'text-amber-400' : 'text-gray-600'}"
-      >
-        <div
-          class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border
-          {s === step
-            ? 'border-amber-400 bg-amber-400/10'
-            : s < step
-              ? 'border-amber-600 bg-amber-600/20'
-              : 'border-gray-700'}"
-        >
-          {s}
-        </div>
-        <span class="text-sm {s === step ? 'font-medium' : ''}">
-          {s === 1 ? "Dates" : s === 2 ? "Categories" : "Review"}
-        </span>
-      </div>
-      {#if s < 3}
-        <div class="flex-1 h-px {s < step ? 'bg-amber-500' : 'bg-gray-800'}">
-        </div>
-      {/if}
-    {/each}
-  </div>
+  <StepIndicator
+    steps={[
+      { id: 1, label: "1. Dates" },
+      { id: 2, label: "2. Categories" },
+      { id: 3, label: "3. Review" },
+    ]}
+    currentStep={step}
+  />
 
   {#if step === 1}
     <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">

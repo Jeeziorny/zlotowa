@@ -8,6 +8,7 @@
   let autoDetectDone = $state(false);
   let activePopover = $state(null);
   let dateFormat = $state("%Y-%m-%d");
+  let hasHeader = $state(true);
   let mappingError = $state("");
   let llmWarningDismissed = $state(false);
   let restoredBanner = $state(false);
@@ -41,6 +42,7 @@
       roles[match.mapping.date] = "date";
       columnRoles = roles;
       dateFormat = match.dateFormat ?? "%Y-%m-%d";
+      hasHeader = match.hasHeader ?? true;
       autoDetectDone = true;
       restoredBanner = true;
     } catch (err) {
@@ -67,7 +69,7 @@
   ];
 
   let headerRow = $derived(previewRows.length > 0 ? previewRows[0] : []);
-  let dataRows = $derived(previewRows.length > 1 ? previewRows.slice(1) : []);
+  let dataRows = $derived(hasHeader && previewRows.length > 1 ? previewRows.slice(1) : previewRows);
 
   let titleCol = $derived(findColByRole("title"));
   let amountCol = $derived(findColByRole("amount"));
@@ -76,7 +78,7 @@
 
   // Auto-detect columns from header names on first render
   $effect(() => {
-    if (headerRow.length > 0 && !autoDetectDone) {
+    if (headerRow.length > 0 && !autoDetectDone && hasHeader) {
       autoDetectDone = true;
       const newRoles = {};
       for (let i = 0; i < headerRow.length; i++) {
@@ -177,6 +179,7 @@
         amount_index: amountCol,
         date_index: dateCol,
         date_format: dateFormat,
+        has_header: hasHeader,
       });
     } catch (err) {
       mappingError = `${err}`;
@@ -225,6 +228,17 @@
           >Reset</button>
         </div>
       {/if}
+
+      <!-- Header toggle -->
+      <label class="flex items-center gap-2 mb-4 cursor-pointer w-fit">
+        <input
+          type="checkbox"
+          bind:checked={hasHeader}
+          class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-emerald-500
+                 focus:ring-emerald-500 focus:ring-offset-gray-900 accent-emerald-500"
+        />
+        <span class="text-sm text-gray-300">First row is a header</span>
+      </label>
 
       <!-- Preview table with click-to-assign headers -->
       <div class="overflow-x-auto">
@@ -276,12 +290,14 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="border-b border-gray-800/50">
-              {#each headerRow as cell, i}
-                <td class="px-3 py-2 text-gray-500 italic text-xs">{cell}</td>
-              {/each}
-            </tr>
-            {#each dataRows.slice(0, 1) as row}
+            {#if hasHeader}
+              <tr class="border-b border-gray-800/50">
+                {#each headerRow as cell, i}
+                  <td class="px-3 py-2 text-gray-500 italic text-xs">{cell}</td>
+                {/each}
+              </tr>
+            {/if}
+            {#each dataRows.slice(0, hasHeader ? 1 : 2) as row}
               <tr class="border-b border-gray-800/50">
                 {#each row as cell, i}
                   <td class="px-3 py-2">
@@ -310,9 +326,9 @@
             {/each}
           </tbody>
         </table>
-        {#if dataRows.length > 1}
+        {#if dataRows.length > (hasHeader ? 1 : 2)}
           <p class="text-xs text-gray-500 mt-2 px-3">
-            ...and {dataRows.length - 1} more rows
+            ...and {dataRows.length - (hasHeader ? 1 : 2)} more rows
           </p>
         {/if}
       </div>

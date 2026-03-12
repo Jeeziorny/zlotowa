@@ -98,12 +98,14 @@ impl CsvParser {
             .filter(|l| !l.trim().is_empty())
             .collect();
 
-        if lines.len() < 2 {
+        let skip = if mapping.has_header { 1 } else { 0 };
+        let min_rows = skip + 1;
+        if lines.len() < min_rows {
             return Err(ParseError::ParseFailed("Not enough rows".to_string()));
         }
 
         let mut expenses = Vec::new();
-        for (i, line) in lines.iter().skip(1).enumerate() {
+        for (i, line) in lines.iter().skip(skip).enumerate() {
             let fields = Self::split_csv_line(line, delimiter);
 
             let title = fields
@@ -215,13 +217,14 @@ impl Parser for CsvParser {
             .filter(|l| !l.trim().is_empty())
             .collect();
 
-        if lines.len() < 2 {
+        let skip = if mapping.has_header { 1 } else { 0 };
+        let min_rows = skip + 1;
+        if lines.len() < min_rows {
             return Err(ParseError::ParseFailed("Not enough rows".to_string()));
         }
 
-        // Skip header row
         let mut expenses = Vec::new();
-        for (i, line) in lines.iter().skip(1).enumerate() {
+        for (i, line) in lines.iter().skip(skip).enumerate() {
             let fields = Self::split_csv_line(line, delim);
 
             let title = fields
@@ -500,6 +503,7 @@ mod tests {
             title_index: 1,
             amount_index: 2,
             date_format: "%Y-%m-%d".to_string(),
+            has_header: true,
         };
 
         let expenses = parser.parse(input, &mapping).unwrap();
@@ -512,6 +516,42 @@ mod tests {
     }
 
     #[test]
+    fn parse_no_header_csv() {
+        let parser = CsvParser;
+        let input = "2025-01-15,Coffee,4.50\n2025-01-16,Lunch,12.00";
+        let mapping = ColumnMapping {
+            date_index: 0,
+            title_index: 1,
+            amount_index: 2,
+            date_format: "%Y-%m-%d".to_string(),
+            has_header: false,
+        };
+
+        let expenses = parser.parse(input, &mapping).unwrap();
+        assert_eq!(expenses.len(), 2);
+        assert_eq!(expenses[0].title, "Coffee");
+        assert_eq!(expenses[1].title, "Lunch");
+    }
+
+    #[test]
+    fn parse_no_header_with_delimiter() {
+        let parser = CsvParser;
+        let input = "15.01.2025;Kaffee;4,50\n16.01.2025;Mittagessen;12,00";
+        let mapping = ColumnMapping {
+            date_index: 0,
+            title_index: 1,
+            amount_index: 2,
+            date_format: "%d.%m.%Y".to_string(),
+            has_header: false,
+        };
+
+        let expenses = parser.parse_with_delimiter(input, &mapping, ';').unwrap();
+        assert_eq!(expenses.len(), 2);
+        assert_eq!(expenses[0].title, "Kaffee");
+        assert_eq!(expenses[1].title, "Mittagessen");
+    }
+
+    #[test]
     fn parse_semicolon_csv() {
         let parser = CsvParser;
         let input = "date;title;amount\n15.01.2025;Kaffee;4,50\n16.01.2025;Mittagessen;12,00";
@@ -520,6 +560,7 @@ mod tests {
             title_index: 1,
             amount_index: 2,
             date_format: "%d.%m.%Y".to_string(),
+            has_header: true,
         };
 
         let expenses = parser.parse(input, &mapping).unwrap();
@@ -537,6 +578,7 @@ mod tests {
             title_index: 1,
             amount_index: 2,
             date_format: "%Y-%m-%d".to_string(),
+            has_header: true,
         };
         assert!(parser.parse(input, &mapping).is_err());
     }
@@ -550,6 +592,7 @@ mod tests {
             title_index: 1,
             amount_index: 2,
             date_format: "%Y-%m-%d".to_string(),
+            has_header: true,
         };
         assert!(parser.parse(input, &mapping).is_err());
     }
@@ -563,6 +606,7 @@ mod tests {
             title_index: 1,
             amount_index: 5, // out of range
             date_format: "%Y-%m-%d".to_string(),
+            has_header: true,
         };
         assert!(parser.parse(input, &mapping).is_err());
     }
@@ -575,6 +619,7 @@ mod tests {
             title_index: 1,
             amount_index: 2,
             date_format: "%Y-%m-%d".to_string(),
+            has_header: true,
         }).is_err());
     }
 
