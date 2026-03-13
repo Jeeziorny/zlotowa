@@ -64,7 +64,7 @@ Frontend calls via `invoke("command_name", { params })` from `@tauri-apps/api/co
 
 ### Database
 
-SQLite at `~/Library/Application Support/zlotowa/zlotowa.db` (macOS). Schema auto-created via `migrate()`. Auto-migrates from old `4ccountant/` path on first run.
+SQLite at `~/Library/Application Support/zlotowa/zlotowa.db` (macOS). Schema auto-created via `migrate()`. Auto-migrates from old `4ccountant/` path on first run (legacy name).
 
 Tables: `expenses` (has optional `batch_id` FK), `classification_rules` (regex pattern → category), `config` (key-value for LLM settings, widget state, recent title cleanups), `budgets` (start_date/end_date date-range, no overlap allowed), `budget_categories` (per-category limits), `upload_batches` (filename, timestamp, count for bulk upload undo).
 

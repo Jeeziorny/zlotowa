@@ -1,4 +1,4 @@
-## 4ccountant 
+## złotówa (formerly 4ccountant)
 Desktop Application for classifying expenses and ploting graphs. In future also budget planner. Gives users ability to interact with its logic through CLI (terminal).
 
 ### Components
