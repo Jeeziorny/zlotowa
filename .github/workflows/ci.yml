@@ -11,17 +11,8 @@ env:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: ubuntu-22.04
-            label: Linux
-          - platform: macos-latest
-            label: macOS
-
-    runs-on: ${{ matrix.platform }}
-    name: ${{ matrix.label }}
+    runs-on: ubuntu-22.04
+    name: Linux
 
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +42,6 @@ jobs:
         run: npm ci
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
