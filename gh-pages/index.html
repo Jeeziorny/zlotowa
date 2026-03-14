@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>złotówa — Getting Started</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="nav-inner">
+      <span class="nav-logo">złotówa</span>
+      <a href="index.html" class="active">Start</a>
+      <a href="import.html">Import</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="expenses.html">Wydatki</a>
+      <a href="categories.html">Kategorie</a>
+      <a href="budget.html">Budżet</a>
+      <a href="settings.html">Settings</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <header>
+      <svg class="logo" version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+        <defs>
+          <image width="26" height="26" id="img1" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAaCAMAAACelLz8AAAAAXNSR0IB2cksfwAAADlQTFRF8Y8G8Y8GAAAAAAAAAAAAAAAA/+yO8Y8GAAAA/+yO8Y8G8ZAH8Y8G/+yN8ZEK+cNS8Y8G8Y8G8Y8GaKutPwAAABN0Uk5TAP9w10DThHFm/9v/mf//WzpoLCJ55BIAAAB+SURBVHicrdLZCoAgEAXQri0QEdX/f6QEFUHLZFZommLRPLjMUQdkEJ2BaxGRmXEQtITa+QlaWjGFE1udFC863Z9LZvWkQenkoAwYH0gUpRyDnK1boJz1YoRFKLoSaFG1JsmzqDkabtFeA/Rcy/wqH/3w8y/oW2+oxBEBfbgBN0c9JXwDi5AAAAAASUVORK5CYII="/>
+          <image width="22" height="22" id="img2" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWBAMAAAA2mnEIAAAAAXNSR0IB2cksfwAAABJQTFRF/+yO/+yO8pUP8ZIK8ZAH8ZILecShyQAAAAZ0Uk5TAP//////enng/gAAAEtJREFUeJxjZGBgEARihvcMDIwobDALzCOKDWcC9eJhv2dk5H/PKAAR/8Bkd4ABwv7P+F7wA5T9QcD+IIz9npGfEa4em5mkuhOHfwFD6RjBvhO95AAAAABJRU5ErkJggg=="/>
+        </defs>
+        <use href="#img1" x="3" y="3"/>
+        <use href="#img2" x="5" y="5"/>
+      </svg>
+      <h1><span>złotówa</span></h1>
+      <p>Aplikacja poświęcona sknerom tego świata</p>
+    </header>
+
+    <h2>Cześć!</h2>
+
+    <p>Jeśli czytasz tę stronę to znaczy, że przynajmniej chcesz sprawdzić jak działa aplikacja złotówa. Oznaczać to może kilka rzeczy, ale przede wszystkim zdaje się że lubisz liczyć pieniądze. Mój Tata powiedziałby, że jesteś złotówą.</p>
+
+    <p>Postaram się wplatać jakieś żarty żeby nie było nudno ok.</p>
+
+    <h2>Unboxing</h2>
+
+    <img class="screenshot" src="images/dashboard.png" alt="Dashboard after first launch">
+
+    <p>Jeśli programista tworzący tą aplikację nie jest dzbanem i nie popełnił jakichś błędów, to po otwarciu powinieneś zobaczyć coś takiego jak na obrazku wyżej. Po lewej stronie jest pasek z zakładkami. A w nim (od góry):</p>
+
+    <ol>
+      <li>Napis złotówa</li>
+      <li>Żółty guzik z napisem "+ Import"</li>
+      <li>Expenses</li>
+      <li>Categories</li>
+      <li>Budget</li>
+      <li>Settings</li>
+    </ol>
+
+    <p>Poniżej znajdziesz opis każdej z funkcji aplikacji. Wszystkie opisy pisałem z palca. Jedynie <a href="budget.html">Budżet</a> został napisany przez claude i to widać, bo zarty sa bardzo cringowe, ale nie chcialo mi sie juz tłumaczyć.</p>
+
+    <h2>Funkcje</h2>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h3>📥 Import wydatków</h3>
+        <p>Opis tego jak zaimportować wydatki do aplikacji. Importowanie wydatków to podstawa aplikacji, więc jak bardzo Ci się nie chce czytać, to ogarnij sobie tylko to</p>
+        <a href="import.html">Czytaj więcej →</a>
+      </div>
+
+      <div class="feature-card">
+        <h3>📊 Dashboard</h3>
+        <p>Wykresy i widgety prezentujące wydatki. Możesz je dodawać, usuwać i zmieniać kolejność. Keyword Tracker śledzi wydatki po słowach kluczowych.</p>
+        <a href="dashboard.html">Czytaj więcej →</a>
+      </div>
+
+      <div class="feature-card">
+        <h3>💸 Wydatki</h3>
+        <p>Przeglądanie, filtrowanie i edycja wszystkich wydatków. Możliwość dodawania wydatków pojedynczo przez "Add Manually".</p>
+        <a href="expenses.html">Czytaj więcej →</a>
+      </div>
+
+      <div class="feature-card">
+        <h3>🏷️ Kategorie</h3>
+        <p>Zarządzanie kategoriami wydatków — łączenie, zmiana nazw i usuwanie z automatycznym podmienieniem.</p>
+        <a href="categories.html">Czytaj więcej →</a>
+      </div>
+
+      <div class="feature-card">
+        <h3>📋 Planowanie budżetu</h3>
+        <p>Ustalanie limitów wydatków na poszczególne kategorie w wybranym zakresie dat.</p>
+        <a href="budget.html">Czytaj więcej →</a>
+      </div>
+
+      <div class="feature-card">
+        <h3>⚙️ Settings</h3>
+        <p>Konfiguracja aplikacji, AI i zarządzanie danymi — backup, restore i ustawienia LLM.</p>
+        <a href="settings.html">Czytaj więcej →</a>
+      </div>
+    </div>
+
+    <footer>
+      <p><a href="https://github.com/Jeeziorny/zlotowa">GitHub</a> · MIT License</p>
+    </footer>
+  </div>
+</body>
+</html>

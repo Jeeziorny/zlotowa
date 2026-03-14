@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>złotówa — Settings</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="nav-inner">
+      <span class="nav-logo">złotówa</span>
+      <a href="index.html">Start</a>
+      <a href="import.html">Import</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="expenses.html">Wydatki</a>
+      <a href="categories.html">Kategorie</a>
+      <a href="budget.html">Budżet</a>
+      <a href="settings.html" class="active">Settings</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Settings</h1>
+      <p>Konfiguracja aplikacji, AI i zarządzanie danymi</p>
+    </div>
+
+    <nav class="toc">
+      <h2>Na tej stronie</h2>
+      <ol>
+        <li><a href="#general"><span class="step-num">1.</span> General</a></li>
+        <li><a href="#llm"><span class="step-num">2.</span> LLM (klasyfikacja AI)</a></li>
+        <li><a href="#data"><span class="step-num">3.</span> Data</a></li>
+      </ol>
+    </nav>
+
+    <p>Settings ma trzy taby: General, LLM i Data. Każdy odpowiada za coś innego, więc lecę po kolei.</p>
+
+    <h2 id="general"><span class="step">1</span> General</h2>
+
+    <p>Na razie jest tu jedna opcja: checkbox "Show Rules tab in sidebar". Jak go zaznaczysz to w pasku bocznym pojawi się dodatkowa zakładka "Rules", w której możesz przeglądać i edytować reguły klasyfikacji (te same, które tworzą się automatycznie przy <a href="import.html#rules">imporcie</a>). Jeśli nie chcesz zaśmiecać sobie sidebara — zostaw odznaczone.</p>
+
+    <h2 id="llm"><span class="step">2</span> LLM (klasyfikacja AI)</h2>
+
+    <p>Ta sekcja jest w pełni opcjonalna. Złotówa działa bez żadnego AI — możesz klasyfikować wydatki ręcznie albo polegać na regułach regexowych, które aplikacja tworzy automatycznie. Ale jeśli chcesz żeby nowe, nieznane wydatki klasyfikowały się same to tutaj podpinasz model językowy.</p>
+
+    <h3>Jak to działa</h3>
+
+    <p>Kiedy złotówa nie potrafi sklasyfikować wydatku za pomocą istniejących reguł, wysyła tytuł i kwotę wydatku do skonfigurowanego LLM-a i pyta go "hej, jaka to kategoria?". LLM odpowiada, wydatek dostaje kategorię, Ty oszczędzasz czas. Żadne inne dane finansowe nie opuszczają Twojego komputera — tylko tytuły i kwoty.</p>
+
+    <h3>Dostępni providerzy</h3>
+
+    <p>Do wyboru są trzy opcje:</p>
+
+    <ul>
+      <li><strong>OpenAI</strong> — wymaga klucza API (<code>sk-...</code>). Używa modelu <code>gpt-4o-mini</code></li>
+      <li><strong>Anthropic</strong> — wymaga klucza API (<code>sk-...</code>). Używa modelu <code>claude-haiku</code></li>
+      <li><strong>Ollama (local)</strong> — nie wymaga klucza, działa lokalnie. Używa modelu <code>llama3</code>. Wymaga zainstalowanego i uruchomionego <a href="https://ollama.com">Ollama</a> na Twoim komputerze</li>
+    </ul>
+
+    <div class="tip">
+      Jeśli zależy Ci na prywatności i nie chcesz wysyłać nic nigdzie to Ollama jest opcją dla Ciebie. Wszystko działa lokalnie, żaden tytuł wydatku nie opuszcza Twojego komputera.
+    </div>
+
+    <h3>Konfiguracja</h3>
+
+    <p>Wybierasz providera z dropdowna, wklejasz klucz API (albo w przypadku Ollamy — endpoint URL, domyślnie <code>http://localhost:11434</code>). Potem masz trzy guziki:</p>
+
+    <ul>
+      <li><strong>Save</strong> — waliduje połączenie i zapisuje konfigurację. Jeśli klucz jest zły albo serwer nie odpowiada to dostaniesz błąd</li>
+      <li><strong>Test Connection</strong> — sprawdza czy połączenie działa, ale nic nie zapisuje. Taki dry run</li>
+      <li><strong>Clear</strong> — pojawia się po zapisaniu konfiguracji. Usuwa klucz API i wyłącza klasyfikację AI</li>
+    </ul>
+
+    <h2 id="data"><span class="step">3</span> Data</h2>
+
+    <p>Trzy sekcje: eksport CSV, historia uploadów i backup/restore.</p>
+
+    <h3>Export CSV</h3>
+
+    <p>Klikasz "Export CSV", wybierasz gdzie zapisać plik i gotowe. Dostajesz CSV ze wszystkimi wydatkami — kolumny: data, tytuł, kwota, kategoria. Przydatne jak chcesz coś policzyć w excelu (albo jak chcesz być dziadersem, o czym pisałem w sekcji <a href="expenses.html">Wydatki</a>).</p>
+
+    <h3>Upload History</h3>
+
+    <p>Lista wszystkich bulk importów które zrobiłeś. Przy każdym jest nazwa pliku, data i liczba wydatków. Jak się okaże, że zaimportowałeś nie ten plik albo coś poszło nie tak — klikasz "Delete" i cały upload (ze wszystkimi wydatkami) znika. Aplikacja poprosi o potwierdzenie żebyś nie usunął czegoś przypadkiem.</p>
+
+    <h3>Backup &amp; Restore</h3>
+
+    <p>To jest pewnie najważniejsza sekcja w Settings. Backup tworzy plik JSON z całą zawartością aplikacji: wydatki, reguły klasyfikacji i budżety. Restore wczytuje taki plik z powrotem.</p>
+
+    <h3>Tworzenie backupu</h3>
+
+    <p>Klikasz "Create Backup", wybierasz gdzie zapisać plik (domyślna nazwa: <code>zlotowa-backup-DATA.json</code>) i tyle. Polecam to robić regularnie, bo lepiej mieć backup i go nie potrzebować niż potrzebować i nie mieć.</p>
+
+    <h3>Przywracanie z backupu</h3>
+
+    <p>Klikasz "Restore from Backup", wskazujesz plik JSON. Zanim cokolwiek się stanie, aplikacja pokaże Ci preview: ile wydatków, reguł, kategorii i budżetów jest w backupie.</p>
+
+    <div class="note">
+      Restore nie nadpisuje istniejących danych — łączy je. Duplikaty wydatków (ten sam tytuł + kwota + data) są pomijane, reguły są aktualizowane, budżety z kolidującymi datami są skipowane. Twoje obecne dane są bezpieczne.
+    </div>
+
+    <p>Mimo to, aplikacja zaproponuje Ci zrobienie backupu aktualnych danych przed przywróceniem — i polecam to zrobić. Potem zaznaczasz checkbox "I want to proceed with the restore" i klikasz "Restore". Po zakończeniu zobaczysz podsumowanie: ile wydatków dodano, ile pominięto, ile reguł i budżetów wrzucono.</p>
+
+    <div class="tip">
+      Backup/restore przydaje się nie tylko do robienia kopii zapasowych. Możesz go użyć żeby przenieść dane na inny komputer — wystarczy zrobić backup na starym, wrzucić plik na nowy i zrobić restore.
+    </div>
+
+    <footer>
+      <p><a href="https://github.com/Jeeziorny/zlotowa">GitHub</a> · MIT License</p>
+    </footer>
+  </div>
+</body>
+</html>

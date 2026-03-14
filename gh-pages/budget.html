@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>złotówa — Planowanie budżetu</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="nav-inner">
+      <span class="nav-logo">złotówa</span>
+      <a href="index.html">Start</a>
+      <a href="import.html">Import</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="expenses.html">Wydatki</a>
+      <a href="categories.html">Kategorie</a>
+      <a href="budget.html" class="active">Budżet</a>
+      <a href="settings.html">Settings</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Planowanie budżetu</h1>
+      <p>Ustalanie limitów wydatków na poszczególne kategorie</p>
+    </div>
+
+    <nav class="toc">
+      <h2>Na tej stronie</h2>
+      <ol>
+        <li><a href="#idea"><span class="step-num">1.</span> O co chodzi</a></li>
+        <li><a href="#create"><span class="step-num">2.</span> Tworzenie budżetu</a></li>
+        <li><a href="#categories"><span class="step-num">3.</span> Ustawianie limitów</a></li>
+        <li><a href="#review"><span class="step-num">4.</span> Przegląd i zapis</a></li>
+        <li><a href="#overview"><span class="step-num">5.</span> Śledzenie budżetu</a></li>
+        <li><a href="#calendar"><span class="step-num">6.</span> Import kalendarza</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="idea"><span class="step">1</span> O co chodzi</h2>
+
+    <p>Pomysł jest prosty: ustalasz ile chcesz wydać w danym okresie na poszczególne kategorie, a potem aplikacja śledzi czy się wyrabiasz czy nie. Taki budżet domowy, tylko bez excela i bez awantury przy kolacji.</p>
+
+    <p>Budżet to zakres dat (np. 1-31 marca) + lista kategorii z limitami (np. Jedzenie: 800 zł, Transport: 200 zł). Złotówa porównuje te limity z faktycznymi wydatkami i pokazuje czy jest git czy niekoniecznie.</p>
+
+    <div class="tip">
+      Budżety nie mogą się na siebie nakładać. Jeden zakres dat = jeden budżet. Jak spróbujesz stworzyć budżet, który koliduje z istniejącym to aplikacja Ci nie pozwoli.
+    </div>
+
+    <h2 id="create"><span class="step">2</span> Tworzenie budżetu</h2>
+
+    <p>W zakładce Budget są dwa taby: "Overview" (przegląd istniejących budżetów) i "Create +" (tworzenie nowego). Klikasz "Create +" i zaczynamy.</p>
+
+    <h3>Krok 1: Zakres dat</h3>
+
+    <p>Najpierw trzeba ustalić na jaki okres jest budżet. Są dwa pola: "Start Date" i "End Date". Jeśli planujesz budżet na następny miesiąc to możesz kliknąć guzik "Next Month" — aplikacja sama wypełni daty od pierwszego do ostatniego dnia następnego miesiąca. Nie musisz nic liczyć, nie musisz sprawdzać czy luty ma 28 czy 29 dni.</p>
+
+    <p>Po ustawieniu dat klikasz "Next". Aplikacja sprawdzi czy wybrany zakres nie nachodzi na istniejący budżet. Jeśli wszystko gra — lecimy dalej.</p>
+
+    <h2 id="categories"><span class="step">3</span> Ustawianie limitów</h2>
+
+    <h3>Krok 2: Kategorie i kwoty</h3>
+
+    <p>Tu się dzieje magia. Aplikacja patrzy ile średnio wydawałeś w poszczególnych kategoriach przez ostatnie 3 miesiące i wstawia te kwoty jako sugestie. Nie musisz zgadywać "ile ja właściwie wydaję na jedzenie?" — złotówa Ci powie.</p>
+
+    <p>Oczywiście możesz te kwoty zmienić. Kolumna "Avg (3mo)" pokazuje średnią z 3 miesięcy, a kolumna "Budget" to edytowalne pole, w które wpisujesz ile chcesz wydać. Możesz usunąć kategorie, które Cię nie interesują (ikonka ×) albo dodać nowe klikając "+ Add more categories" na dole.</p>
+
+    <div class="tip">
+      Każda kategoria musi mieć kwotę większą niż 0. Nie da się stworzyć budżetu z zerowym limitem — to by nie miało sensu.
+    </div>
+
+    <h2 id="review"><span class="step">4</span> Przegląd i zapis</h2>
+
+    <h3>Krok 3: Podsumowanie</h3>
+
+    <p>Ostatni ekran przed zapisem. Pokazuje zakres dat, liczbę kategorii i łączną zabudżetowaną kwotę. Pod spodem lista wszystkich kategorii z przypisanymi kwotami. Jeśli coś się nie zgadza — "Back" i poprawiasz. Jeśli jest ok — "Create Budget" i gotowe.</p>
+
+    <h2 id="overview"><span class="step">5</span> Śledzenie budżetu</h2>
+
+    <p>Po stworzeniu budżetu wracasz do taba "Overview". Tutaj widzisz jak idzie realizacja:</p>
+
+    <ul>
+      <li><strong>Budgeted</strong> — ile zaplanowałeś łącznie</li>
+      <li><strong>Spent</strong> — ile wydałeś do tej pory</li>
+      <li><strong>Remaining / Over budget</strong> — ile zostało albo ile przegiąłeś</li>
+    </ul>
+
+    <p>Pod spodem każda kategoria ma swój pasek postępu. Kolory mówią same za siebie:</p>
+
+    <ul>
+      <li><strong>Zielony</strong> — luz, wydajesz mniej niż 80% limitu</li>
+      <li><strong>Żółty</strong> — uwaga, zbliżasz się do limitu (80-100%)</li>
+      <li><strong>Czerwony</strong> — no to poszło, przekroczony limit</li>
+    </ul>
+
+    <p>Jeśli masz więcej niż jeden budżet, możesz nawigować między nimi strzałkami. Aplikacja domyślnie pokazuje budżet, który obejmuje dzisiejszą datę.</p>
+
+    <div class="tip">
+      Limity kategorii możesz edytować w każdej chwili. Na ekranie Overview jest rozwijana sekcja "Edit category budgets" — klikasz, zmieniasz kwoty, zapisujesz. Nie trzeba tworzyć budżetu od nowa.
+    </div>
+
+    <div class="tip">
+      Na <a href="dashboard.html">Dashboardzie</a> jest widget "Budget Status", który pokazuje skrócony status aktywnego budżetu bez konieczności wchodzenia w zakładkę Budget.
+    </div>
+
+    <h2 id="calendar"><span class="step">6</span> Import kalendarza</h2>
+
+    <p>Opcjonalna funkcja dla ludzi, którzy planują z wyprzedzeniem (czytaj: nie dla mnie). Przy tworzeniu budżetu możesz wrzucić plik <code>.ics</code> ze swoim kalendarzem. Aplikacja wyciągnie z niego wydarzenia, które wpadają w zakres dat budżetu i wyświetli je na ekranie z limitami — tak żebyś widział co Cię czeka i mógł odpowiednio zaplanować kwoty.</p>
+
+    <p>Plik <code>.ics</code> możesz wyeksportować z Google Calendar, Apple Calendar albo dowolnej innej apki kalendarzowej. Wystarczy przeciągnąć go na ekran albo kliknąć "browse".</p>
+
+    <div class="note">
+      Aplikacja nie zapisuje Twojego kalendarza. Plik jest parsowany lokalnie, wyciągane są z niego daty i nazwy wydarzeń, i tyle. Po zamknięciu ekranu tworzenia budżetu dane z kalendarza znikają.
+    </div>
+
+    <footer>
+      <p><a href="https://github.com/Jeeziorny/zlotowa">GitHub</a> · MIT License</p>
+    </footer>
+  </div>
+</body>
+</html>

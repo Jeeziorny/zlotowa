@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>złotówa — Dashboard</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="nav-inner">
+      <span class="nav-logo">złotówa</span>
+      <a href="index.html">Start</a>
+      <a href="import.html">Import</a>
+      <a href="dashboard.html" class="active">Dashboard</a>
+      <a href="expenses.html">Wydatki</a>
+      <a href="categories.html">Kategorie</a>
+      <a href="budget.html">Budżet</a>
+      <a href="settings.html">Settings</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Dashboard</h1>
+      <p>Wykresy i widgety prezentujące Twoje wydatki</p>
+    </div>
+
+    <p>Po zaimportowaniu wydatków możemy wrócić do ekranu głównego poprzez naciśnięcie logo aplikacji złotówa. Naszym oczom domyślnie powinno pokazać się coś takiego:</p>
+
+    <img class="screenshot" src="images/dashboard-2.png" alt="Dashboard with expenses">
+
+    <h2>Edycja dashboardu</h2>
+
+    <p>Dashboard jest do pewnego stopnia otwarty na modyfikacje pod preferencje użytkownika. Widgety z wykresami można dodawać, usuwać i zmieniać ich położenie. W tym celu trzeba odpalić guzik "Edit Dashboard". Przy każdym kafelku pojawiają się strzałki umożliwiające przesunięcie widgetu na inną pozycję. Można też chwycić widget i przenieść w dowolne miejsce. Na samej górze pojawia się też przycisk "+ Add Widget", po naciśnięciu którego pojawia się lista dostępnych widgetów / wykresów w aplikacji.</p>
+
+    <p>Poniżej krótki opis każdego z dostępnych widgetów.</p>
+
+    <h2>Total Stats</h2>
+
+    <p>Trzy kafelki z podsumowaniem: łączna kwota wydatków, liczba transakcji i liczba użytych kategorii. Mozesz kliknac na niektore kafelki, ale w sumie sam nie wiem co sie wtedy stanie</p>
+
+    <h2>Spending by Category</h2>
+
+    <p>Donut chart, czyli wykres kołowy z dziurą w środku. Rozbija wydatki na kategorie, każda w innym kolorze. Można filtrować po zakresie dat — 1 miesiąc, 3, 6, rok albo wszystko.</p>
+
+    <h2>Biggest Expense</h2>
+
+    <p>Pokazuje najwiekszy wydatek w danym miesiacu. W sumie jest troche useless ale claude sie rozpedzil i go zaimplementowal.</p>
+
+    <h2>Monthly Trend</h2>
+
+    <p>Słupki pokazujące ile wydajesz z miesiąca na miesiąc. Dobry widget żeby zobaczyć czy trend jest rosnący (źle), malejący (dobrze) albo płaski (ok). Domyślnie ostatnie 6 miesięcy.</p>
+
+    <h2>Most Frequent</h2>
+
+    <p>Top 5 najczęściej pojawiających się tytułów wydatków.</p>
+
+    <h2>Budget Status</h2>
+
+    <p>Pokazuje jak idzie realizacja budżetu — ile zaplanowałeś, ile wydałeś, ile zostało. Pasek zmienia kolor: zielony to luz, żółty to uwaga, czerwony oznacza ze jest slabo. Wymaga wcześniejszego ustawienia budżetu w zakładce <a href="budget.html">Budżet</a>.</p>
+
+    <h2>Daily Spending</h2>
+
+    <p>Wykres dziennych wydatków w danym miesiącu — linia, a do tego przerywana linia średniej. Można przełączać miesiące strzałkami.</p>
+
+    <h2>Category Trend</h2>
+
+    <p>Wykres liniowy pokazujący jak zmieniają się wydatki w top 3 kategoriach na przestrzeni czasu.</p>
+
+    <h2>Day of Week</h2>
+
+    <p>Słupki od poniedziałku do niedzieli. Agreguje wydatki z wybranego zakresu dat i pokazuje w który dzień tygodnia wydajesz najwięcej.</p>
+
+    <h2>Month over Month</h2>
+
+    <p>Porównanie bieżącego miesiąca z poprzednim — top 6 kategorii, obok siebie. Żółte słupki to ten miesiąc, szare to poprzedni. Na górze wyświetla się łączna różnica z procentem zmiany. Można nawigować między miesiącami.</p>
+
+    <h2>Keyword Tracker</h2>
+
+    <p>Jedyny widget który wymaga konfiguracji. Po wybraniu go z listy, aplikacja poprosi o wpisanie słów kluczowych:</p>
+
+    <img class="screenshot" src="images/dashboard-keyword-tracker-setup.png" alt="Keyword tracker setup screen">
+
+    <p>Każde ze słów kluczowych trzeba potwierdzić enterem.</p>
+
+    <p>Keyword Tracker stworzy wykres, na którego osi X będą wszystkie wydatki posiadające słowa wprowadzone w poprzednim ekranie (w tym przypadku będzie to LIDL i ZABKA). Oś Y pokazuje ilość pieniędzy która poszła na te wydatki. Każdy słupek oznacza 1 miesiąc.</p>
+
+    <div class="tip">
+      Keyword Tracker może wystąpić na dashboardzie dowolną ilość razy, za każdym razem z innymi słowami kluczowymi. Jeden na sklepy spożywcze, drugi na kawiarnię, trzeci na kebab — Twój dashboard, Twoje zasady.
+    </div>
+
+    <h2>Domyślny zestaw</h2>
+
+    <p>Przy pierwszym uruchomieniu na dashboardzie pojawiają się 4 widgety: Total Stats, Spending by Category, Biggest Expense i Daily Spending. Reszta czeka cierpliwie w "+ Add Widget" na ustawienie.</p>
+
+    <footer>
+      <p><a href="https://github.com/Jeeziorny/zlotowa">GitHub</a> · MIT License</p>
+    </footer>
+  </div>
+</body>
+</html>

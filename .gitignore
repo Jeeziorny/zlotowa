@@ -12,5 +12,6 @@ docs/book/
 *.csv
 *.zip
 *.html
+!gh-pages/*.html
 *.svg
 kamil-insights_files/
