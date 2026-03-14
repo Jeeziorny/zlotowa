@@ -1,4 +1,5 @@
-Claude Code v2.1.72
+Tutorial: https://jeeziorny.github.io/zlotowa/
+English docs are in docs directory within project root.
 
 ❯ /clear                                                                        
   ⎿  (no content)
